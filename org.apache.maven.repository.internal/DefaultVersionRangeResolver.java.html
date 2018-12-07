@@ -1,0 +1,297 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultVersionRangeResolver.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository.internal</a> &gt; <span class="el_source">DefaultVersionRangeResolver.java</span></div><h1>DefaultVersionRangeResolver.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository.internal;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.commons.lang3.Validate;
+import org.apache.maven.artifact.repository.metadata.Versioning;
+import org.apache.maven.artifact.repository.metadata.io.xpp3.MetadataXpp3Reader;
+import org.eclipse.aether.RepositoryEvent;
+import org.eclipse.aether.RepositoryEvent.EventType;
+import org.eclipse.aether.RepositorySystemSession;
+import org.eclipse.aether.RequestTrace;
+import org.eclipse.aether.SyncContext;
+import org.eclipse.aether.impl.MetadataResolver;
+import org.eclipse.aether.impl.RepositoryEventDispatcher;
+import org.eclipse.aether.impl.SyncContextFactory;
+import org.eclipse.aether.impl.VersionRangeResolver;
+import org.eclipse.aether.metadata.DefaultMetadata;
+import org.eclipse.aether.metadata.Metadata;
+import org.eclipse.aether.repository.ArtifactRepository;
+import org.eclipse.aether.repository.RemoteRepository;
+import org.eclipse.aether.repository.WorkspaceReader;
+import org.eclipse.aether.resolution.MetadataRequest;
+import org.eclipse.aether.resolution.MetadataResult;
+import org.eclipse.aether.resolution.VersionRangeRequest;
+import org.eclipse.aether.resolution.VersionRangeResolutionException;
+import org.eclipse.aether.resolution.VersionRangeResult;
+import org.eclipse.aether.spi.locator.Service;
+import org.eclipse.aether.spi.locator.ServiceLocator;
+import org.eclipse.aether.spi.log.Logger;
+import org.eclipse.aether.spi.log.LoggerFactory;
+import org.eclipse.aether.spi.log.NullLoggerFactory;
+import org.eclipse.aether.util.version.GenericVersionScheme;
+import org.eclipse.aether.version.InvalidVersionSpecificationException;
+import org.eclipse.aether.version.Version;
+import org.eclipse.aether.version.VersionConstraint;
+import org.eclipse.aether.version.VersionScheme;
+
+import javax.inject.Inject;
+import javax.inject.Named;
+import javax.inject.Singleton;
+
+import java.io.FileInputStream;
+import java.io.InputStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * @author Benjamin Bentmann
+ */
+@Named
+@Singleton
+public class DefaultVersionRangeResolver
+    implements VersionRangeResolver, Service
+{
+
+    private static final String MAVEN_METADATA_XML = &quot;maven-metadata.xml&quot;;
+
+<span class="pc" id="L78">    @SuppressWarnings( &quot;unused&quot; )</span>
+    private Logger logger = NullLoggerFactory.LOGGER;
+
+    private MetadataResolver metadataResolver;
+
+    private SyncContextFactory syncContextFactory;
+
+    private RepositoryEventDispatcher repositoryEventDispatcher;
+
+    public DefaultVersionRangeResolver()
+<span class="nc" id="L88">    {</span>
+        // enable default constructor
+<span class="nc" id="L90">    }</span>
+
+    @Inject
+    DefaultVersionRangeResolver( MetadataResolver metadataResolver, SyncContextFactory syncContextFactory,
+                                 RepositoryEventDispatcher repositoryEventDispatcher, LoggerFactory loggerFactory )
+<span class="fc" id="L95">    {</span>
+<span class="fc" id="L96">        setMetadataResolver( metadataResolver );</span>
+<span class="fc" id="L97">        setSyncContextFactory( syncContextFactory );</span>
+<span class="fc" id="L98">        setLoggerFactory( loggerFactory );</span>
+<span class="fc" id="L99">        setRepositoryEventDispatcher( repositoryEventDispatcher );</span>
+<span class="fc" id="L100">    }</span>
+
+    public void initService( ServiceLocator locator )
+    {
+<span class="nc" id="L104">        setLoggerFactory( locator.getService( LoggerFactory.class ) );</span>
+<span class="nc" id="L105">        setMetadataResolver( locator.getService( MetadataResolver.class ) );</span>
+<span class="nc" id="L106">        setSyncContextFactory( locator.getService( SyncContextFactory.class ) );</span>
+<span class="nc" id="L107">        setRepositoryEventDispatcher( locator.getService( RepositoryEventDispatcher.class ) );</span>
+<span class="nc" id="L108">    }</span>
+
+    public DefaultVersionRangeResolver setLoggerFactory( LoggerFactory loggerFactory )
+    {
+<span class="fc" id="L112">        this.logger = NullLoggerFactory.getSafeLogger( loggerFactory, getClass() );</span>
+<span class="fc" id="L113">        return this;</span>
+    }
+
+    void setLogger( LoggerFactory loggerFactory )
+    {
+        // plexus support
+<span class="nc" id="L119">        setLoggerFactory( loggerFactory );</span>
+<span class="nc" id="L120">    }</span>
+
+    public DefaultVersionRangeResolver setMetadataResolver( MetadataResolver metadataResolver )
+    {
+<span class="fc" id="L124">        this.metadataResolver = Validate.notNull( metadataResolver, &quot;metadataResolver cannot be null&quot; );</span>
+<span class="fc" id="L125">        return this;</span>
+    }
+
+    public DefaultVersionRangeResolver setSyncContextFactory( SyncContextFactory syncContextFactory )
+    {
+<span class="fc" id="L130">        this.syncContextFactory = Validate.notNull( syncContextFactory, &quot;syncContextFactory cannot be null&quot; );</span>
+<span class="fc" id="L131">        return this;</span>
+    }
+
+    public DefaultVersionRangeResolver setRepositoryEventDispatcher(
+        RepositoryEventDispatcher repositoryEventDispatcher )
+    {
+<span class="fc" id="L137">        this.repositoryEventDispatcher = Validate.notNull( repositoryEventDispatcher,</span>
+            &quot;repositoryEventDispatcher cannot be null&quot; );
+<span class="fc" id="L139">        return this;</span>
+    }
+
+    public VersionRangeResult resolveVersionRange( RepositorySystemSession session, VersionRangeRequest request )
+        throws VersionRangeResolutionException
+    {
+<span class="fc" id="L145">        VersionRangeResult result = new VersionRangeResult( request );</span>
+
+<span class="fc" id="L147">        VersionScheme versionScheme = new GenericVersionScheme();</span>
+
+        VersionConstraint versionConstraint;
+        try
+        {
+<span class="fc" id="L152">            versionConstraint = versionScheme.parseVersionConstraint( request.getArtifact().getVersion() );</span>
+        }
+<span class="nc" id="L154">        catch ( InvalidVersionSpecificationException e )</span>
+        {
+<span class="nc" id="L156">            result.addException( e );</span>
+<span class="nc" id="L157">            throw new VersionRangeResolutionException( result );</span>
+<span class="fc" id="L158">        }</span>
+
+<span class="fc" id="L160">        result.setVersionConstraint( versionConstraint );</span>
+
+<span class="fc bfc" id="L162" title="All 2 branches covered.">        if ( versionConstraint.getRange() == null )</span>
+        {
+<span class="fc" id="L164">            result.addVersion( versionConstraint.getVersion() );</span>
+        }
+        else
+        {
+<span class="fc" id="L168">            Map&lt;String, ArtifactRepository&gt; versionIndex = getVersions( session, result, request );</span>
+
+<span class="fc" id="L170">            List&lt;Version&gt; versions = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L171" title="All 2 branches covered.">            for ( Map.Entry&lt;String, ArtifactRepository&gt; v : versionIndex.entrySet() )</span>
+            {
+                try
+                {
+<span class="fc" id="L175">                    Version ver = versionScheme.parseVersion( v.getKey() );</span>
+<span class="pc bpc" id="L176" title="1 of 2 branches missed.">                    if ( versionConstraint.containsVersion( ver ) )</span>
+                    {
+<span class="fc" id="L178">                        versions.add( ver );</span>
+<span class="fc" id="L179">                        result.setRepository( ver, v.getValue() );</span>
+                    }
+                }
+<span class="nc" id="L182">                catch ( InvalidVersionSpecificationException e )</span>
+                {
+<span class="nc" id="L184">                    result.addException( e );</span>
+<span class="fc" id="L185">                }</span>
+<span class="fc" id="L186">            }</span>
+
+<span class="fc" id="L188">            Collections.sort( versions );</span>
+<span class="fc" id="L189">            result.setVersions( versions );</span>
+        }
+
+<span class="fc" id="L192">        return result;</span>
+    }
+
+    private Map&lt;String, ArtifactRepository&gt; getVersions( RepositorySystemSession session, VersionRangeResult result,
+                                                         VersionRangeRequest request )
+    {
+<span class="fc" id="L198">        RequestTrace trace = RequestTrace.newChild( request.getTrace(), request );</span>
+
+<span class="fc" id="L200">        Map&lt;String, ArtifactRepository&gt; versionIndex = new HashMap&lt;&gt;();</span>
+
+<span class="fc" id="L202">        Metadata metadata =</span>
+            new DefaultMetadata( request.getArtifact().getGroupId(), request.getArtifact().getArtifactId(),
+                                 MAVEN_METADATA_XML, Metadata.Nature.RELEASE_OR_SNAPSHOT );
+
+<span class="fc" id="L206">        List&lt;MetadataRequest&gt; metadataRequests = new ArrayList&lt;&gt;( request.getRepositories().size() );</span>
+
+<span class="fc" id="L208">        metadataRequests.add( new MetadataRequest( metadata, null, request.getRequestContext() ) );</span>
+
+<span class="fc bfc" id="L210" title="All 2 branches covered.">        for ( RemoteRepository repository : request.getRepositories() )</span>
+        {
+<span class="fc" id="L212">            MetadataRequest metadataRequest = new MetadataRequest( metadata, repository, request.getRequestContext() );</span>
+<span class="fc" id="L213">            metadataRequest.setDeleteLocalCopyIfMissing( true );</span>
+<span class="fc" id="L214">            metadataRequest.setTrace( trace );</span>
+<span class="fc" id="L215">            metadataRequests.add( metadataRequest );</span>
+<span class="fc" id="L216">        }</span>
+
+<span class="fc" id="L218">        List&lt;MetadataResult&gt; metadataResults = metadataResolver.resolveMetadata( session, metadataRequests );</span>
+
+<span class="fc" id="L220">        WorkspaceReader workspace = session.getWorkspaceReader();</span>
+<span class="pc bpc" id="L221" title="1 of 2 branches missed.">        if ( workspace != null )</span>
+        {
+<span class="fc" id="L223">            List&lt;String&gt; versions = workspace.findVersions( request.getArtifact() );</span>
+<span class="fc bfc" id="L224" title="All 2 branches covered.">            for ( String version : versions )</span>
+            {
+<span class="fc" id="L226">                versionIndex.put( version, workspace.getRepository() );</span>
+<span class="fc" id="L227">            }</span>
+        }
+
+<span class="fc bfc" id="L230" title="All 2 branches covered.">        for ( MetadataResult metadataResult : metadataResults )</span>
+        {
+<span class="fc" id="L232">            result.addException( metadataResult.getException() );</span>
+
+<span class="fc" id="L234">            ArtifactRepository repository = metadataResult.getRequest().getRepository();</span>
+<span class="fc bfc" id="L235" title="All 2 branches covered.">            if ( repository == null )</span>
+            {
+<span class="fc" id="L237">                repository = session.getLocalRepository();</span>
+            }
+
+<span class="fc" id="L240">            Versioning versioning = readVersions( session, trace, metadataResult.getMetadata(), repository, result );</span>
+<span class="fc bfc" id="L241" title="All 2 branches covered.">            for ( String version : versioning.getVersions() )</span>
+            {
+<span class="fc bfc" id="L243" title="All 2 branches covered.">                if ( !versionIndex.containsKey( version ) )</span>
+                {
+<span class="fc" id="L245">                    versionIndex.put( version, repository );</span>
+                }
+<span class="fc" id="L247">            }</span>
+<span class="fc" id="L248">        }</span>
+
+<span class="fc" id="L250">        return versionIndex;</span>
+    }
+
+    private Versioning readVersions( RepositorySystemSession session, RequestTrace trace, Metadata metadata,
+                                     ArtifactRepository repository, VersionRangeResult result )
+    {
+<span class="fc" id="L256">        Versioning versioning = null;</span>
+        try
+        {
+<span class="fc bfc" id="L259" title="All 2 branches covered.">            if ( metadata != null )</span>
+            {
+<span class="fc" id="L261">                try ( SyncContext syncContext = syncContextFactory.newInstance( session, true ) )</span>
+                {
+<span class="fc" id="L263">                    syncContext.acquire( null, Collections.singleton( metadata ) );</span>
+
+<span class="pc bpc" id="L265" title="2 of 4 branches missed.">                    if ( metadata.getFile() != null &amp;&amp; metadata.getFile().exists() )</span>
+                    {
+<span class="fc" id="L267">                        try ( final InputStream in = new FileInputStream( metadata.getFile() ) )</span>
+                        {
+<span class="fc" id="L269">                            versioning = new MetadataXpp3Reader().read( in, false ).getVersioning();</span>
+                        }
+                    }
+                }
+            }
+        }
+<span class="nc" id="L275">        catch ( Exception e )</span>
+        {
+<span class="nc" id="L277">            invalidMetadata( session, trace, metadata, repository, e );</span>
+<span class="nc" id="L278">            result.addException( e );</span>
+<span class="fc" id="L279">        }</span>
+
+<span class="fc bfc" id="L281" title="All 2 branches covered.">        return ( versioning != null ) ? versioning : new Versioning();</span>
+    }
+
+    private void invalidMetadata( RepositorySystemSession session, RequestTrace trace, Metadata metadata,
+                                  ArtifactRepository repository, Exception exception )
+    {
+<span class="nc" id="L287">        RepositoryEvent.Builder event = new RepositoryEvent.Builder( session, EventType.METADATA_INVALID );</span>
+<span class="nc" id="L288">        event.setTrace( trace );</span>
+<span class="nc" id="L289">        event.setMetadata( metadata );</span>
+<span class="nc" id="L290">        event.setException( exception );</span>
+<span class="nc" id="L291">        event.setRepository( repository );</span>
+
+<span class="nc" id="L293">        repositoryEventDispatcher.dispatch( event.build() );</span>
+<span class="nc" id="L294">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

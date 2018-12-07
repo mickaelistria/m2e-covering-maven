@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MavenAetherModule.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository.internal</a> &gt; <span class="el_source">MavenAetherModule.java</span></div><h1>MavenAetherModule.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository.internal;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
+
+import javax.inject.Named;
+import javax.inject.Singleton;
+
+import org.apache.maven.model.building.DefaultModelBuilderFactory;
+import org.apache.maven.model.building.ModelBuilder;
+import org.eclipse.aether.impl.AetherModule;
+import org.eclipse.aether.impl.ArtifactDescriptorReader;
+import org.eclipse.aether.impl.MetadataGeneratorFactory;
+import org.eclipse.aether.impl.VersionRangeResolver;
+import org.eclipse.aether.impl.VersionResolver;
+
+import com.google.inject.AbstractModule;
+import com.google.inject.Provides;
+import com.google.inject.name.Names;
+
+/**
+ * @deprecated As of Maven Resolver 1.0.3, please use class {@link MavenResolverModule}.
+ */
+@Deprecated
+<span class="nc" id="L45">public final class MavenAetherModule</span>
+    extends AbstractModule
+{
+
+    @Override
+    protected void configure()
+    {
+<span class="nc" id="L52">        install( new AetherModule() );</span>
+<span class="nc" id="L53">        bind( ArtifactDescriptorReader.class ) //</span>
+        .to( DefaultArtifactDescriptorReader.class ).in( Singleton.class );
+<span class="nc" id="L55">        bind( VersionResolver.class ) //</span>
+        .to( DefaultVersionResolver.class ).in( Singleton.class );
+<span class="nc" id="L57">        bind( VersionRangeResolver.class ) //</span>
+        .to( DefaultVersionRangeResolver.class ).in( Singleton.class );
+<span class="nc" id="L59">        bind( MetadataGeneratorFactory.class ).annotatedWith( Names.named( &quot;snapshot&quot; ) ) //</span>
+        .to( SnapshotMetadataGeneratorFactory.class ).in( Singleton.class );
+<span class="nc" id="L61">        bind( MetadataGeneratorFactory.class ).annotatedWith( Names.named( &quot;versions&quot; ) ) //</span>
+        .to( VersionsMetadataGeneratorFactory.class ).in( Singleton.class );
+<span class="nc" id="L63">        bind( ModelBuilder.class ) //</span>
+        .toInstance( new DefaultModelBuilderFactory().newInstance() );
+<span class="nc" id="L65">    }</span>
+
+    @Provides
+    @Singleton
+    Set&lt;MetadataGeneratorFactory&gt; provideMetadataGeneratorFactories( @Named( &quot;snapshot&quot; )
+                                                                     MetadataGeneratorFactory snapshot,
+                                                                     @Named( &quot;versions&quot; )
+                                                                     MetadataGeneratorFactory versions )
+    {
+<span class="nc" id="L74">        Set&lt;MetadataGeneratorFactory&gt; factories = new HashSet&lt;&gt;();</span>
+<span class="nc" id="L75">        factories.add( snapshot );</span>
+<span class="nc" id="L76">        factories.add( versions );</span>
+<span class="nc" id="L77">        return Collections.unmodifiableSet( factories );</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Proxy.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository</a> &gt; <span class="el_source">Proxy.java</span></div><h1>Proxy.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/**
+ * Proxy
+ */
+<span class="fc" id="L25">public class Proxy</span>
+{
+    public static final String PROXY_SOCKS5 = &quot;SOCKS_5&quot;;
+
+    public static final String PROXY_SOCKS4 = &quot;SOCKS4&quot;;
+
+    public static final String PROXY_HTTP = &quot;HTTP&quot;;
+
+    /**
+     * Proxy server host
+     */
+    private String host;
+
+    /**
+     * Username used to access the proxy server
+     */
+    private String userName;
+
+    /**
+     * Password associated with the proxy server
+     */
+    private String password;
+
+    /**
+     * Proxy server port
+     */
+    private int port;
+
+    /**
+     * Type of the proxy
+     */
+    private String protocol;
+
+    /**
+     * The non-proxy hosts. Follows Java system property format: &lt;code&gt;*.foo.com|localhost&lt;/code&gt;.
+     */
+    private String nonProxyHosts;
+
+    /**
+     * For NTLM proxies, specifies the NTLM host.
+     */
+    private String ntlmHost;
+
+    /**
+     * For NTLM proxies, specifies the NTLM domain.
+     */
+    private String ntlmDomain;
+
+    /**
+     * Return proxy server host name.
+     *
+     * @return proxy server host name
+     */
+    public String getHost()
+    {
+<span class="fc" id="L80">        return host;</span>
+    }
+
+    /**
+     * Set proxy host name.
+     *
+     * @param host proxy server host name
+     */
+    public void setHost( String host )
+    {
+<span class="fc" id="L90">        this.host = host;</span>
+<span class="fc" id="L91">    }</span>
+
+    /**
+     * Get user's password used to login to proxy server.
+     *
+     * @return user's password at proxy host
+     */
+    public String getPassword()
+    {
+<span class="fc" id="L100">        return password;</span>
+    }
+
+    /**
+     * Set the user's password for the proxy server.
+     *
+     * @param password password to use to login to a proxy server
+     */
+    public void setPassword( String password )
+    {
+<span class="fc" id="L110">        this.password = password;</span>
+<span class="fc" id="L111">    }</span>
+
+    /**
+     * Get the proxy port.
+     *
+     * @return proxy server port
+     */
+    public int getPort()
+    {
+<span class="fc" id="L120">        return port;</span>
+    }
+
+    /**
+     * Set the proxy port.
+     *
+     * @param port proxy server port
+     */
+    public void setPort( int port )
+    {
+<span class="fc" id="L130">        this.port = port;</span>
+<span class="fc" id="L131">    }</span>
+
+    /**
+     * Get the proxy username.
+     *
+     * @return username for the proxy server
+     */
+    public String getUserName()
+    {
+<span class="fc" id="L140">        return userName;</span>
+    }
+
+    /**
+     * Set the proxy username.
+     *
+     * @param userName username for the proxy server
+     */
+    public void setUserName( String userName )
+    {
+<span class="fc" id="L150">        this.userName = userName;</span>
+<span class="fc" id="L151">    }</span>
+
+    /**
+     * Get the protocol of the proxy server.
+     *
+     * @return the protocol of the proxy server
+     */
+    public String getProtocol()
+    {
+<span class="fc" id="L160">        return protocol;</span>
+    }
+
+    /**
+     * @param protocol the protocol of the proxy server like &lt;i&gt;SOCKSv4&lt;/i&gt;
+     */
+    public void setProtocol( String protocol )
+    {
+<span class="fc" id="L168">        this.protocol = protocol;</span>
+<span class="fc" id="L169">    }</span>
+
+    public String getNonProxyHosts()
+    {
+<span class="nc" id="L173">        return nonProxyHosts;</span>
+    }
+
+    public void setNonProxyHosts( String nonProxyHosts )
+    {
+<span class="fc" id="L178">        this.nonProxyHosts = nonProxyHosts;</span>
+<span class="fc" id="L179">    }</span>
+
+    public String getNtlmHost()
+    {
+<span class="nc" id="L183">        return ntlmHost;</span>
+    }
+
+    public void setNtlmHost( String ntlmHost )
+    {
+<span class="fc" id="L188">        this.ntlmHost = ntlmHost;</span>
+<span class="fc" id="L189">    }</span>
+
+    public void setNtlmDomain( String ntlmDomain )
+    {
+<span class="fc" id="L193">        this.ntlmDomain = ntlmDomain;</span>
+<span class="fc" id="L194">    }</span>
+
+    public String getNtlmDomain()
+    {
+<span class="nc" id="L198">        return ntlmDomain;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

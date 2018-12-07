@@ -1,0 +1,244 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultModelBuilderFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.model.building</a> &gt; <span class="el_source">DefaultModelBuilderFactory.java</span></div><h1>DefaultModelBuilderFactory.java</h1><pre class="source lang-java linenums">package org.apache.maven.model.building;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.maven.model.Model;
+import org.apache.maven.model.composition.DefaultDependencyManagementImporter;
+import org.apache.maven.model.composition.DependencyManagementImporter;
+import org.apache.maven.model.inheritance.DefaultInheritanceAssembler;
+import org.apache.maven.model.inheritance.InheritanceAssembler;
+import org.apache.maven.model.interpolation.ModelInterpolator;
+import org.apache.maven.model.interpolation.StringSearchModelInterpolator;
+import org.apache.maven.model.io.DefaultModelReader;
+import org.apache.maven.model.io.ModelReader;
+import org.apache.maven.model.locator.DefaultModelLocator;
+import org.apache.maven.model.locator.ModelLocator;
+import org.apache.maven.model.management.DefaultDependencyManagementInjector;
+import org.apache.maven.model.management.DefaultPluginManagementInjector;
+import org.apache.maven.model.management.DependencyManagementInjector;
+import org.apache.maven.model.management.PluginManagementInjector;
+import org.apache.maven.model.normalization.DefaultModelNormalizer;
+import org.apache.maven.model.normalization.ModelNormalizer;
+import org.apache.maven.model.path.DefaultModelPathTranslator;
+import org.apache.maven.model.path.DefaultModelUrlNormalizer;
+import org.apache.maven.model.path.DefaultPathTranslator;
+import org.apache.maven.model.path.DefaultUrlNormalizer;
+import org.apache.maven.model.path.ModelPathTranslator;
+import org.apache.maven.model.path.ModelUrlNormalizer;
+import org.apache.maven.model.path.PathTranslator;
+import org.apache.maven.model.path.UrlNormalizer;
+import org.apache.maven.model.plugin.DefaultPluginConfigurationExpander;
+import org.apache.maven.model.plugin.DefaultReportConfigurationExpander;
+import org.apache.maven.model.plugin.DefaultReportingConverter;
+import org.apache.maven.model.plugin.LifecycleBindingsInjector;
+import org.apache.maven.model.plugin.PluginConfigurationExpander;
+import org.apache.maven.model.plugin.ReportConfigurationExpander;
+import org.apache.maven.model.plugin.ReportingConverter;
+import org.apache.maven.model.profile.DefaultProfileInjector;
+import org.apache.maven.model.profile.DefaultProfileSelector;
+import org.apache.maven.model.profile.ProfileInjector;
+import org.apache.maven.model.profile.ProfileSelector;
+import org.apache.maven.model.profile.activation.FileProfileActivator;
+import org.apache.maven.model.profile.activation.JdkVersionProfileActivator;
+import org.apache.maven.model.profile.activation.OperatingSystemProfileActivator;
+import org.apache.maven.model.profile.activation.ProfileActivator;
+import org.apache.maven.model.profile.activation.PropertyProfileActivator;
+import org.apache.maven.model.superpom.DefaultSuperPomProvider;
+import org.apache.maven.model.superpom.SuperPomProvider;
+import org.apache.maven.model.validation.DefaultModelValidator;
+import org.apache.maven.model.validation.ModelValidator;
+
+/**
+ * A factory to create model builder instances when no dependency injection is available. &lt;em&gt;Note:&lt;/em&gt; This class is
+ * only meant as a utility for developers that want to employ the model builder outside of the Maven build system, Maven
+ * plugins should always acquire model builder instances via dependency injection. Developers might want to subclass
+ * this factory to provide custom implementations for some of the components used by the model builder.
+ *
+ * @author Benjamin Bentmann
+ */
+<span class="nc" id="L76">public class DefaultModelBuilderFactory</span>
+{
+
+    protected ModelProcessor newModelProcessor()
+    {
+<span class="nc" id="L81">        DefaultModelProcessor processor = new DefaultModelProcessor();</span>
+<span class="nc" id="L82">        processor.setModelLocator( newModelLocator() );</span>
+<span class="nc" id="L83">        processor.setModelReader( newModelReader() );</span>
+<span class="nc" id="L84">        return processor;</span>
+    }
+
+    protected ModelLocator newModelLocator()
+    {
+<span class="nc" id="L89">        return new DefaultModelLocator();</span>
+    }
+
+    protected ModelReader newModelReader()
+    {
+<span class="nc" id="L94">        return new DefaultModelReader();</span>
+    }
+
+    protected ProfileSelector newProfileSelector()
+    {
+<span class="nc" id="L99">        DefaultProfileSelector profileSelector = new DefaultProfileSelector();</span>
+
+<span class="nc bnc" id="L101" title="All 2 branches missed.">        for ( ProfileActivator activator : newProfileActivators() )</span>
+        {
+<span class="nc" id="L103">            profileSelector.addProfileActivator( activator );</span>
+        }
+
+<span class="nc" id="L106">        return profileSelector;</span>
+    }
+
+    protected ProfileActivator[] newProfileActivators()
+    {
+<span class="nc" id="L111">        return new ProfileActivator[] { new JdkVersionProfileActivator(), new OperatingSystemProfileActivator(),</span>
+            new PropertyProfileActivator(), new FileProfileActivator().setPathTranslator( newPathTranslator() ) };
+    }
+
+    protected UrlNormalizer newUrlNormalizer()
+    {
+<span class="nc" id="L117">        return new DefaultUrlNormalizer();</span>
+    }
+
+    protected PathTranslator newPathTranslator()
+    {
+<span class="nc" id="L122">        return new DefaultPathTranslator();</span>
+    }
+
+    protected ModelInterpolator newModelInterpolator()
+    {
+<span class="nc" id="L127">        UrlNormalizer normalizer = newUrlNormalizer();</span>
+<span class="nc" id="L128">        PathTranslator pathTranslator = newPathTranslator();</span>
+<span class="nc" id="L129">        return new StringSearchModelInterpolator().setPathTranslator( pathTranslator ).setUrlNormalizer( normalizer );</span>
+    }
+
+    protected ModelValidator newModelValidator()
+    {
+<span class="nc" id="L134">        return new DefaultModelValidator();</span>
+    }
+
+    protected ModelNormalizer newModelNormalizer()
+    {
+<span class="nc" id="L139">        return new DefaultModelNormalizer();</span>
+    }
+
+    protected ModelPathTranslator newModelPathTranslator()
+    {
+<span class="nc" id="L144">        return new DefaultModelPathTranslator().setPathTranslator( newPathTranslator() );</span>
+    }
+
+    protected ModelUrlNormalizer newModelUrlNormalizer()
+    {
+<span class="nc" id="L149">        return new DefaultModelUrlNormalizer().setUrlNormalizer( newUrlNormalizer() );</span>
+    }
+
+    protected InheritanceAssembler newInheritanceAssembler()
+    {
+<span class="nc" id="L154">        return new DefaultInheritanceAssembler();</span>
+    }
+
+    protected ProfileInjector newProfileInjector()
+    {
+<span class="nc" id="L159">        return new DefaultProfileInjector();</span>
+    }
+
+    protected SuperPomProvider newSuperPomProvider()
+    {
+<span class="nc" id="L164">        return new DefaultSuperPomProvider().setModelProcessor( newModelProcessor() );</span>
+    }
+
+    protected DependencyManagementImporter newDependencyManagementImporter()
+    {
+<span class="nc" id="L169">        return new DefaultDependencyManagementImporter();</span>
+    }
+
+    protected DependencyManagementInjector newDependencyManagementInjector()
+    {
+<span class="nc" id="L174">        return new DefaultDependencyManagementInjector();</span>
+    }
+
+    protected LifecycleBindingsInjector newLifecycleBindingsInjector()
+    {
+<span class="nc" id="L179">        return new StubLifecycleBindingsInjector();</span>
+    }
+
+    protected PluginManagementInjector newPluginManagementInjector()
+    {
+<span class="nc" id="L184">        return new DefaultPluginManagementInjector();</span>
+    }
+
+    protected PluginConfigurationExpander newPluginConfigurationExpander()
+    {
+<span class="nc" id="L189">        return new DefaultPluginConfigurationExpander();</span>
+    }
+
+    protected ReportConfigurationExpander newReportConfigurationExpander()
+    {
+<span class="nc" id="L194">        return new DefaultReportConfigurationExpander();</span>
+    }
+
+    protected ReportingConverter newReportingConverter()
+    {
+<span class="nc" id="L199">        return new DefaultReportingConverter();</span>
+    }
+
+    /**
+     * Creates a new model builder instance.
+     *
+     * @return The new model builder instance, never {@code null}.
+     */
+    public DefaultModelBuilder newInstance()
+    {
+<span class="nc" id="L209">        DefaultModelBuilder modelBuilder = new DefaultModelBuilder();</span>
+
+<span class="nc" id="L211">        modelBuilder.setModelProcessor( newModelProcessor() );</span>
+<span class="nc" id="L212">        modelBuilder.setModelValidator( newModelValidator() );</span>
+<span class="nc" id="L213">        modelBuilder.setModelNormalizer( newModelNormalizer() );</span>
+<span class="nc" id="L214">        modelBuilder.setModelPathTranslator( newModelPathTranslator() );</span>
+<span class="nc" id="L215">        modelBuilder.setModelUrlNormalizer( newModelUrlNormalizer() );</span>
+<span class="nc" id="L216">        modelBuilder.setModelInterpolator( newModelInterpolator() );</span>
+<span class="nc" id="L217">        modelBuilder.setInheritanceAssembler( newInheritanceAssembler() );</span>
+<span class="nc" id="L218">        modelBuilder.setProfileInjector( newProfileInjector() );</span>
+<span class="nc" id="L219">        modelBuilder.setProfileSelector( newProfileSelector() );</span>
+<span class="nc" id="L220">        modelBuilder.setSuperPomProvider( newSuperPomProvider() );</span>
+<span class="nc" id="L221">        modelBuilder.setDependencyManagementImporter( newDependencyManagementImporter() );</span>
+<span class="nc" id="L222">        modelBuilder.setDependencyManagementInjector( newDependencyManagementInjector() );</span>
+<span class="nc" id="L223">        modelBuilder.setLifecycleBindingsInjector( newLifecycleBindingsInjector() );</span>
+<span class="nc" id="L224">        modelBuilder.setPluginManagementInjector( newPluginManagementInjector() );</span>
+<span class="nc" id="L225">        modelBuilder.setPluginConfigurationExpander( newPluginConfigurationExpander() );</span>
+<span class="nc" id="L226">        modelBuilder.setReportConfigurationExpander( newReportConfigurationExpander() );</span>
+<span class="nc" id="L227">        modelBuilder.setReportingConverter( newReportingConverter() );</span>
+
+<span class="nc" id="L229">        return modelBuilder;</span>
+    }
+
+<span class="nc" id="L232">    private static class StubLifecycleBindingsInjector</span>
+        implements LifecycleBindingsInjector
+    {
+
+        @Override
+        public void injectLifecycleBindings( Model model, ModelBuildingRequest request, ModelProblemCollector problems )
+        {
+<span class="nc" id="L239">        }</span>
+
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

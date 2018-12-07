@@ -1,0 +1,325 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultMavenProjectBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.project</a> &gt; <span class="el_source">DefaultMavenProjectBuilder.java</span></div><h1>DefaultMavenProjectBuilder.java</h1><pre class="source lang-java linenums">package org.apache.maven.project;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Properties;
+
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.InvalidRepositoryException;
+import org.apache.maven.artifact.repository.ArtifactRepository;
+import org.apache.maven.artifact.resolver.ArtifactNotFoundException;
+import org.apache.maven.artifact.resolver.ArtifactResolutionException;
+import org.apache.maven.execution.MavenExecutionRequest;
+import org.apache.maven.execution.MavenSession;
+import org.apache.maven.model.Repository;
+import org.apache.maven.model.building.ModelBuildingException;
+import org.apache.maven.model.building.ModelBuildingRequest;
+import org.apache.maven.model.building.ModelSource;
+import org.apache.maven.model.building.UrlModelSource;
+import org.apache.maven.plugin.LegacySupport;
+import org.apache.maven.profiles.ProfileManager;
+import org.apache.maven.properties.internal.EnvironmentUtils;
+import org.apache.maven.repository.RepositorySystem;
+import org.apache.maven.wagon.events.TransferListener;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
+
+/**
+ */
+@Component( role = MavenProjectBuilder.class )
+@Deprecated
+<span class="fc" id="L52">public class DefaultMavenProjectBuilder</span>
+    implements MavenProjectBuilder
+{
+
+    @Requirement
+    private ProjectBuilder projectBuilder;
+
+    @Requirement
+    private RepositorySystem repositorySystem;
+
+    @Requirement
+    private LegacySupport legacySupport;
+
+    // ----------------------------------------------------------------------
+    // MavenProjectBuilder Implementation
+    // ----------------------------------------------------------------------
+
+    private ProjectBuildingRequest toRequest( ProjectBuilderConfiguration configuration )
+    {
+<span class="nc" id="L71">        DefaultProjectBuildingRequest request = new DefaultProjectBuildingRequest();</span>
+
+<span class="nc" id="L73">        request.setValidationLevel( ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_2_0 );</span>
+<span class="nc" id="L74">        request.setResolveDependencies( false );</span>
+
+<span class="nc" id="L76">        request.setLocalRepository( configuration.getLocalRepository() );</span>
+<span class="nc" id="L77">        request.setBuildStartTime( configuration.getBuildStartTime() );</span>
+<span class="nc" id="L78">        request.setUserProperties( configuration.getUserProperties() );</span>
+<span class="nc" id="L79">        request.setSystemProperties( configuration.getExecutionProperties() );</span>
+
+<span class="nc" id="L81">        ProfileManager profileManager = configuration.getGlobalProfileManager();</span>
+<span class="nc bnc" id="L82" title="All 2 branches missed.">        if ( profileManager != null )</span>
+        {
+<span class="nc" id="L84">            request.setActiveProfileIds( profileManager.getExplicitlyActivatedIds() );</span>
+<span class="nc" id="L85">            request.setInactiveProfileIds( profileManager.getExplicitlyDeactivatedIds() );</span>
+        }
+        else
+        {
+            /*
+             * MNG-4900: Hack to workaround deficiency of legacy API which makes it impossible for plugins to access the
+             * global profile manager which is required to build a POM like a CLI invocation does. Failure to consider
+             * the activated profiles can cause repo declarations to be lost which in turn will result in artifact
+             * resolution failures, in particular when using the enhanced local repo which guards access to local files
+             * based on the configured remote repos.
+             */
+<span class="nc" id="L96">            MavenSession session = legacySupport.getSession();</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">            if ( session != null )</span>
+            {
+<span class="nc" id="L99">                MavenExecutionRequest req = session.getRequest();</span>
+<span class="nc bnc" id="L100" title="All 2 branches missed.">                if ( req != null )</span>
+                {
+<span class="nc" id="L102">                    request.setActiveProfileIds( req.getActiveProfiles() );</span>
+<span class="nc" id="L103">                    request.setInactiveProfileIds( req.getInactiveProfiles() );</span>
+                }
+            }
+        }
+
+<span class="nc" id="L108">        return request;</span>
+    }
+
+    private ProjectBuildingRequest injectSession( ProjectBuildingRequest request )
+    {
+<span class="nc" id="L113">        MavenSession session = legacySupport.getSession();</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">        if ( session != null )</span>
+        {
+<span class="nc" id="L116">            request.setRepositorySession( session.getRepositorySession() );</span>
+<span class="nc" id="L117">            request.setSystemProperties( session.getSystemProperties() );</span>
+<span class="nc bnc" id="L118" title="All 2 branches missed.">            if ( request.getUserProperties().isEmpty() )</span>
+            {
+<span class="nc" id="L120">                request.setUserProperties( session.getUserProperties() );</span>
+            }
+
+<span class="nc" id="L123">            MavenExecutionRequest req = session.getRequest();</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">            if ( req != null )</span>
+            {
+<span class="nc" id="L126">                request.setRemoteRepositories( req.getRemoteRepositories() );</span>
+            }
+<span class="nc" id="L128">        }</span>
+        else
+        {
+<span class="nc" id="L131">            Properties props = new Properties();</span>
+<span class="nc" id="L132">            EnvironmentUtils.addEnvVars( props );</span>
+<span class="nc" id="L133">            props.putAll( System.getProperties() );</span>
+<span class="nc" id="L134">            request.setSystemProperties( props );</span>
+        }
+
+<span class="nc" id="L137">        return request;</span>
+    }
+
+    @SuppressWarnings( &quot;unchecked&quot; )
+    private List&lt;ArtifactRepository&gt; normalizeToArtifactRepositories( List&lt;?&gt; repositories,
+                                                                      ProjectBuildingRequest request )
+        throws ProjectBuildingException
+    {
+        /*
+         * This provides backward-compat with 2.x that allowed plugins like the maven-remote-resources-plugin:1.0 to
+         * populate the builder configuration with model repositories instead of artifact repositories.
+         */
+
+<span class="nc bnc" id="L150" title="All 2 branches missed.">        if ( repositories != null )</span>
+        {
+<span class="nc" id="L152">            boolean normalized = false;</span>
+
+<span class="nc" id="L154">            List&lt;ArtifactRepository&gt; repos = new ArrayList&lt;&gt;( repositories.size() );</span>
+
+<span class="nc bnc" id="L156" title="All 2 branches missed.">            for ( Object repository : repositories )</span>
+            {
+<span class="nc bnc" id="L158" title="All 2 branches missed.">                if ( repository instanceof Repository )</span>
+                {
+                    try
+                    {
+<span class="nc" id="L162">                        ArtifactRepository repo = repositorySystem.buildArtifactRepository( (Repository) repository );</span>
+<span class="nc" id="L163">                        repositorySystem.injectMirror( request.getRepositorySession(), Arrays.asList( repo ) );</span>
+<span class="nc" id="L164">                        repositorySystem.injectProxy( request.getRepositorySession(), Arrays.asList( repo ) );</span>
+<span class="nc" id="L165">                        repositorySystem.injectAuthentication( request.getRepositorySession(), Arrays.asList( repo ) );</span>
+<span class="nc" id="L166">                        repos.add( repo );</span>
+                    }
+<span class="nc" id="L168">                    catch ( InvalidRepositoryException e )</span>
+                    {
+<span class="nc" id="L170">                        throw new ProjectBuildingException( &quot;&quot;, &quot;Invalid remote repository &quot; + repository, e );</span>
+<span class="nc" id="L171">                    }</span>
+<span class="nc" id="L172">                    normalized = true;</span>
+                }
+                else
+                {
+<span class="nc" id="L176">                    repos.add( (ArtifactRepository) repository );</span>
+                }
+<span class="nc" id="L178">            }</span>
+
+<span class="nc bnc" id="L180" title="All 2 branches missed.">            if ( normalized )</span>
+            {
+<span class="nc" id="L182">                return repos;</span>
+            }
+        }
+
+<span class="nc" id="L186">        return (List&lt;ArtifactRepository&gt;) repositories;</span>
+    }
+
+    private ProjectBuildingException transformError( ProjectBuildingException e )
+    {
+<span class="nc bnc" id="L191" title="All 2 branches missed.">        if ( e.getCause() instanceof ModelBuildingException )</span>
+        {
+<span class="nc" id="L193">            return new InvalidProjectModelException( e.getProjectId(), e.getMessage(), e.getPomFile() );</span>
+        }
+
+<span class="nc" id="L196">        return e;</span>
+    }
+
+    public MavenProject build( File pom, ProjectBuilderConfiguration configuration )
+        throws ProjectBuildingException
+    {
+<span class="nc" id="L202">        ProjectBuildingRequest request = injectSession( toRequest( configuration ) );</span>
+
+        try
+        {
+<span class="nc" id="L206">            return projectBuilder.build( pom, request ).getProject();</span>
+        }
+<span class="nc" id="L208">        catch ( ProjectBuildingException e )</span>
+        {
+<span class="nc" id="L210">            throw transformError( e );</span>
+        }
+    }
+
+    // This is used by the SITE plugin.
+    public MavenProject build( File pom, ArtifactRepository localRepository, ProfileManager profileManager )
+        throws ProjectBuildingException
+    {
+<span class="nc" id="L218">        ProjectBuilderConfiguration configuration = new DefaultProjectBuilderConfiguration();</span>
+<span class="nc" id="L219">        configuration.setLocalRepository( localRepository );</span>
+<span class="nc" id="L220">        configuration.setGlobalProfileManager( profileManager );</span>
+
+<span class="nc" id="L222">        return build( pom, configuration );</span>
+    }
+
+    public MavenProject buildFromRepository( Artifact artifact, List&lt;ArtifactRepository&gt; remoteRepositories,
+                                             ProjectBuilderConfiguration configuration, boolean allowStubModel )
+        throws ProjectBuildingException
+    {
+<span class="nc" id="L229">        ProjectBuildingRequest request = injectSession( toRequest( configuration ) );</span>
+<span class="nc" id="L230">        request.setRemoteRepositories( normalizeToArtifactRepositories( remoteRepositories, request ) );</span>
+<span class="nc" id="L231">        request.setProcessPlugins( false );</span>
+<span class="nc" id="L232">        request.setValidationLevel( ModelBuildingRequest.VALIDATION_LEVEL_MINIMAL );</span>
+
+        try
+        {
+<span class="nc" id="L236">            return projectBuilder.build( artifact, allowStubModel, request ).getProject();</span>
+        }
+<span class="nc" id="L238">        catch ( ProjectBuildingException e )</span>
+        {
+<span class="nc" id="L240">            throw transformError( e );</span>
+        }
+    }
+
+    public MavenProject buildFromRepository( Artifact artifact, List&lt;ArtifactRepository&gt; remoteRepositories,
+                                             ArtifactRepository localRepository, boolean allowStubModel )
+        throws ProjectBuildingException
+    {
+<span class="nc" id="L248">        ProjectBuilderConfiguration configuration = new DefaultProjectBuilderConfiguration();</span>
+<span class="nc" id="L249">        configuration.setLocalRepository( localRepository );</span>
+
+<span class="nc" id="L251">        return buildFromRepository( artifact, remoteRepositories, configuration, allowStubModel );</span>
+    }
+
+    public MavenProject buildFromRepository( Artifact artifact, List&lt;ArtifactRepository&gt; remoteRepositories,
+                                             ArtifactRepository localRepository )
+        throws ProjectBuildingException
+    {
+<span class="nc" id="L258">        return buildFromRepository( artifact, remoteRepositories, localRepository, true );</span>
+    }
+
+    /**
+     * This is used for pom-less execution like running archetype:generate. I am taking out the profile handling and the
+     * interpolation of the base directory until we spec this out properly.
+     */
+    public MavenProject buildStandaloneSuperProject( ProjectBuilderConfiguration configuration )
+        throws ProjectBuildingException
+    {
+<span class="nc" id="L268">        ProjectBuildingRequest request = injectSession( toRequest( configuration ) );</span>
+<span class="nc" id="L269">        request.setProcessPlugins( false );</span>
+<span class="nc" id="L270">        request.setValidationLevel( ModelBuildingRequest.VALIDATION_LEVEL_MINIMAL );</span>
+
+<span class="nc" id="L272">        ModelSource modelSource = new UrlModelSource( getClass().getResource( &quot;standalone.xml&quot; ) );</span>
+
+<span class="nc" id="L274">        MavenProject project = projectBuilder.build( modelSource, request ).getProject();</span>
+<span class="nc" id="L275">        project.setExecutionRoot( true );</span>
+<span class="nc" id="L276">        return project;</span>
+    }
+
+    public MavenProject buildStandaloneSuperProject( ArtifactRepository localRepository )
+        throws ProjectBuildingException
+    {
+<span class="nc" id="L282">        return buildStandaloneSuperProject( localRepository, null );</span>
+    }
+
+    public MavenProject buildStandaloneSuperProject( ArtifactRepository localRepository, ProfileManager profileManager )
+        throws ProjectBuildingException
+    {
+<span class="nc" id="L288">        ProjectBuilderConfiguration configuration = new DefaultProjectBuilderConfiguration();</span>
+<span class="nc" id="L289">        configuration.setLocalRepository( localRepository );</span>
+<span class="nc" id="L290">        configuration.setGlobalProfileManager( profileManager );</span>
+
+<span class="nc" id="L292">        return buildStandaloneSuperProject( configuration );</span>
+    }
+
+    public MavenProject buildWithDependencies( File pom, ArtifactRepository localRepository,
+                                               ProfileManager profileManager, TransferListener transferListener )
+        throws ProjectBuildingException, ArtifactResolutionException, ArtifactNotFoundException
+    {
+<span class="nc" id="L299">        ProjectBuilderConfiguration configuration = new DefaultProjectBuilderConfiguration();</span>
+<span class="nc" id="L300">        configuration.setLocalRepository( localRepository );</span>
+<span class="nc" id="L301">        configuration.setGlobalProfileManager( profileManager );</span>
+
+<span class="nc" id="L303">        ProjectBuildingRequest request = injectSession( toRequest( configuration ) );</span>
+
+<span class="nc" id="L305">        request.setResolveDependencies( true );</span>
+
+        try
+        {
+<span class="nc" id="L309">            return projectBuilder.build( pom, request ).getProject();</span>
+        }
+<span class="nc" id="L311">        catch ( ProjectBuildingException e )</span>
+        {
+<span class="nc" id="L313">            throw transformError( e );</span>
+        }
+    }
+
+    public MavenProject buildWithDependencies( File pom, ArtifactRepository localRepository,
+                                               ProfileManager profileManager )
+        throws ProjectBuildingException, ArtifactResolutionException, ArtifactNotFoundException
+    {
+<span class="nc" id="L321">        return buildWithDependencies( pom, localRepository, profileManager, null );</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

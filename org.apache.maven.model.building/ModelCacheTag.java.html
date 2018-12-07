@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ModelCacheTag.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.model.building</a> &gt; <span class="el_source">ModelCacheTag.java</span></div><h1>ModelCacheTag.java</h1><pre class="source lang-java linenums">package org.apache.maven.model.building;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.maven.model.DependencyManagement;
+import org.apache.maven.model.Model;
+
+/**
+ * Describes a tag used by the model builder to access a {@link ModelCache}. This interface basically aggregates a name
+ * and a class to provide some type safety when working with the otherwise untyped cache.
+ *
+ * @author Benjamin Bentmann
+ * @param &lt;T&gt; The type of data associated with the tag.
+ */
+interface ModelCacheTag&lt;T&gt;
+{
+
+    /**
+     * Gets the name of the tag.
+     *
+     * @return The name of the tag, must not be {@code null}.
+     */
+    String getName();
+
+    /**
+     * Gets the type of data associated with this tag.
+     *
+     * @return The type of data, must not be {@code null}.
+     */
+    Class&lt;T&gt; getType();
+
+    /**
+     * Creates a copy of the data suitable for storage in the cache. The original data to store can be mutated after the
+     * cache is populated but the state of the cache must not change so we need to make a copy.
+     *
+     * @param data The data to store in the cache, must not be {@code null}.
+     * @return The data being stored in the cache, never {@code null}.
+     */
+    T intoCache( T data );
+
+    /**
+     * Creates a copy of the data suitable for retrieval from the cache. The retrieved data can be mutated after the
+     * cache is queried but the state of the cache must not change so we need to make a copy.
+     *
+     * @param data The data to retrieve from the cache, must not be {@code null}.
+     * @return The data being retrieved from the cache, never {@code null}.
+     */
+    T fromCache( T data );
+
+    /**
+     * The tag used to denote raw model data.
+     */
+<span class="fc" id="L70">    ModelCacheTag&lt;ModelData&gt; RAW = new ModelCacheTag&lt;ModelData&gt;()</span>
+<span class="fc" id="L71">    {</span>
+
+        @Override
+        public String getName()
+        {
+<span class="fc" id="L76">            return &quot;raw&quot;;</span>
+        }
+
+        @Override
+        public Class&lt;ModelData&gt; getType()
+        {
+<span class="fc" id="L82">            return ModelData.class;</span>
+        }
+
+        @Override
+        public ModelData intoCache( ModelData data )
+        {
+<span class="pc bpc" id="L88" title="1 of 2 branches missed.">            Model model = ( data.getModel() != null ) ? data.getModel().clone() : null;</span>
+<span class="fc" id="L89">            return new ModelData( data.getSource(), model, data.getGroupId(), data.getArtifactId(), data.getVersion() );</span>
+        }
+
+        @Override
+        public ModelData fromCache( ModelData data )
+        {
+<span class="fc" id="L95">            return intoCache( data );</span>
+        }
+
+    };
+
+    /**
+     * The tag used to denote an effective dependency management section from an imported model.
+     */
+<span class="fc" id="L103">    ModelCacheTag&lt;DependencyManagement&gt; IMPORT = new ModelCacheTag&lt;DependencyManagement&gt;()</span>
+<span class="fc" id="L104">    {</span>
+
+        @Override
+        public String getName()
+        {
+<span class="fc" id="L109">            return &quot;import&quot;;</span>
+        }
+
+        @Override
+        public Class&lt;DependencyManagement&gt; getType()
+        {
+<span class="nc" id="L115">            return DependencyManagement.class;</span>
+        }
+
+        @Override
+        public DependencyManagement intoCache( DependencyManagement data )
+        {
+<span class="pc bpc" id="L121" title="1 of 2 branches missed.">            return ( data != null ) ? data.clone() : null;</span>
+        }
+
+        @Override
+        public DependencyManagement fromCache( DependencyManagement data )
+        {
+<span class="nc" id="L127">            return intoCache( data );</span>
+        }
+
+    };
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

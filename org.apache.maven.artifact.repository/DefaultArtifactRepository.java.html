@@ -1,0 +1,268 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultArtifactRepository.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.artifact.repository</a> &gt; <span class="el_source">DefaultArtifactRepository.java</span></div><h1>DefaultArtifactRepository.java</h1><pre class="source lang-java linenums">package org.apache.maven.artifact.repository;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+import java.util.Collections;
+import java.util.List;
+
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.metadata.ArtifactMetadata;
+import org.apache.maven.artifact.repository.layout.ArtifactRepositoryLayout;
+import org.apache.maven.repository.Proxy;
+import org.apache.maven.wagon.repository.Repository;
+
+/**
+ * This class is an abstraction of the location from/to resources can be
+ * transfered.
+ *
+ * @author &lt;a href=&quot;michal.maczka@dimatics.com&quot;&gt;Michal Maczka &lt;/a&gt;
+ */
+@Deprecated
+public class DefaultArtifactRepository
+    extends Repository
+    implements ArtifactRepository
+{
+    private ArtifactRepositoryLayout layout;
+
+    private ArtifactRepositoryPolicy snapshots;
+
+    private ArtifactRepositoryPolicy releases;
+
+    private boolean blacklisted;
+
+    private Authentication authentication;
+
+    private Proxy proxy;
+
+<span class="nc" id="L55">    private List&lt;ArtifactRepository&gt; mirroredRepositories = Collections.emptyList();</span>
+
+    /**
+     * Create a local repository or a test repository.
+     *
+     * @param id     the unique identifier of the repository
+     * @param url    the URL of the repository
+     * @param layout the layout of the repository
+     */
+    public DefaultArtifactRepository( String id, String url, ArtifactRepositoryLayout layout )
+    {
+<span class="nc" id="L66">        this( id, url, layout, null, null );</span>
+<span class="nc" id="L67">    }</span>
+
+    /**
+     * Create a remote deployment repository.
+     *
+     * @param id            the unique identifier of the repository
+     * @param url           the URL of the repository
+     * @param layout        the layout of the repository
+     * @param uniqueVersion whether to assign each snapshot a unique version
+     */
+    public DefaultArtifactRepository( String id, String url, ArtifactRepositoryLayout layout, boolean uniqueVersion )
+    {
+<span class="nc" id="L79">        super( id, url );</span>
+<span class="nc" id="L80">        this.layout = layout;</span>
+<span class="nc" id="L81">    }</span>
+
+    /**
+     * Create a remote download repository.
+     *
+     * @param id        the unique identifier of the repository
+     * @param url       the URL of the repository
+     * @param layout    the layout of the repository
+     * @param snapshots the policies to use for snapshots
+     * @param releases  the policies to use for releases
+     */
+    public DefaultArtifactRepository( String id, String url, ArtifactRepositoryLayout layout,
+                                      ArtifactRepositoryPolicy snapshots, ArtifactRepositoryPolicy releases )
+    {
+<span class="nc" id="L95">        super( id, url );</span>
+
+<span class="nc" id="L97">        this.layout = layout;</span>
+
+<span class="nc bnc" id="L99" title="All 2 branches missed.">        if ( snapshots == null )</span>
+        {
+<span class="nc" id="L101">            snapshots = new ArtifactRepositoryPolicy( true, ArtifactRepositoryPolicy.UPDATE_POLICY_ALWAYS,</span>
+                ArtifactRepositoryPolicy.CHECKSUM_POLICY_IGNORE );
+        }
+
+<span class="nc" id="L105">        this.snapshots = snapshots;</span>
+
+<span class="nc bnc" id="L107" title="All 2 branches missed.">        if ( releases == null )</span>
+        {
+<span class="nc" id="L109">            releases = new ArtifactRepositoryPolicy( true, ArtifactRepositoryPolicy.UPDATE_POLICY_ALWAYS,</span>
+                ArtifactRepositoryPolicy.CHECKSUM_POLICY_IGNORE );
+        }
+
+<span class="nc" id="L113">        this.releases = releases;</span>
+<span class="nc" id="L114">    }</span>
+
+    public String pathOf( Artifact artifact )
+    {
+<span class="nc" id="L118">        return layout.pathOf( artifact );</span>
+    }
+
+    public String pathOfRemoteRepositoryMetadata( ArtifactMetadata artifactMetadata )
+    {
+<span class="nc" id="L123">        return layout.pathOfRemoteRepositoryMetadata( artifactMetadata );</span>
+    }
+
+    public String pathOfLocalRepositoryMetadata( ArtifactMetadata metadata, ArtifactRepository repository )
+    {
+<span class="nc" id="L128">        return layout.pathOfLocalRepositoryMetadata( metadata, repository );</span>
+    }
+
+    public void setLayout( ArtifactRepositoryLayout layout )
+    {
+<span class="nc" id="L133">        this.layout = layout;</span>
+<span class="nc" id="L134">    }</span>
+
+    public ArtifactRepositoryLayout getLayout()
+    {
+<span class="nc" id="L138">        return layout;</span>
+    }
+
+    public void setSnapshotUpdatePolicy( ArtifactRepositoryPolicy snapshots )
+    {
+<span class="nc" id="L143">        this.snapshots = snapshots;</span>
+<span class="nc" id="L144">    }</span>
+
+    public ArtifactRepositoryPolicy getSnapshots()
+    {
+<span class="nc" id="L148">        return snapshots;</span>
+    }
+
+    public void setReleaseUpdatePolicy( ArtifactRepositoryPolicy releases )
+    {
+<span class="nc" id="L153">        this.releases = releases;</span>
+<span class="nc" id="L154">    }</span>
+
+    public ArtifactRepositoryPolicy getReleases()
+    {
+<span class="nc" id="L158">        return releases;</span>
+    }
+
+    public String getKey()
+    {
+<span class="nc" id="L163">        return getId();</span>
+    }
+
+    public boolean isBlacklisted()
+    {
+<span class="nc" id="L168">        return blacklisted;</span>
+    }
+
+    public void setBlacklisted( boolean blacklisted )
+    {
+<span class="nc" id="L173">        this.blacklisted = blacklisted;</span>
+<span class="nc" id="L174">    }</span>
+
+    public String toString()
+    {
+<span class="nc" id="L178">        StringBuilder sb = new StringBuilder( 256 );</span>
+
+<span class="nc" id="L180">        sb.append( &quot;       id: &quot; ).append( getId() ).append( '\n' );</span>
+<span class="nc" id="L181">        sb.append( &quot;      url: &quot; ).append( getUrl() ).append( '\n' );</span>
+<span class="nc bnc" id="L182" title="All 2 branches missed.">        sb.append( &quot;   layout: &quot; ).append( layout != null ? layout : &quot;none&quot; ).append( '\n' );</span>
+
+<span class="nc bnc" id="L184" title="All 2 branches missed.">        if ( snapshots != null )</span>
+        {
+<span class="nc" id="L186">            sb.append( &quot;snapshots: [enabled =&gt; &quot; ).append( snapshots.isEnabled() );</span>
+<span class="nc" id="L187">            sb.append( &quot;, update =&gt; &quot; ).append( snapshots.getUpdatePolicy() ).append( &quot;]\n&quot; );</span>
+        }
+
+<span class="nc bnc" id="L190" title="All 2 branches missed.">        if ( releases != null )</span>
+        {
+<span class="nc" id="L192">            sb.append( &quot; releases: [enabled =&gt; &quot; ).append( releases.isEnabled() );</span>
+<span class="nc" id="L193">            sb.append( &quot;, update =&gt; &quot; ).append( releases.getUpdatePolicy() ).append( &quot;]\n&quot; );</span>
+        }
+
+<span class="nc" id="L196">        return sb.toString();</span>
+    }
+
+    public Artifact find( Artifact artifact )
+    {
+<span class="nc" id="L201">        File artifactFile = new File( getBasedir(), pathOf( artifact ) );</span>
+
+        // We need to set the file here or the resolver will fail with an NPE, not fully equipped to deal
+        // with multiple local repository implementations yet.
+<span class="nc" id="L205">        artifact.setFile( artifactFile );</span>
+
+<span class="nc bnc" id="L207" title="All 2 branches missed.">        if ( artifactFile.exists() )</span>
+        {
+<span class="nc" id="L209">            artifact.setResolved( true );</span>
+        }
+
+<span class="nc" id="L212">        return artifact;</span>
+    }
+
+    public List&lt;String&gt; findVersions( Artifact artifact )
+    {
+<span class="nc" id="L217">        return Collections.emptyList();</span>
+    }
+
+    public boolean isProjectAware()
+    {
+<span class="nc" id="L222">        return false;</span>
+    }
+
+    public Authentication getAuthentication()
+    {
+<span class="nc" id="L227">        return authentication;</span>
+    }
+
+    public void setAuthentication( Authentication authentication )
+    {
+<span class="nc" id="L232">        this.authentication = authentication;</span>
+<span class="nc" id="L233">    }</span>
+
+    public Proxy getProxy()
+    {
+<span class="nc" id="L237">        return proxy;</span>
+    }
+
+    public void setProxy( Proxy proxy )
+    {
+<span class="nc" id="L242">        this.proxy = proxy;</span>
+<span class="nc" id="L243">    }</span>
+
+    public boolean isUniqueVersion()
+    {
+<span class="nc" id="L247">        return true;</span>
+    }
+
+    public List&lt;ArtifactRepository&gt; getMirroredRepositories()
+    {
+<span class="nc" id="L252">        return mirroredRepositories;</span>
+    }
+
+    public void setMirroredRepositories( List&lt;ArtifactRepository&gt; mirroredRepositories )
+    {
+<span class="nc bnc" id="L257" title="All 2 branches missed.">        if ( mirroredRepositories != null )</span>
+        {
+<span class="nc" id="L259">            this.mirroredRepositories = mirroredRepositories;</span>
+        }
+        else
+        {
+<span class="nc" id="L263">            this.mirroredRepositories = Collections.emptyList();</span>
+        }
+<span class="nc" id="L265">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

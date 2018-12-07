@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>FilterModelBuildingRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.model.building</a> &gt; <span class="el_source">FilterModelBuildingRequest.java</span></div><h1>FilterModelBuildingRequest.java</h1><pre class="source lang-java linenums">package org.apache.maven.model.building;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+import java.util.Date;
+import java.util.List;
+import java.util.Properties;
+
+import org.apache.maven.model.Model;
+import org.apache.maven.model.Profile;
+import org.apache.maven.model.resolution.ModelResolver;
+import org.apache.maven.model.resolution.WorkspaceModelResolver;
+
+/**
+ * A model building request that delegates all methods invocations to another request, meant for easy transformations by
+ * subclassing.
+ *
+ * @author Benjamin Bentmann
+ */
+class FilterModelBuildingRequest
+    implements ModelBuildingRequest
+{
+
+    protected ModelBuildingRequest request;
+
+    FilterModelBuildingRequest( ModelBuildingRequest request )
+<span class="nc" id="L45">    {</span>
+<span class="nc" id="L46">        this.request = request;</span>
+<span class="nc" id="L47">    }</span>
+
+    @Override
+    public File getPomFile()
+    {
+<span class="nc" id="L52">        return request.getPomFile();</span>
+    }
+
+    @Override
+    public FilterModelBuildingRequest setPomFile( File pomFile )
+    {
+<span class="nc" id="L58">        request.setPomFile( pomFile );</span>
+
+<span class="nc" id="L60">        return this;</span>
+    }
+
+    @Override
+    public ModelSource getModelSource()
+    {
+<span class="nc" id="L66">        return request.getModelSource();</span>
+    }
+
+    @Override
+    public FilterModelBuildingRequest setModelSource( ModelSource modelSource )
+    {
+<span class="nc" id="L72">        request.setModelSource( modelSource );</span>
+
+<span class="nc" id="L74">        return this;</span>
+    }
+
+    @Override
+    public int getValidationLevel()
+    {
+<span class="nc" id="L80">        return request.getValidationLevel();</span>
+    }
+
+    @Override
+    public FilterModelBuildingRequest setValidationLevel( int validationLevel )
+    {
+<span class="nc" id="L86">        request.setValidationLevel( validationLevel );</span>
+
+<span class="nc" id="L88">        return this;</span>
+    }
+
+    @Override
+    public boolean isProcessPlugins()
+    {
+<span class="nc" id="L94">        return request.isProcessPlugins();</span>
+    }
+
+    @Override
+    public FilterModelBuildingRequest setProcessPlugins( boolean processPlugins )
+    {
+<span class="nc" id="L100">        request.setProcessPlugins( processPlugins );</span>
+
+<span class="nc" id="L102">        return this;</span>
+    }
+
+    @Override
+    public boolean isTwoPhaseBuilding()
+    {
+<span class="nc" id="L108">        return request.isTwoPhaseBuilding();</span>
+    }
+
+    @Override
+    public FilterModelBuildingRequest setTwoPhaseBuilding( boolean twoPhaseBuilding )
+    {
+<span class="nc" id="L114">        request.setTwoPhaseBuilding( twoPhaseBuilding );</span>
+
+<span class="nc" id="L116">        return this;</span>
+    }
+
+    @Override
+    public boolean isLocationTracking()
+    {
+<span class="nc" id="L122">        return request.isLocationTracking();</span>
+    }
+
+    @Override
+    public FilterModelBuildingRequest setLocationTracking( boolean locationTracking )
+    {
+<span class="nc" id="L128">        request.setLocationTracking( locationTracking );</span>
+
+<span class="nc" id="L130">        return this;</span>
+    }
+
+    @Override
+    public List&lt;Profile&gt; getProfiles()
+    {
+<span class="nc" id="L136">        return request.getProfiles();</span>
+    }
+
+    @Override
+    public FilterModelBuildingRequest setProfiles( List&lt;Profile&gt; profiles )
+    {
+<span class="nc" id="L142">        request.setProfiles( profiles );</span>
+
+<span class="nc" id="L144">        return this;</span>
+    }
+
+    @Override
+    public List&lt;String&gt; getActiveProfileIds()
+    {
+<span class="nc" id="L150">        return request.getActiveProfileIds();</span>
+    }
+
+    @Override
+    public FilterModelBuildingRequest setActiveProfileIds( List&lt;String&gt; activeProfileIds )
+    {
+<span class="nc" id="L156">        request.setActiveProfileIds( activeProfileIds );</span>
+
+<span class="nc" id="L158">        return this;</span>
+    }
+
+    @Override
+    public List&lt;String&gt; getInactiveProfileIds()
+    {
+<span class="nc" id="L164">        return request.getInactiveProfileIds();</span>
+    }
+
+    @Override
+    public FilterModelBuildingRequest setInactiveProfileIds( List&lt;String&gt; inactiveProfileIds )
+    {
+<span class="nc" id="L170">        request.setInactiveProfileIds( inactiveProfileIds );</span>
+
+<span class="nc" id="L172">        return this;</span>
+    }
+
+    @Override
+    public Properties getSystemProperties()
+    {
+<span class="nc" id="L178">        return request.getSystemProperties();</span>
+    }
+
+    @Override
+    public FilterModelBuildingRequest setSystemProperties( Properties systemProperties )
+    {
+<span class="nc" id="L184">        request.setSystemProperties( systemProperties );</span>
+
+<span class="nc" id="L186">        return this;</span>
+    }
+
+    @Override
+    public Properties getUserProperties()
+    {
+<span class="nc" id="L192">        return request.getUserProperties();</span>
+    }
+
+    @Override
+    public FilterModelBuildingRequest setUserProperties( Properties userProperties )
+    {
+<span class="nc" id="L198">        request.setUserProperties( userProperties );</span>
+
+<span class="nc" id="L200">        return this;</span>
+    }
+
+    @Override
+    public Date getBuildStartTime()
+    {
+<span class="nc" id="L206">        return request.getBuildStartTime();</span>
+    }
+
+    @Override
+    public ModelBuildingRequest setBuildStartTime( Date buildStartTime )
+    {
+<span class="nc" id="L212">        request.setBuildStartTime( buildStartTime );</span>
+
+<span class="nc" id="L214">        return this;</span>
+    }
+
+    @Override
+    public ModelResolver getModelResolver()
+    {
+<span class="nc" id="L220">        return request.getModelResolver();</span>
+    }
+
+    @Override
+    public FilterModelBuildingRequest setModelResolver( ModelResolver modelResolver )
+    {
+<span class="nc" id="L226">        request.setModelResolver( modelResolver );</span>
+
+<span class="nc" id="L228">        return this;</span>
+    }
+
+    @Override
+    public ModelBuildingListener getModelBuildingListener()
+    {
+<span class="nc" id="L234">        return request.getModelBuildingListener();</span>
+    }
+
+    @Override
+    public ModelBuildingRequest setModelBuildingListener( ModelBuildingListener modelBuildingListener )
+    {
+<span class="nc" id="L240">        request.setModelBuildingListener( modelBuildingListener );</span>
+
+<span class="nc" id="L242">        return this;</span>
+    }
+
+    @Override
+    public ModelCache getModelCache()
+    {
+<span class="nc" id="L248">        return request.getModelCache();</span>
+    }
+
+    @Override
+    public FilterModelBuildingRequest setModelCache( ModelCache modelCache )
+    {
+<span class="nc" id="L254">        request.setModelCache( modelCache );</span>
+
+<span class="nc" id="L256">        return this;</span>
+    }
+
+    @Override
+    public Model getRawModel()
+    {
+<span class="nc" id="L262">        return request.getRawModel();</span>
+    }
+
+    @Override
+    public ModelBuildingRequest setRawModel( Model rawModel )
+    {
+<span class="nc" id="L268">        request.setRawModel( rawModel );</span>
+<span class="nc" id="L269">        return this;</span>
+    }
+
+    @Override
+    public WorkspaceModelResolver getWorkspaceModelResolver()
+    {
+<span class="nc" id="L275">        return request.getWorkspaceModelResolver();</span>
+    }
+
+    @Override
+    public ModelBuildingRequest setWorkspaceModelResolver( WorkspaceModelResolver workspaceResolver )
+    {
+<span class="nc" id="L281">        request.setWorkspaceModelResolver( workspaceResolver );</span>
+<span class="nc" id="L282">        return this;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

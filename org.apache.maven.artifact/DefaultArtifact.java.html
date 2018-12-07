@@ -1,0 +1,599 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultArtifact.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.artifact</a> &gt; <span class="el_source">DefaultArtifact.java</span></div><h1>DefaultArtifact.java</h1><pre class="source lang-java linenums">package org.apache.maven.artifact;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.regex.Matcher;
+
+import org.apache.maven.artifact.handler.ArtifactHandler;
+import org.apache.maven.artifact.metadata.ArtifactMetadata;
+import org.apache.maven.artifact.repository.ArtifactRepository;
+import org.apache.maven.artifact.resolver.filter.ArtifactFilter;
+import org.apache.maven.artifact.versioning.ArtifactVersion;
+import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
+import org.apache.maven.artifact.versioning.OverConstrainedVersionException;
+import org.apache.maven.artifact.versioning.VersionRange;
+import org.codehaus.plexus.util.StringUtils;
+
+/**
+ * @author Jason van Zyl
+ */
+public class DefaultArtifact
+    implements Artifact
+{
+    private String groupId;
+
+    private String artifactId;
+
+    private String baseVersion;
+
+    private final String type;
+
+    private final String classifier;
+
+    private volatile String scope;
+
+    private volatile File file;
+
+    private ArtifactRepository repository;
+
+    private String downloadUrl;
+
+    private ArtifactFilter dependencyFilter;
+
+    private ArtifactHandler artifactHandler;
+
+    private List&lt;String&gt; dependencyTrail;
+
+    private volatile String version;
+
+    private VersionRange versionRange;
+
+    private volatile boolean resolved;
+
+    private boolean release;
+
+    private List&lt;ArtifactVersion&gt; availableVersions;
+
+    private Map&lt;Object, ArtifactMetadata&gt; metadataMap;
+
+    private boolean optional;
+
+    public DefaultArtifact( String groupId, String artifactId, String version, String scope, String type,
+                            String classifier, ArtifactHandler artifactHandler )
+    {
+<span class="fc" id="L87">        this( groupId, artifactId, VersionRange.createFromVersion( version ), scope, type, classifier, artifactHandler,</span>
+              false );
+<span class="fc" id="L89">    }</span>
+
+    public DefaultArtifact( String groupId, String artifactId, VersionRange versionRange, String scope, String type,
+                            String classifier, ArtifactHandler artifactHandler )
+    {
+<span class="nc" id="L94">        this( groupId, artifactId, versionRange, scope, type, classifier, artifactHandler, false );</span>
+<span class="nc" id="L95">    }</span>
+
+    @SuppressWarnings( &quot;checkstyle:parameternumber&quot; )
+    public DefaultArtifact( String groupId, String artifactId, VersionRange versionRange, String scope, String type,
+                            String classifier, ArtifactHandler artifactHandler, boolean optional )
+<span class="fc" id="L100">    {</span>
+<span class="fc" id="L101">        this.groupId = groupId;</span>
+
+<span class="fc" id="L103">        this.artifactId = artifactId;</span>
+
+<span class="fc" id="L105">        this.versionRange = versionRange;</span>
+
+<span class="fc" id="L107">        selectVersionFromNewRangeIfAvailable();</span>
+
+<span class="fc" id="L109">        this.artifactHandler = artifactHandler;</span>
+
+<span class="fc" id="L111">        this.scope = scope;</span>
+
+<span class="fc" id="L113">        this.type = type;</span>
+
+<span class="fc bfc" id="L115" title="All 2 branches covered.">        if ( classifier == null )</span>
+        {
+<span class="fc" id="L117">            classifier = artifactHandler.getClassifier();</span>
+        }
+
+<span class="fc" id="L120">        this.classifier = classifier;</span>
+
+<span class="fc" id="L122">        this.optional = optional;</span>
+
+<span class="fc" id="L124">        validateIdentity();</span>
+<span class="fc" id="L125">    }</span>
+
+    private void validateIdentity()
+    {
+<span class="fc bfc" id="L129" title="All 2 branches covered.">        if ( empty( groupId ) )</span>
+        {
+<span class="fc" id="L131">            throw new InvalidArtifactRTException( groupId, artifactId, getVersion(), type,</span>
+                &quot;The groupId cannot be empty.&quot; );
+        }
+
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">        if ( artifactId == null )</span>
+        {
+<span class="nc" id="L137">            throw new InvalidArtifactRTException( groupId, artifactId, getVersion(), type,</span>
+                &quot;The artifactId cannot be empty.&quot; );
+        }
+
+<span class="pc bpc" id="L141" title="1 of 2 branches missed.">        if ( type == null )</span>
+        {
+<span class="nc" id="L143">            throw new InvalidArtifactRTException( groupId, artifactId, getVersion(), type,</span>
+                &quot;The type cannot be empty.&quot; );
+        }
+
+<span class="pc bpc" id="L147" title="3 of 4 branches missed.">        if ( ( version == null ) &amp;&amp; ( versionRange == null ) )</span>
+        {
+<span class="nc" id="L149">            throw new InvalidArtifactRTException( groupId, artifactId, getVersion(), type,</span>
+                &quot;The version cannot be empty.&quot; );
+        }
+<span class="fc" id="L152">    }</span>
+
+    private boolean empty( String value )
+    {
+<span class="pc bpc" id="L156" title="1 of 4 branches missed.">        return ( value == null ) || ( value.trim().length() &lt; 1 );</span>
+    }
+
+    public String getClassifier()
+    {
+<span class="fc" id="L161">        return classifier;</span>
+    }
+
+    public boolean hasClassifier()
+    {
+<span class="fc" id="L166">        return StringUtils.isNotEmpty( classifier );</span>
+    }
+
+    public String getScope()
+    {
+<span class="fc" id="L171">        return scope;</span>
+    }
+
+    public String getGroupId()
+    {
+<span class="fc" id="L176">        return groupId;</span>
+    }
+
+    public String getArtifactId()
+    {
+<span class="fc" id="L181">        return artifactId;</span>
+    }
+
+    public String getVersion()
+    {
+<span class="fc" id="L186">        return version;</span>
+    }
+
+    public void setVersion( String version )
+    {
+<span class="nc" id="L191">        this.version = version;</span>
+<span class="nc" id="L192">        setBaseVersionInternal( version );</span>
+<span class="nc" id="L193">        versionRange = null;</span>
+<span class="nc" id="L194">    }</span>
+
+    public String getType()
+    {
+<span class="fc" id="L198">        return type;</span>
+    }
+
+    public void setFile( File file )
+    {
+<span class="fc" id="L203">        this.file = file;</span>
+<span class="fc" id="L204">    }</span>
+
+    public File getFile()
+    {
+<span class="fc" id="L208">        return file;</span>
+    }
+
+    public ArtifactRepository getRepository()
+    {
+<span class="fc" id="L213">        return repository;</span>
+    }
+
+    public void setRepository( ArtifactRepository repository )
+    {
+<span class="fc" id="L218">        this.repository = repository;</span>
+<span class="fc" id="L219">    }</span>
+
+    // ----------------------------------------------------------------------
+    //
+    // ----------------------------------------------------------------------
+
+    public String getId()
+    {
+<span class="fc" id="L227">        return getDependencyConflictId() + &quot;:&quot; + getBaseVersion();</span>
+    }
+
+    public String getDependencyConflictId()
+    {
+<span class="fc" id="L232">        StringBuilder sb = new StringBuilder( 128 );</span>
+<span class="fc" id="L233">        sb.append( getGroupId() );</span>
+<span class="fc" id="L234">        sb.append( ':' );</span>
+<span class="fc" id="L235">        appendArtifactTypeClassifierString( sb );</span>
+<span class="fc" id="L236">        return sb.toString();</span>
+    }
+
+    private void appendArtifactTypeClassifierString( StringBuilder sb )
+    {
+<span class="fc" id="L241">        sb.append( getArtifactId() );</span>
+<span class="fc" id="L242">        sb.append( ':' );</span>
+<span class="fc" id="L243">        sb.append( getType() );</span>
+<span class="fc bfc" id="L244" title="All 2 branches covered.">        if ( hasClassifier() )</span>
+        {
+<span class="fc" id="L246">            sb.append( ':' );</span>
+<span class="fc" id="L247">            sb.append( getClassifier() );</span>
+        }
+<span class="fc" id="L249">    }</span>
+
+    public void addMetadata( ArtifactMetadata metadata )
+    {
+<span class="nc bnc" id="L253" title="All 2 branches missed.">        if ( metadataMap == null )</span>
+        {
+<span class="nc" id="L255">            metadataMap = new HashMap&lt;&gt;();</span>
+        }
+
+<span class="nc" id="L258">        ArtifactMetadata m = metadataMap.get( metadata.getKey() );</span>
+<span class="nc bnc" id="L259" title="All 2 branches missed.">        if ( m != null )</span>
+        {
+<span class="nc" id="L261">            m.merge( metadata );</span>
+        }
+        else
+        {
+<span class="nc" id="L265">            metadataMap.put( metadata.getKey(), metadata );</span>
+        }
+<span class="nc" id="L267">    }</span>
+
+    public Collection&lt;ArtifactMetadata&gt; getMetadataList()
+    {
+<span class="nc bnc" id="L271" title="All 2 branches missed.">        if ( metadataMap == null )</span>
+        {
+<span class="nc" id="L273">            return Collections.emptyList();</span>
+        }
+
+<span class="nc" id="L276">        return metadataMap.values();</span>
+    }
+
+    // ----------------------------------------------------------------------
+    // Object overrides
+    // ----------------------------------------------------------------------
+
+    public String toString()
+    {
+<span class="fc" id="L285">        StringBuilder sb = new StringBuilder();</span>
+<span class="pc bpc" id="L286" title="1 of 2 branches missed.">        if ( getGroupId() != null )</span>
+        {
+<span class="fc" id="L288">            sb.append( getGroupId() );</span>
+<span class="fc" id="L289">            sb.append( ':' );</span>
+        }
+<span class="fc" id="L291">        appendArtifactTypeClassifierString( sb );</span>
+<span class="fc" id="L292">        sb.append( ':' );</span>
+<span class="pc bpc" id="L293" title="1 of 2 branches missed.">        if ( getBaseVersionInternal() != null )</span>
+        {
+<span class="fc" id="L295">            sb.append( getBaseVersionInternal() );</span>
+        }
+        else
+        {
+<span class="nc" id="L299">            sb.append( versionRange.toString() );</span>
+        }
+<span class="fc bfc" id="L301" title="All 2 branches covered.">        if ( scope != null )</span>
+        {
+<span class="fc" id="L303">            sb.append( ':' );</span>
+<span class="fc" id="L304">            sb.append( scope );</span>
+        }
+<span class="fc" id="L306">        return sb.toString();</span>
+    }
+
+    public int hashCode()
+    {
+<span class="fc" id="L311">        int result = 17;</span>
+<span class="fc" id="L312">        result = 37 * result + groupId.hashCode();</span>
+<span class="fc" id="L313">        result = 37 * result + artifactId.hashCode();</span>
+<span class="fc" id="L314">        result = 37 * result + type.hashCode();</span>
+<span class="pc bpc" id="L315" title="1 of 2 branches missed.">        if ( version != null )</span>
+        {
+<span class="fc" id="L317">            result = 37 * result + version.hashCode();</span>
+        }
+<span class="fc bfc" id="L319" title="All 2 branches covered.">        result = 37 * result + ( classifier != null ? classifier.hashCode() : 0 );</span>
+<span class="fc" id="L320">        return result;</span>
+    }
+
+    public boolean equals( Object o )
+    {
+<span class="nc bnc" id="L325" title="All 2 branches missed.">        if ( o == this )</span>
+        {
+<span class="nc" id="L327">            return true;</span>
+        }
+
+<span class="nc bnc" id="L330" title="All 2 branches missed.">        if ( !( o instanceof Artifact ) )</span>
+        {
+<span class="nc" id="L332">            return false;</span>
+        }
+
+<span class="nc" id="L335">        Artifact a = (Artifact) o;</span>
+
+<span class="nc bnc" id="L337" title="All 2 branches missed.">        if ( !a.getGroupId().equals( groupId ) )</span>
+        {
+<span class="nc" id="L339">            return false;</span>
+        }
+<span class="nc bnc" id="L341" title="All 2 branches missed.">        else if ( !a.getArtifactId().equals( artifactId ) )</span>
+        {
+<span class="nc" id="L343">            return false;</span>
+        }
+<span class="nc bnc" id="L345" title="All 2 branches missed.">        else if ( !a.getVersion().equals( version ) )</span>
+        {
+<span class="nc" id="L347">            return false;</span>
+        }
+<span class="nc bnc" id="L349" title="All 2 branches missed.">        else if ( !a.getType().equals( type ) )</span>
+        {
+<span class="nc" id="L351">            return false;</span>
+        }
+<span class="nc bnc" id="L353" title="All 6 branches missed.">        else if ( a.getClassifier() == null ? classifier != null : !a.getClassifier().equals( classifier ) )</span>
+        {
+<span class="nc" id="L355">            return false;</span>
+        }
+
+        // We don't consider the version range in the comparison, just the resolved version
+
+<span class="nc" id="L360">        return true;</span>
+    }
+
+    public String getBaseVersion()
+    {
+<span class="pc bpc" id="L365" title="3 of 4 branches missed.">        if ( baseVersion == null &amp;&amp; version != null )</span>
+        {
+<span class="nc" id="L367">            setBaseVersionInternal( version );</span>
+        }
+
+<span class="fc" id="L370">        return baseVersion;</span>
+    }
+
+    protected String getBaseVersionInternal()
+    {
+<span class="pc bpc" id="L375" title="3 of 4 branches missed.">        if ( ( baseVersion == null ) &amp;&amp; ( version != null ) )</span>
+        {
+<span class="nc" id="L377">            setBaseVersionInternal( version );</span>
+        }
+
+<span class="fc" id="L380">        return baseVersion;</span>
+    }
+
+    public void setBaseVersion( String baseVersion )
+    {
+<span class="fc" id="L385">        setBaseVersionInternal( baseVersion );</span>
+<span class="fc" id="L386">    }</span>
+
+    protected void setBaseVersionInternal( String baseVersion )
+    {
+<span class="fc" id="L390">        Matcher m = VERSION_FILE_PATTERN.matcher( baseVersion );</span>
+
+<span class="fc bfc" id="L392" title="All 2 branches covered.">        if ( m.matches() )</span>
+        {
+<span class="fc" id="L394">            this.baseVersion = m.group( 1 ) + &quot;-&quot; + SNAPSHOT_VERSION;</span>
+        }
+        else
+        {
+<span class="fc" id="L398">            this.baseVersion = baseVersion;</span>
+        }
+<span class="fc" id="L400">    }</span>
+
+    public int compareTo( Artifact a )
+    {
+<span class="nc" id="L404">        int result = groupId.compareTo( a.getGroupId() );</span>
+<span class="nc bnc" id="L405" title="All 2 branches missed.">        if ( result == 0 )</span>
+        {
+<span class="nc" id="L407">            result = artifactId.compareTo( a.getArtifactId() );</span>
+<span class="nc bnc" id="L408" title="All 2 branches missed.">            if ( result == 0 )</span>
+            {
+<span class="nc" id="L410">                result = type.compareTo( a.getType() );</span>
+<span class="nc bnc" id="L411" title="All 2 branches missed.">                if ( result == 0 )</span>
+                {
+<span class="nc bnc" id="L413" title="All 2 branches missed.">                    if ( classifier == null )</span>
+                    {
+<span class="nc bnc" id="L415" title="All 2 branches missed.">                        if ( a.getClassifier() != null )</span>
+                        {
+<span class="nc" id="L417">                            result = 1;</span>
+                        }
+                    }
+                    else
+                    {
+<span class="nc bnc" id="L422" title="All 2 branches missed.">                        if ( a.getClassifier() != null )</span>
+                        {
+<span class="nc" id="L424">                            result = classifier.compareTo( a.getClassifier() );</span>
+                        }
+                        else
+                        {
+<span class="nc" id="L428">                            result = -1;</span>
+                        }
+                    }
+<span class="nc bnc" id="L431" title="All 2 branches missed.">                    if ( result == 0 )</span>
+                    {
+                        // We don't consider the version range in the comparison, just the resolved version
+<span class="nc" id="L434">                        result = new DefaultArtifactVersion( version ).compareTo(</span>
+                            new DefaultArtifactVersion( a.getVersion() ) );
+                    }
+                }
+            }
+        }
+<span class="nc" id="L440">        return result;</span>
+    }
+
+    public void updateVersion( String version, ArtifactRepository localRepository )
+    {
+<span class="nc" id="L445">        setResolvedVersion( version );</span>
+<span class="nc" id="L446">        setFile( new File( localRepository.getBasedir(), localRepository.pathOf( this ) ) );</span>
+<span class="nc" id="L447">    }</span>
+
+    public String getDownloadUrl()
+    {
+<span class="fc" id="L451">        return downloadUrl;</span>
+    }
+
+    public void setDownloadUrl( String downloadUrl )
+    {
+<span class="fc" id="L456">        this.downloadUrl = downloadUrl;</span>
+<span class="fc" id="L457">    }</span>
+
+    public ArtifactFilter getDependencyFilter()
+    {
+<span class="fc" id="L461">        return dependencyFilter;</span>
+    }
+
+    public void setDependencyFilter( ArtifactFilter artifactFilter )
+    {
+<span class="fc" id="L466">        dependencyFilter = artifactFilter;</span>
+<span class="fc" id="L467">    }</span>
+
+    public ArtifactHandler getArtifactHandler()
+    {
+<span class="fc" id="L471">        return artifactHandler;</span>
+    }
+
+    public List&lt;String&gt; getDependencyTrail()
+    {
+<span class="fc" id="L476">        return dependencyTrail;</span>
+    }
+
+    public void setDependencyTrail( List&lt;String&gt; dependencyTrail )
+    {
+<span class="fc" id="L481">        this.dependencyTrail = dependencyTrail;</span>
+<span class="fc" id="L482">    }</span>
+
+    public void setScope( String scope )
+    {
+<span class="fc" id="L486">        this.scope = scope;</span>
+<span class="fc" id="L487">    }</span>
+
+    public VersionRange getVersionRange()
+    {
+<span class="fc" id="L491">        return versionRange;</span>
+    }
+
+    public void setVersionRange( VersionRange versionRange )
+    {
+<span class="nc" id="L496">        this.versionRange = versionRange;</span>
+<span class="nc" id="L497">        selectVersionFromNewRangeIfAvailable();</span>
+<span class="nc" id="L498">    }</span>
+
+    private void selectVersionFromNewRangeIfAvailable()
+    {
+<span class="pc bpc" id="L502" title="1 of 4 branches missed.">        if ( ( versionRange != null ) &amp;&amp; ( versionRange.getRecommendedVersion() != null ) )</span>
+        {
+<span class="fc" id="L504">            selectVersion( versionRange.getRecommendedVersion().toString() );</span>
+        }
+        else
+        {
+<span class="fc" id="L508">            version = null;</span>
+<span class="fc" id="L509">            baseVersion = null;</span>
+        }
+<span class="fc" id="L511">    }</span>
+
+    public void selectVersion( String version )
+    {
+<span class="fc" id="L515">        this.version = version;</span>
+<span class="fc" id="L516">        setBaseVersionInternal( version );</span>
+<span class="fc" id="L517">    }</span>
+
+    public void setGroupId( String groupId )
+    {
+<span class="nc" id="L521">        this.groupId = groupId;</span>
+<span class="nc" id="L522">    }</span>
+
+    public void setArtifactId( String artifactId )
+    {
+<span class="nc" id="L526">        this.artifactId = artifactId;</span>
+<span class="nc" id="L527">    }</span>
+
+    public boolean isSnapshot()
+    {
+<span class="pc bpc" id="L531" title="2 of 6 branches missed.">        return getBaseVersion() != null</span>
+            &amp;&amp; ( getBaseVersion().endsWith( SNAPSHOT_VERSION ) || getBaseVersion().equals( LATEST_VERSION ) );
+    }
+
+    public void setResolved( boolean resolved )
+    {
+<span class="fc" id="L537">        this.resolved = resolved;</span>
+<span class="fc" id="L538">    }</span>
+
+    public boolean isResolved()
+    {
+<span class="fc" id="L542">        return resolved;</span>
+    }
+
+    public void setResolvedVersion( String version )
+    {
+<span class="fc" id="L547">        this.version = version;</span>
+        // retain baseVersion
+<span class="fc" id="L549">    }</span>
+
+    public void setArtifactHandler( ArtifactHandler artifactHandler )
+    {
+<span class="nc" id="L553">        this.artifactHandler = artifactHandler;</span>
+<span class="nc" id="L554">    }</span>
+
+    public void setRelease( boolean release )
+    {
+<span class="fc" id="L558">        this.release = release;</span>
+<span class="fc" id="L559">    }</span>
+
+    public boolean isRelease()
+    {
+<span class="fc" id="L563">        return release;</span>
+    }
+
+    public List&lt;ArtifactVersion&gt; getAvailableVersions()
+    {
+<span class="fc" id="L568">        return availableVersions;</span>
+    }
+
+    public void setAvailableVersions( List&lt;ArtifactVersion&gt; availableVersions )
+    {
+<span class="fc" id="L573">        this.availableVersions = availableVersions;</span>
+<span class="fc" id="L574">    }</span>
+
+    public boolean isOptional()
+    {
+<span class="fc" id="L578">        return optional;</span>
+    }
+
+    public ArtifactVersion getSelectedVersion()
+        throws OverConstrainedVersionException
+    {
+<span class="nc" id="L584">        return versionRange.getSelectedVersion( this );</span>
+    }
+
+    public boolean isSelectedVersionKnown()
+        throws OverConstrainedVersionException
+    {
+<span class="nc" id="L590">        return versionRange.isSelectedVersionKnown( this );</span>
+    }
+
+    public void setOptional( boolean optional )
+    {
+<span class="fc" id="L595">        this.optional = optional;</span>
+<span class="fc" id="L596">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

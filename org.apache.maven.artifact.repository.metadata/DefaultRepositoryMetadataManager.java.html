@@ -1,0 +1,537 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultRepositoryMetadataManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.artifact.repository.metadata</a> &gt; <span class="el_source">DefaultRepositoryMetadataManager.java</span></div><h1>DefaultRepositoryMetadataManager.java</h1><pre class="source lang-java linenums">package org.apache.maven.artifact.repository.metadata;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.maven.artifact.metadata.ArtifactMetadata;
+import org.apache.maven.artifact.repository.ArtifactRepository;
+import org.apache.maven.artifact.repository.ArtifactRepositoryPolicy;
+import org.apache.maven.artifact.repository.DefaultRepositoryRequest;
+import org.apache.maven.artifact.repository.RepositoryRequest;
+import org.apache.maven.artifact.repository.metadata.io.xpp3.MetadataXpp3Reader;
+import org.apache.maven.artifact.repository.metadata.io.xpp3.MetadataXpp3Writer;
+import org.apache.maven.repository.legacy.UpdateCheckManager;
+import org.apache.maven.repository.legacy.WagonManager;
+import org.apache.maven.wagon.ResourceDoesNotExistException;
+import org.apache.maven.wagon.TransferFailedException;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
+import org.codehaus.plexus.logging.AbstractLogEnabled;
+import org.codehaus.plexus.util.ReaderFactory;
+import org.codehaus.plexus.util.WriterFactory;
+import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+import java.io.Reader;
+import java.io.Writer;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * @author Jason van Zyl
+ */
+@Component( role = RepositoryMetadataManager.class )
+<span class="fc" id="L54">public class DefaultRepositoryMetadataManager</span>
+    extends AbstractLogEnabled
+    implements RepositoryMetadataManager
+{
+    @Requirement
+    private WagonManager wagonManager;
+
+    @Requirement
+    private UpdateCheckManager updateCheckManager;
+
+    public void resolve( RepositoryMetadata metadata, List&lt;ArtifactRepository&gt; remoteRepositories,
+                         ArtifactRepository localRepository )
+        throws RepositoryMetadataResolutionException
+    {
+<span class="nc" id="L68">        RepositoryRequest request = new DefaultRepositoryRequest();</span>
+<span class="nc" id="L69">        request.setLocalRepository( localRepository );</span>
+<span class="nc" id="L70">        request.setRemoteRepositories( remoteRepositories );</span>
+<span class="nc" id="L71">        resolve( metadata, request );</span>
+<span class="nc" id="L72">    }</span>
+
+    public void resolve( RepositoryMetadata metadata, RepositoryRequest request )
+        throws RepositoryMetadataResolutionException
+    {
+<span class="nc" id="L77">        ArtifactRepository localRepo = request.getLocalRepository();</span>
+<span class="nc" id="L78">        List&lt;ArtifactRepository&gt; remoteRepositories = request.getRemoteRepositories();</span>
+
+<span class="nc bnc" id="L80" title="All 2 branches missed.">        if ( !request.isOffline() )</span>
+        {
+<span class="nc" id="L82">            Date localCopyLastModified = null;</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">            if ( metadata.getBaseVersion() != null )</span>
+            {
+<span class="nc" id="L85">                localCopyLastModified = getLocalCopyLastModified( localRepo, metadata );</span>
+            }
+
+<span class="nc bnc" id="L88" title="All 2 branches missed.">            for ( ArtifactRepository repository : remoteRepositories )</span>
+            {
+<span class="nc" id="L90">                ArtifactRepositoryPolicy policy = metadata.getPolicy( repository );</span>
+
+<span class="nc" id="L92">                File file =</span>
+                    new File( localRepo.getBasedir(), localRepo.pathOfLocalRepositoryMetadata( metadata, repository ) );
+                boolean update;
+
+<span class="nc bnc" id="L96" title="All 2 branches missed.">                if ( !policy.isEnabled() )</span>
+                {
+<span class="nc" id="L98">                    update = false;</span>
+
+<span class="nc bnc" id="L100" title="All 2 branches missed.">                    if ( getLogger().isDebugEnabled() )</span>
+                    {
+<span class="nc" id="L102">                        getLogger().debug( &quot;Skipping update check for &quot; + metadata.getKey() + &quot; (&quot; + file</span>
+                                               + &quot;) from disabled repository &quot; + repository.getId() + &quot; (&quot;
+                                               + repository.getUrl() + &quot;)&quot; );
+                    }
+                }
+<span class="nc bnc" id="L107" title="All 2 branches missed.">                else if ( request.isForceUpdate() )</span>
+                {
+<span class="nc" id="L109">                    update = true;</span>
+                }
+<span class="nc bnc" id="L111" title="All 4 branches missed.">                else if ( localCopyLastModified != null &amp;&amp; !policy.checkOutOfDate( localCopyLastModified ) )</span>
+                {
+<span class="nc" id="L113">                    update = false;</span>
+
+<span class="nc bnc" id="L115" title="All 2 branches missed.">                    if ( getLogger().isDebugEnabled() )</span>
+                    {
+<span class="nc" id="L117">                        getLogger().debug(</span>
+                            &quot;Skipping update check for &quot; + metadata.getKey() + &quot; (&quot; + file + &quot;) from repository &quot;
+                                + repository.getId() + &quot; (&quot; + repository.getUrl() + &quot;) in favor of local copy&quot; );
+                    }
+                }
+                else
+                {
+<span class="nc" id="L124">                    update = updateCheckManager.isUpdateRequired( metadata, repository, file );</span>
+                }
+
+<span class="nc bnc" id="L127" title="All 2 branches missed.">                if ( update )</span>
+                {
+<span class="nc" id="L129">                    getLogger().info( metadata.getKey() + &quot;: checking for updates from &quot; + repository.getId() );</span>
+                    try
+                    {
+<span class="nc" id="L132">                        wagonManager.getArtifactMetadata( metadata, repository, file, policy.getChecksumPolicy() );</span>
+                    }
+<span class="nc" id="L134">                    catch ( ResourceDoesNotExistException e )</span>
+                    {
+<span class="nc" id="L136">                        getLogger().debug( metadata + &quot; could not be found on repository: &quot; + repository.getId() );</span>
+
+                        // delete the local copy so the old details aren't used.
+<span class="nc bnc" id="L139" title="All 2 branches missed.">                        if ( file.exists() )</span>
+                        {
+<span class="nc bnc" id="L141" title="All 2 branches missed.">                            if ( !file.delete() )</span>
+                            {
+                                // sleep for 10ms just in case this is windows holding a file lock
+                                try
+                                {
+<span class="nc" id="L146">                                    Thread.sleep( 10 );</span>
+                                }
+<span class="nc" id="L148">                                catch ( InterruptedException ie )</span>
+                                {
+                                    // ignore
+<span class="nc" id="L151">                                }</span>
+<span class="nc" id="L152">                                file.delete(); // if this fails, forget about it</span>
+                            }
+                        }
+                    }
+<span class="nc" id="L156">                    catch ( TransferFailedException e )</span>
+                    {
+<span class="nc" id="L158">                        getLogger().warn( metadata + &quot; could not be retrieved from repository: &quot; + repository.getId()</span>
+                                              + &quot; due to an error: &quot; + e.getMessage() );
+<span class="nc" id="L160">                        getLogger().debug( &quot;Exception&quot;, e );</span>
+                    }
+                    finally
+                    {
+<span class="nc" id="L164">                        updateCheckManager.touch( metadata, repository, file );</span>
+                    }
+                }
+
+                // TODO should this be inside the above check?
+                // touch file so that this is not checked again until interval has passed
+<span class="nc bnc" id="L170" title="All 2 branches missed.">                if ( file.exists() )</span>
+                {
+<span class="nc" id="L172">                    file.setLastModified( System.currentTimeMillis() );</span>
+                }
+<span class="nc" id="L174">            }</span>
+        }
+
+        try
+        {
+<span class="nc" id="L179">            mergeMetadata( metadata, remoteRepositories, localRepo );</span>
+        }
+<span class="nc" id="L181">        catch ( RepositoryMetadataStoreException e )</span>
+        {
+<span class="nc" id="L183">            throw new RepositoryMetadataResolutionException(</span>
+                &quot;Unable to store local copy of metadata: &quot; + e.getMessage(), e );
+<span class="nc" id="L185">        }</span>
+<span class="nc" id="L186">    }</span>
+
+    private Date getLocalCopyLastModified( ArtifactRepository localRepository, RepositoryMetadata metadata )
+    {
+<span class="nc" id="L190">        String metadataPath = localRepository.pathOfLocalRepositoryMetadata( metadata, localRepository );</span>
+<span class="nc" id="L191">        File metadataFile = new File( localRepository.getBasedir(), metadataPath );</span>
+<span class="nc bnc" id="L192" title="All 2 branches missed.">        return metadataFile.isFile() ? new Date( metadataFile.lastModified() ) : null;</span>
+    }
+
+    private void mergeMetadata( RepositoryMetadata metadata, List&lt;ArtifactRepository&gt; remoteRepositories,
+                                ArtifactRepository localRepository )
+        throws RepositoryMetadataStoreException
+    {
+        // TODO currently this is first wins, but really we should take the latest by comparing either the
+        // snapshot timestamp, or some other timestamp later encoded into the metadata.
+        // TODO this needs to be repeated here so the merging doesn't interfere with the written metadata
+        //  - we'd be much better having a pristine input, and an ongoing metadata for merging instead
+
+<span class="nc" id="L204">        Map&lt;ArtifactRepository, Metadata&gt; previousMetadata = new HashMap&lt;&gt;();</span>
+<span class="nc" id="L205">        ArtifactRepository selected = null;</span>
+<span class="nc bnc" id="L206" title="All 2 branches missed.">        for ( ArtifactRepository repository : remoteRepositories )</span>
+        {
+<span class="nc" id="L208">            ArtifactRepositoryPolicy policy = metadata.getPolicy( repository );</span>
+
+<span class="nc bnc" id="L210" title="All 4 branches missed.">            if ( policy.isEnabled() &amp;&amp; loadMetadata( metadata, repository, localRepository, previousMetadata ) )</span>
+            {
+<span class="nc" id="L212">                metadata.setRepository( repository );</span>
+<span class="nc" id="L213">                selected = repository;</span>
+            }
+<span class="nc" id="L215">        }</span>
+<span class="nc bnc" id="L216" title="All 2 branches missed.">        if ( loadMetadata( metadata, localRepository, localRepository, previousMetadata ) )</span>
+        {
+<span class="nc" id="L218">            metadata.setRepository( null );</span>
+<span class="nc" id="L219">            selected = localRepository;</span>
+        }
+
+<span class="nc" id="L222">        updateSnapshotMetadata( metadata, previousMetadata, selected, localRepository );</span>
+<span class="nc" id="L223">    }</span>
+
+    private void updateSnapshotMetadata( RepositoryMetadata metadata,
+                                         Map&lt;ArtifactRepository, Metadata&gt; previousMetadata,
+                                         ArtifactRepository selected, ArtifactRepository localRepository )
+        throws RepositoryMetadataStoreException
+    {
+        // TODO this could be a lot nicer... should really be in the snapshot transformation?
+<span class="nc bnc" id="L231" title="All 2 branches missed.">        if ( metadata.isSnapshot() )</span>
+        {
+<span class="nc" id="L233">            Metadata prevMetadata = metadata.getMetadata();</span>
+
+<span class="nc bnc" id="L235" title="All 2 branches missed.">            for ( ArtifactRepository repository : previousMetadata.keySet() )</span>
+            {
+<span class="nc" id="L237">                Metadata m = previousMetadata.get( repository );</span>
+<span class="nc bnc" id="L238" title="All 2 branches missed.">                if ( repository.equals( selected ) )</span>
+                {
+<span class="nc bnc" id="L240" title="All 2 branches missed.">                    if ( m.getVersioning() == null )</span>
+                    {
+<span class="nc" id="L242">                        m.setVersioning( new Versioning() );</span>
+                    }
+
+<span class="nc bnc" id="L245" title="All 2 branches missed.">                    if ( m.getVersioning().getSnapshot() == null )</span>
+                    {
+<span class="nc" id="L247">                        m.getVersioning().setSnapshot( new Snapshot() );</span>
+                    }
+                }
+                else
+                {
+<span class="nc bnc" id="L252" title="All 6 branches missed.">                    if ( ( m.getVersioning() != null ) &amp;&amp; ( m.getVersioning().getSnapshot() != null )</span>
+                        &amp;&amp; m.getVersioning().getSnapshot().isLocalCopy() )
+                    {
+<span class="nc" id="L255">                        m.getVersioning().getSnapshot().setLocalCopy( false );</span>
+<span class="nc" id="L256">                        metadata.setMetadata( m );</span>
+<span class="nc" id="L257">                        metadata.storeInLocalRepository( localRepository, repository );</span>
+                    }
+                }
+<span class="nc" id="L260">            }</span>
+
+<span class="nc" id="L262">            metadata.setMetadata( prevMetadata );</span>
+        }
+<span class="nc" id="L264">    }</span>
+
+    private boolean loadMetadata( RepositoryMetadata repoMetadata, ArtifactRepository remoteRepository,
+                                  ArtifactRepository localRepository,
+                                  Map&lt;ArtifactRepository, Metadata&gt; previousMetadata )
+    {
+<span class="nc" id="L270">        boolean setRepository = false;</span>
+
+<span class="nc" id="L272">        File metadataFile = new File( localRepository.getBasedir(),</span>
+                                      localRepository.pathOfLocalRepositoryMetadata( repoMetadata, remoteRepository ) );
+
+<span class="nc bnc" id="L275" title="All 2 branches missed.">        if ( metadataFile.exists() )</span>
+        {
+            Metadata metadata;
+
+            try
+            {
+<span class="nc" id="L281">                metadata = readMetadata( metadataFile );</span>
+            }
+<span class="nc" id="L283">            catch ( RepositoryMetadataReadException e )</span>
+            {
+<span class="nc bnc" id="L285" title="All 2 branches missed.">                if ( getLogger().isDebugEnabled() )</span>
+                {
+<span class="nc" id="L287">                    getLogger().warn( e.getMessage(), e );</span>
+                }
+                else
+                {
+<span class="nc" id="L291">                    getLogger().warn( e.getMessage() );</span>
+                }
+<span class="nc" id="L293">                return setRepository;</span>
+<span class="nc" id="L294">            }</span>
+
+<span class="nc bnc" id="L296" title="All 4 branches missed.">            if ( repoMetadata.isSnapshot() &amp;&amp; ( previousMetadata != null ) )</span>
+            {
+<span class="nc" id="L298">                previousMetadata.put( remoteRepository, metadata );</span>
+            }
+
+<span class="nc bnc" id="L301" title="All 2 branches missed.">            if ( repoMetadata.getMetadata() != null )</span>
+            {
+<span class="nc" id="L303">                setRepository = repoMetadata.getMetadata().merge( metadata );</span>
+            }
+            else
+            {
+<span class="nc" id="L307">                repoMetadata.setMetadata( metadata );</span>
+<span class="nc" id="L308">                setRepository = true;</span>
+            }
+        }
+<span class="nc" id="L311">        return setRepository;</span>
+    }
+
+    /**
+     * TODO share with DefaultPluginMappingManager.
+     */
+    protected Metadata readMetadata( File mappingFile )
+        throws RepositoryMetadataReadException
+    {
+        Metadata result;
+
+<span class="nc" id="L322">        try ( Reader reader = ReaderFactory.newXmlReader( mappingFile ) )</span>
+        {
+<span class="nc" id="L324">            MetadataXpp3Reader mappingReader = new MetadataXpp3Reader();</span>
+
+<span class="nc" id="L326">            result = mappingReader.read( reader, false );</span>
+        }
+<span class="nc" id="L328">        catch ( FileNotFoundException e )</span>
+        {
+<span class="nc" id="L330">            throw new RepositoryMetadataReadException( &quot;Cannot read metadata from '&quot; + mappingFile + &quot;'&quot;, e );</span>
+        }
+<span class="nc" id="L332">        catch ( IOException | XmlPullParserException e )</span>
+        {
+<span class="nc" id="L334">            throw new RepositoryMetadataReadException(</span>
+                &quot;Cannot read metadata from '&quot; + mappingFile + &quot;': &quot; + e.getMessage(), e );
+<span class="nc" id="L336">        }</span>
+<span class="nc" id="L337">        return result;</span>
+    }
+
+    /**
+     * Ensures the last updated timestamp of the specified metadata does not refer to the future and fixes the local
+     * metadata if necessary to allow proper merging/updating of metadata during deployment.
+     */
+    private void fixTimestamp( File metadataFile, Metadata metadata, Metadata reference )
+    {
+<span class="nc" id="L346">        boolean changed = false;</span>
+
+<span class="nc bnc" id="L348" title="All 4 branches missed.">        if ( metadata != null &amp;&amp; reference != null )</span>
+        {
+<span class="nc" id="L350">            Versioning versioning = metadata.getVersioning();</span>
+<span class="nc" id="L351">            Versioning versioningRef = reference.getVersioning();</span>
+<span class="nc bnc" id="L352" title="All 4 branches missed.">            if ( versioning != null &amp;&amp; versioningRef != null )</span>
+            {
+<span class="nc" id="L354">                String lastUpdated = versioning.getLastUpdated();</span>
+<span class="nc" id="L355">                String now = versioningRef.getLastUpdated();</span>
+<span class="nc bnc" id="L356" title="All 6 branches missed.">                if ( lastUpdated != null &amp;&amp; now != null &amp;&amp; now.compareTo( lastUpdated ) &lt; 0 )</span>
+                {
+<span class="nc" id="L358">                    getLogger().warn(</span>
+                        &quot;The last updated timestamp in &quot; + metadataFile + &quot; refers to the future (now = &quot; + now
+                            + &quot;, lastUpdated = &quot; + lastUpdated + &quot;). Please verify that the clocks of all&quot;
+                            + &quot; deploying machines are reasonably synchronized.&quot; );
+<span class="nc" id="L362">                    versioning.setLastUpdated( now );</span>
+<span class="nc" id="L363">                    changed = true;</span>
+                }
+            }
+        }
+
+<span class="nc bnc" id="L368" title="All 2 branches missed.">        if ( changed )</span>
+        {
+<span class="nc" id="L370">            getLogger().debug( &quot;Repairing metadata in &quot; + metadataFile );</span>
+
+<span class="nc" id="L372">            try ( Writer writer = WriterFactory.newXmlWriter( metadataFile ) )</span>
+            {
+<span class="nc" id="L374">                new MetadataXpp3Writer().write( writer, metadata );</span>
+            }
+<span class="nc" id="L376">            catch ( IOException e )</span>
+            {
+<span class="nc" id="L378">                String msg = &quot;Could not write fixed metadata to &quot; + metadataFile + &quot;: &quot; + e.getMessage();</span>
+<span class="nc bnc" id="L379" title="All 2 branches missed.">                if ( getLogger().isDebugEnabled() )</span>
+                {
+<span class="nc" id="L381">                    getLogger().warn( msg, e );</span>
+                }
+                else
+                {
+<span class="nc" id="L385">                    getLogger().warn( msg );</span>
+                }
+<span class="nc" id="L387">            }</span>
+        }
+<span class="nc" id="L389">    }</span>
+
+    public void resolveAlways( RepositoryMetadata metadata, ArtifactRepository localRepository,
+                               ArtifactRepository remoteRepository )
+        throws RepositoryMetadataResolutionException
+    {
+        File file;
+        try
+        {
+<span class="nc" id="L398">            file = getArtifactMetadataFromDeploymentRepository( metadata, localRepository, remoteRepository );</span>
+        }
+<span class="nc" id="L400">        catch ( TransferFailedException e )</span>
+        {
+<span class="nc" id="L402">            throw new RepositoryMetadataResolutionException(</span>
+                metadata + &quot; could not be retrieved from repository: &quot; + remoteRepository.getId() + &quot; due to an error: &quot;
+                    + e.getMessage(), e );
+<span class="nc" id="L405">        }</span>
+
+        try
+        {
+<span class="nc bnc" id="L409" title="All 2 branches missed.">            if ( file.exists() )</span>
+            {
+<span class="nc" id="L411">                Metadata prevMetadata = readMetadata( file );</span>
+<span class="nc" id="L412">                metadata.setMetadata( prevMetadata );</span>
+            }
+        }
+<span class="nc" id="L415">        catch ( RepositoryMetadataReadException e )</span>
+        {
+<span class="nc" id="L417">            throw new RepositoryMetadataResolutionException( e.getMessage(), e );</span>
+<span class="nc" id="L418">        }</span>
+<span class="nc" id="L419">    }</span>
+
+    private File getArtifactMetadataFromDeploymentRepository( ArtifactMetadata metadata, ArtifactRepository localRepo,
+                                                              ArtifactRepository remoteRepository )
+        throws TransferFailedException
+    {
+<span class="nc" id="L425">        File file =</span>
+            new File( localRepo.getBasedir(), localRepo.pathOfLocalRepositoryMetadata( metadata, remoteRepository ) );
+
+        try
+        {
+<span class="nc" id="L430">            wagonManager.getArtifactMetadataFromDeploymentRepository( metadata, remoteRepository, file,</span>
+                                                                      ArtifactRepositoryPolicy.CHECKSUM_POLICY_WARN );
+        }
+<span class="nc" id="L433">        catch ( ResourceDoesNotExistException e )</span>
+        {
+<span class="nc" id="L435">            getLogger().info(</span>
+                metadata + &quot; could not be found on repository: &quot; + remoteRepository.getId() + &quot;, so will be created&quot; );
+
+            // delete the local copy so the old details aren't used.
+<span class="nc bnc" id="L439" title="All 2 branches missed.">            if ( file.exists() )</span>
+            {
+<span class="nc bnc" id="L441" title="All 2 branches missed.">                if ( !file.delete() )</span>
+                {
+                    // sleep for 10ms just in case this is windows holding a file lock
+                    try
+                    {
+<span class="nc" id="L446">                        Thread.sleep( 10 );</span>
+                    }
+<span class="nc" id="L448">                    catch ( InterruptedException ie )</span>
+                    {
+                        // ignore
+<span class="nc" id="L451">                    }</span>
+<span class="nc" id="L452">                    file.delete(); // if this fails, forget about it</span>
+                }
+            }
+        }
+        finally
+        {
+<span class="nc bnc" id="L458" title="All 2 branches missed.">            if ( metadata instanceof RepositoryMetadata )</span>
+            {
+<span class="nc" id="L460">                updateCheckManager.touch( (RepositoryMetadata) metadata, remoteRepository, file );</span>
+            }
+        }
+<span class="nc" id="L463">        return file;</span>
+    }
+
+    public void deploy( ArtifactMetadata metadata, ArtifactRepository localRepository,
+                        ArtifactRepository deploymentRepository )
+        throws RepositoryMetadataDeploymentException
+    {
+        File file;
+<span class="nc bnc" id="L471" title="All 2 branches missed.">        if ( metadata instanceof RepositoryMetadata )</span>
+        {
+<span class="nc" id="L473">            getLogger().info( &quot;Retrieving previous metadata from &quot; + deploymentRepository.getId() );</span>
+            try
+            {
+<span class="nc" id="L476">                file = getArtifactMetadataFromDeploymentRepository( metadata, localRepository, deploymentRepository );</span>
+            }
+<span class="nc" id="L478">            catch ( TransferFailedException e )</span>
+            {
+<span class="nc" id="L480">                throw new RepositoryMetadataDeploymentException(</span>
+                    metadata + &quot; could not be retrieved from repository: &quot; + deploymentRepository.getId()
+                        + &quot; due to an error: &quot; + e.getMessage(), e );
+<span class="nc" id="L483">            }</span>
+
+<span class="nc bnc" id="L485" title="All 2 branches missed.">            if ( file.isFile() )</span>
+            {
+                try
+                {
+<span class="nc" id="L489">                    fixTimestamp( file, readMetadata( file ), ( (RepositoryMetadata) metadata ).getMetadata() );</span>
+                }
+<span class="nc" id="L491">                catch ( RepositoryMetadataReadException e )</span>
+                {
+                    // will be reported via storeInlocalRepository
+<span class="nc" id="L494">                }</span>
+            }
+        }
+        else
+        {
+            // It's a POM - we don't need to retrieve it first
+<span class="nc" id="L500">            file = new File( localRepository.getBasedir(),</span>
+                             localRepository.pathOfLocalRepositoryMetadata( metadata, deploymentRepository ) );
+        }
+
+        try
+        {
+<span class="nc" id="L506">            metadata.storeInLocalRepository( localRepository, deploymentRepository );</span>
+        }
+<span class="nc" id="L508">        catch ( RepositoryMetadataStoreException e )</span>
+        {
+<span class="nc" id="L510">            throw new RepositoryMetadataDeploymentException( &quot;Error installing metadata: &quot; + e.getMessage(), e );</span>
+<span class="nc" id="L511">        }</span>
+
+        try
+        {
+<span class="nc" id="L515">            wagonManager.putArtifactMetadata( file, metadata, deploymentRepository );</span>
+        }
+<span class="nc" id="L517">        catch ( TransferFailedException e )</span>
+        {
+<span class="nc" id="L519">            throw new RepositoryMetadataDeploymentException( &quot;Error while deploying metadata: &quot; + e.getMessage(), e );</span>
+<span class="nc" id="L520">        }</span>
+<span class="nc" id="L521">    }</span>
+
+    public void install( ArtifactMetadata metadata, ArtifactRepository localRepository )
+        throws RepositoryMetadataInstallationException
+    {
+        try
+        {
+<span class="nc" id="L528">            metadata.storeInLocalRepository( localRepository, localRepository );</span>
+        }
+<span class="nc" id="L530">        catch ( RepositoryMetadataStoreException e )</span>
+        {
+<span class="nc" id="L532">            throw new RepositoryMetadataInstallationException( &quot;Error installing metadata: &quot; + e.getMessage(), e );</span>
+<span class="nc" id="L533">        }</span>
+<span class="nc" id="L534">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

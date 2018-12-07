@@ -1,0 +1,184 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultClasspathTransformation.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository.metadata</a> &gt; <span class="el_source">DefaultClasspathTransformation.java</span></div><h1>DefaultClasspathTransformation.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository.metadata;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
+import java.util.List;
+
+import org.apache.maven.artifact.ArtifactScopeEnum;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
+
+/**
+ * default implementation of the metadata classpath transformer
+ *
+ * @author &lt;a href=&quot;oleg@codehaus.org&quot;&gt;Oleg Gusakov&lt;/a&gt;
+ *
+ */
+@Component( role = ClasspathTransformation.class )
+<span class="nc" id="L38">public class DefaultClasspathTransformation</span>
+    implements ClasspathTransformation
+{
+    @Requirement
+    GraphConflictResolver conflictResolver;
+
+    //----------------------------------------------------------------------------------------------------
+    public ClasspathContainer transform( MetadataGraph dirtyGraph, ArtifactScopeEnum scope, boolean resolve )
+        throws MetadataGraphTransformationException
+    {
+        try
+        {
+<span class="nc bnc" id="L50" title="All 4 branches missed.">            if ( dirtyGraph == null || dirtyGraph.isEmpty() )</span>
+            {
+<span class="nc" id="L52">                return null;</span>
+            }
+
+<span class="nc" id="L55">            MetadataGraph cleanGraph = conflictResolver.resolveConflicts( dirtyGraph, scope );</span>
+
+<span class="nc bnc" id="L57" title="All 4 branches missed.">            if ( cleanGraph == null || cleanGraph.isEmpty() )</span>
+            {
+<span class="nc" id="L59">                return null;</span>
+            }
+
+<span class="nc" id="L62">            ClasspathContainer cpc = new ClasspathContainer( scope );</span>
+<span class="nc bnc" id="L63" title="All 2 branches missed.">            if ( cleanGraph.isEmptyEdges() )</span>
+            {
+                // single entry in the classpath, populated from itself
+<span class="nc" id="L66">                ArtifactMetadata amd = cleanGraph.getEntry().getMd();</span>
+<span class="nc" id="L67">                cpc.add( amd );</span>
+<span class="nc" id="L68">            }</span>
+            else
+            {
+<span class="nc" id="L71">                ClasspathGraphVisitor v = new ClasspathGraphVisitor( cleanGraph, cpc );</span>
+<span class="nc" id="L72">                MetadataGraphVertex entry = cleanGraph.getEntry();</span>
+                // entry point
+<span class="nc" id="L74">                v.visit( entry );</span>
+            }
+
+<span class="nc" id="L77">            return cpc;</span>
+        }
+<span class="nc" id="L79">        catch ( GraphConflictResolutionException e )</span>
+        {
+<span class="nc" id="L81">            throw new MetadataGraphTransformationException( e );</span>
+        }
+    }
+
+    //===================================================================================================
+    /**
+     * Helper class to traverse graph. Required to make the containing method thread-safe
+     * and yet use class level data to lessen stack usage in recursion
+     */
+<span class="nc" id="L90">    private class ClasspathGraphVisitor</span>
+    {
+        MetadataGraph graph;
+
+        ClasspathContainer cpc;
+
+        List&lt;MetadataGraphVertex&gt; visited;
+
+        // -----------------------------------------------------------------------
+        protected ClasspathGraphVisitor( MetadataGraph cleanGraph, ClasspathContainer cpc )
+<span class="nc" id="L100">        {</span>
+<span class="nc" id="L101">            this.cpc = cpc;</span>
+<span class="nc" id="L102">            this.graph = cleanGraph;</span>
+
+<span class="nc" id="L104">            visited = new ArrayList&lt;&gt;( cleanGraph.getVertices().size() );</span>
+<span class="nc" id="L105">        }</span>
+
+        // -----------------------------------------------------------------------
+        protected void visit( MetadataGraphVertex node ) // , String version, String artifactUri )
+        {
+<span class="nc" id="L110">            ArtifactMetadata md = node.getMd();</span>
+<span class="nc bnc" id="L111" title="All 2 branches missed.">            if ( visited.contains( node ) )</span>
+            {
+<span class="nc" id="L113">                return;</span>
+            }
+
+<span class="nc" id="L116">            cpc.add( md );</span>
+//
+//            TreeSet&lt;MetadataGraphEdge&gt; deps = new TreeSet&lt;MetadataGraphEdge&gt;(
+//                        new Comparator&lt;MetadataGraphEdge&gt;()
+//                        {
+//                            public int compare( MetadataGraphEdge e1
+//                                              , MetadataGraphEdge e2
+//                                              )
+//                            {
+//                                if( e1.getDepth() == e2.getDepth() )
+//                                {
+//                                    if( e2.getPomOrder() == e1.getPomOrder() )
+//                                        return e1.getTarget().toString().compareTo(e2.getTarget().toString() );
+//
+//                                    return e2.getPomOrder() - e1.getPomOrder();
+//                                }
+//
+//                                return e2.getDepth() - e1.getDepth();
+//                            }
+//                        }
+//                    );
+
+<span class="nc" id="L138">            List&lt;MetadataGraphEdge&gt; exits = graph.getExcidentEdges( node );</span>
+
+<span class="nc bnc" id="L140" title="All 4 branches missed.">            if ( exits != null &amp;&amp; exits.size() &gt; 0 )</span>
+            {
+<span class="nc" id="L142">                MetadataGraphEdge[] sortedExits = exits.toArray( new MetadataGraphEdge[exits.size()] );</span>
+<span class="nc" id="L143">                Arrays.sort( sortedExits</span>
+                        ,
+                        new Comparator&lt;MetadataGraphEdge&gt;()
+<span class="nc" id="L146">                        {</span>
+                            public int compare( MetadataGraphEdge e1
+                                            , MetadataGraphEdge e2
+                                            )
+                            {
+<span class="nc bnc" id="L151" title="All 2 branches missed.">                                if ( e1.getDepth() == e2.getDepth() )</span>
+                                {
+<span class="nc bnc" id="L153" title="All 2 branches missed.">                                    if ( e2.getPomOrder() == e1.getPomOrder() )</span>
+                                    {
+<span class="nc" id="L155">                                        return e1.getTarget().toString().compareTo( e2.getTarget().toString() );</span>
+                                    }
+<span class="nc" id="L157">                                    return e2.getPomOrder() - e1.getPomOrder();</span>
+                                }
+
+<span class="nc" id="L160">                                return e2.getDepth() - e1.getDepth();</span>
+                            }
+                        }
+                );
+
+<span class="nc bnc" id="L165" title="All 2 branches missed.">                for ( MetadataGraphEdge e : sortedExits )</span>
+                {
+<span class="nc" id="L167">                    MetadataGraphVertex targetNode = e.getTarget();</span>
+<span class="nc" id="L168">                    targetNode.getMd().setArtifactScope( e.getScope() );</span>
+<span class="nc" id="L169">                    targetNode.getMd().setWhy( e.getSource().getMd().toString() );</span>
+<span class="nc" id="L170">                    visit( targetNode );</span>
+                }
+            }
+
+<span class="nc" id="L174">        }</span>
+        //-----------------------------------------------------------------------
+        //-----------------------------------------------------------------------
+    }
+    //----------------------------------------------------------------------------------------------------
+    //----------------------------------------------------------------------------------------------------
+}
+
+
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

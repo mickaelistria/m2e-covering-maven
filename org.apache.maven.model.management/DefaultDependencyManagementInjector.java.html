@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultDependencyManagementInjector.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.model.management</a> &gt; <span class="el_source">DefaultDependencyManagementInjector.java</span></div><h1>DefaultDependencyManagementInjector.java</h1><pre class="source lang-java linenums">package org.apache.maven.model.management;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.maven.model.Dependency;
+import org.apache.maven.model.DependencyManagement;
+import org.apache.maven.model.Exclusion;
+import org.apache.maven.model.Model;
+import org.apache.maven.model.building.ModelBuildingRequest;
+import org.apache.maven.model.building.ModelProblemCollector;
+import org.apache.maven.model.merge.MavenModelMerger;
+import org.codehaus.plexus.component.annotations.Component;
+
+/**
+ * Handles injection of dependency management into the model.
+ *
+ * @author Benjamin Bentmann
+ */
+@SuppressWarnings( { &quot;checkstyle:methodname&quot; } )
+@Component( role = DependencyManagementInjector.class )
+<span class="fc" id="L43">public class DefaultDependencyManagementInjector</span>
+    implements DependencyManagementInjector
+{
+
+<span class="fc" id="L47">    private ManagementModelMerger merger = new ManagementModelMerger();</span>
+
+    @Override
+    public void injectManagement( Model model, ModelBuildingRequest request, ModelProblemCollector problems )
+    {
+<span class="fc" id="L52">        merger.mergeManagedDependencies( model );</span>
+<span class="fc" id="L53">    }</span>
+
+    /**
+     * ManagementModelMerger
+     */
+<span class="fc" id="L58">    protected static class ManagementModelMerger</span>
+        extends MavenModelMerger
+    {
+
+        public void mergeManagedDependencies( Model model )
+        {
+<span class="fc" id="L64">            DependencyManagement dependencyManagement = model.getDependencyManagement();</span>
+<span class="fc bfc" id="L65" title="All 2 branches covered.">            if ( dependencyManagement != null )</span>
+            {
+<span class="fc" id="L67">                Map&lt;Object, Dependency&gt; dependencies = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L68">                Map&lt;Object, Object&gt; context = Collections.emptyMap();</span>
+
+<span class="fc bfc" id="L70" title="All 2 branches covered.">                for ( Dependency dependency : model.getDependencies() )</span>
+                {
+<span class="fc" id="L72">                    Object key = getDependencyKey( dependency );</span>
+<span class="fc" id="L73">                    dependencies.put( key, dependency );</span>
+<span class="fc" id="L74">                }</span>
+
+<span class="fc bfc" id="L76" title="All 2 branches covered.">                for ( Dependency managedDependency : dependencyManagement.getDependencies() )</span>
+                {
+<span class="fc" id="L78">                    Object key = getDependencyKey( managedDependency );</span>
+<span class="fc" id="L79">                    Dependency dependency = dependencies.get( key );</span>
+<span class="fc bfc" id="L80" title="All 2 branches covered.">                    if ( dependency != null )</span>
+                    {
+<span class="fc" id="L82">                        mergeDependency( dependency, managedDependency, false, context );</span>
+                    }
+<span class="fc" id="L84">                }</span>
+            }
+<span class="fc" id="L86">        }</span>
+
+        @Override
+        protected void mergeDependency_Optional( Dependency target, Dependency source, boolean sourceDominant,
+                                                 Map&lt;Object, Object&gt; context )
+        {
+            // optional flag is not managed
+<span class="fc" id="L93">        }</span>
+
+        @Override
+        protected void mergeDependency_Exclusions( Dependency target, Dependency source, boolean sourceDominant,
+                                                   Map&lt;Object, Object&gt; context )
+        {
+<span class="fc" id="L99">            List&lt;Exclusion&gt; tgt = target.getExclusions();</span>
+<span class="fc bfc" id="L100" title="All 2 branches covered.">            if ( tgt.isEmpty() )</span>
+            {
+<span class="fc" id="L102">                List&lt;Exclusion&gt; src = source.getExclusions();</span>
+
+<span class="fc bfc" id="L104" title="All 2 branches covered.">                for ( Exclusion element : src )</span>
+                {
+<span class="fc" id="L106">                    Exclusion clone = element.clone();</span>
+<span class="fc" id="L107">                    target.addExclusion( clone );</span>
+<span class="fc" id="L108">                }</span>
+            }
+<span class="fc" id="L110">        }</span>
+
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

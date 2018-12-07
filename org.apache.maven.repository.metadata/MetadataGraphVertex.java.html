@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MetadataGraphVertex.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository.metadata</a> &gt; <span class="el_source">MetadataGraphVertex.java</span></div><h1>MetadataGraphVertex.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository.metadata;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.maven.artifact.ArtifactScopeEnum;
+
+/**
+ * metadata graph vertice - just a wrapper around artifact's metadata
+ *
+ * @author &lt;a href=&quot;oleg@codehaus.org&quot;&gt;Oleg Gusakov&lt;/a&gt;
+ */
+public class MetadataGraphVertex
+    implements Comparable&lt;MetadataGraphVertex&gt;
+{
+    ArtifactMetadata md;
+
+    // indications to use these in comparison
+<span class="nc" id="L35">    private boolean compareVersion = false;</span>
+<span class="nc" id="L36">    private boolean compareScope   = false;</span>
+
+    public MetadataGraphVertex( ArtifactMetadata md )
+    {
+<span class="nc" id="L40">        super();</span>
+<span class="nc" id="L41">        this.md = md;</span>
+<span class="nc" id="L42">    }</span>
+
+    public MetadataGraphVertex( ArtifactMetadata md, boolean compareVersion, boolean compareScope )
+    {
+<span class="nc" id="L46">        this( md );</span>
+<span class="nc" id="L47">        this.compareVersion = compareVersion;</span>
+<span class="nc" id="L48">        this.compareScope = compareScope;</span>
+<span class="nc" id="L49">    }</span>
+
+    public ArtifactMetadata getMd()
+    {
+<span class="nc" id="L53">        return md;</span>
+    }
+
+    public void setMd( ArtifactMetadata md )
+    {
+<span class="nc" id="L58">        this.md = md;</span>
+<span class="nc" id="L59">    }</span>
+
+    // ---------------------------------------------------------------------
+    public boolean isCompareVersion()
+    {
+<span class="nc" id="L64">        return compareVersion;</span>
+    }
+
+    public void setCompareVersion( boolean compareVersion )
+    {
+<span class="nc" id="L69">        this.compareVersion = compareVersion;</span>
+<span class="nc" id="L70">    }</span>
+
+    public boolean isCompareScope()
+    {
+<span class="nc" id="L74">        return compareScope;</span>
+    }
+
+    public void setCompareScope( boolean compareScope )
+    {
+<span class="nc" id="L79">        this.compareScope = compareScope;</span>
+<span class="nc" id="L80">    }</span>
+
+    // ---------------------------------------------------------------------
+    @Override
+    public String toString()
+    {
+<span class="nc bnc" id="L86" title="All 2 branches missed.">        return &quot;[&quot; + ( md == null ? &quot;no metadata&quot; : md.toString() ) + &quot;]&quot;;</span>
+    }
+
+    // ---------------------------------------------------------------------
+    private static int compareStrings( String s1, String s2 )
+    {
+<span class="nc bnc" id="L92" title="All 4 branches missed.">        if ( s1 == null &amp;&amp; s2 == null )</span>
+        {
+<span class="nc" id="L94">            return 0;</span>
+        }
+
+<span class="nc bnc" id="L97" title="All 2 branches missed.">        if ( s1 == null /* &amp;&amp; s2 != null */ )</span>
+        {
+<span class="nc" id="L99">            return -1;</span>
+        }
+
+<span class="nc bnc" id="L102" title="All 2 branches missed.">        if ( /* s1 != null &amp;&amp; */ s2 == null )</span>
+        {
+<span class="nc" id="L104">            return 1;</span>
+        }
+
+<span class="nc" id="L107">        return s1.compareTo( s2 );</span>
+    }
+
+    // ---------------------------------------------------------------------
+    public int compareTo( MetadataGraphVertex vertex )
+    {
+<span class="nc bnc" id="L113" title="All 4 branches missed.">        if ( vertex == null || vertex.getMd() == null )</span>
+        {
+<span class="nc" id="L115">            return 1;</span>
+        }
+
+<span class="nc" id="L118">        ArtifactMetadata vmd = vertex.getMd();</span>
+
+<span class="nc bnc" id="L120" title="All 2 branches missed.">        if ( vmd == null )</span>
+        {
+<span class="nc bnc" id="L122" title="All 2 branches missed.">            if ( md == null )</span>
+            {
+<span class="nc" id="L124">                return 0;</span>
+            }
+            else
+            {
+<span class="nc" id="L128">                return 1;</span>
+            }
+        }
+
+<span class="nc" id="L132">        int g = compareStrings( md.groupId, vmd.groupId );</span>
+
+<span class="nc bnc" id="L134" title="All 2 branches missed.">        if ( g == 0 )</span>
+        {
+<span class="nc" id="L136">            int a = compareStrings( md.artifactId, vmd.artifactId );</span>
+<span class="nc bnc" id="L137" title="All 2 branches missed.">            if ( a == 0 )</span>
+            {
+<span class="nc bnc" id="L139" title="All 2 branches missed.">                if ( compareVersion )</span>
+                {
+<span class="nc" id="L141">                    int v = compareStrings( md.version, vmd.version );</span>
+<span class="nc bnc" id="L142" title="All 2 branches missed.">                    if ( v == 0 )</span>
+                    {
+<span class="nc bnc" id="L144" title="All 2 branches missed.">                        if ( compareScope )</span>
+                        {
+<span class="nc" id="L146">                            String s1 = ArtifactScopeEnum.checkScope( md.artifactScope ).getScope();</span>
+<span class="nc" id="L147">                            String s2 = ArtifactScopeEnum.checkScope( vmd.artifactScope ).getScope();</span>
+<span class="nc" id="L148">                            return s1.compareTo( s2 );</span>
+                        }
+                        else
+                        {
+<span class="nc" id="L152">                            return 0;</span>
+                        }
+                    }
+                    else
+                    {
+<span class="nc" id="L157">                        return v;</span>
+                    }
+                }
+                else
+                {
+<span class="nc" id="L162">                    return 0;</span>
+                }
+            }
+            else
+            {
+<span class="nc" id="L167">                return a;</span>
+            }
+        }
+
+<span class="nc" id="L171">        return g;</span>
+    }
+
+    // ---------------------------------------------------------------------
+    @Override
+    public boolean equals( Object vo )
+    {
+<span class="nc bnc" id="L178" title="All 4 branches missed.">        if ( vo == null || !( vo instanceof MetadataGraphVertex ) )</span>
+        {
+<span class="nc" id="L180">            return false;</span>
+        }
+<span class="nc bnc" id="L182" title="All 2 branches missed.">        return compareTo( (MetadataGraphVertex) vo ) == 0;</span>
+    }
+
+    // ---------------------------------------------------------------------
+
+    @Override
+    public int hashCode()
+    {
+<span class="nc bnc" id="L190" title="All 2 branches missed.">        if ( md == null )</span>
+        {
+<span class="nc" id="L192">            return super.hashCode();</span>
+        }
+<span class="nc" id="L194">        StringBuilder hashString = new StringBuilder( 128 );</span>
+<span class="nc" id="L195">        hashString.append( md.groupId ).append( '|' );</span>
+<span class="nc" id="L196">        hashString.append( md.artifactId ).append( '|' );</span>
+
+<span class="nc bnc" id="L198" title="All 2 branches missed.">        if ( compareVersion )</span>
+        {
+<span class="nc" id="L200">            hashString.append( md.version ).append( '|' );</span>
+        }
+
+<span class="nc bnc" id="L203" title="All 2 branches missed.">        if ( compareScope )</span>
+        {
+<span class="nc" id="L205">            hashString.append( md.getArtifactScope() ).append( '|' );</span>
+        }
+
+<span class="nc" id="L208">        return hashString.toString().hashCode();</span>
+
+        // BASE64Encoder b64 = new BASE64Encoder();
+        // return b64.encode( hashString.toString().getBytes() ).hashCode();
+    }
+
+    // ---------------------------------------------------------------------
+    // ---------------------------------------------------------------------
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultPluginDescriptorCache.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.plugin</a> &gt; <span class="el_source">DefaultPluginDescriptorCache.java</span></div><h1>DefaultPluginDescriptorCache.java</h1><pre class="source lang-java linenums">package org.apache.maven.plugin;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.maven.RepositoryUtils;
+import org.apache.maven.artifact.ArtifactUtils;
+import org.apache.maven.model.Plugin;
+import org.apache.maven.plugin.descriptor.MojoDescriptor;
+import org.apache.maven.plugin.descriptor.PluginDescriptor;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.repository.ComponentDescriptor;
+import org.eclipse.aether.RepositorySystemSession;
+import org.eclipse.aether.repository.LocalRepository;
+import org.eclipse.aether.repository.RemoteRepository;
+import org.eclipse.aether.repository.WorkspaceRepository;
+
+/**
+ * Caches raw plugin descriptors. A raw plugin descriptor is a descriptor that has just been extracted from the plugin
+ * artifact and does not contain any runtime specific data. The cache must not be used for descriptors that hold runtime
+ * data like the plugin realm. &lt;strong&gt;Warning:&lt;/strong&gt; This is an internal utility interface that is only public for
+ * technical reasons, it is not part of the public API. In particular, this interface can be changed or deleted without
+ * prior notice.
+ *
+ * @since 3.0
+ * @author Benjamin Bentmann
+ */
+@Component( role = PluginDescriptorCache.class )
+<span class="fc" id="L50">public class DefaultPluginDescriptorCache</span>
+    implements PluginDescriptorCache
+{
+
+<span class="fc" id="L54">    private Map&lt;Key, PluginDescriptor&gt; descriptors = new HashMap&lt;&gt;( 128 );</span>
+
+    public void flush()
+    {
+<span class="nc" id="L58">        descriptors.clear();</span>
+<span class="nc" id="L59">    }</span>
+
+    public Key createKey( Plugin plugin, List&lt;RemoteRepository&gt; repositories, RepositorySystemSession session )
+    {
+<span class="fc" id="L63">        return new CacheKey( plugin, repositories, session );</span>
+    }
+
+    public PluginDescriptor get( Key cacheKey )
+    {
+<span class="fc" id="L68">        return clone( descriptors.get( cacheKey ) );</span>
+    }
+
+    public void put( Key cacheKey, PluginDescriptor pluginDescriptor )
+    {
+<span class="fc" id="L73">        descriptors.put( cacheKey, clone( pluginDescriptor ) );</span>
+<span class="fc" id="L74">    }</span>
+
+    protected static PluginDescriptor clone( PluginDescriptor original )
+    {
+<span class="fc" id="L78">        PluginDescriptor clone = null;</span>
+
+<span class="fc bfc" id="L80" title="All 2 branches covered.">        if ( original != null )</span>
+        {
+<span class="fc" id="L82">            clone = new PluginDescriptor();</span>
+
+<span class="fc" id="L84">            clone.setGroupId( original.getGroupId() );</span>
+<span class="fc" id="L85">            clone.setArtifactId( original.getArtifactId() );</span>
+<span class="fc" id="L86">            clone.setVersion( original.getVersion() );</span>
+<span class="fc" id="L87">            clone.setGoalPrefix( original.getGoalPrefix() );</span>
+<span class="fc" id="L88">            clone.setInheritedByDefault( original.isInheritedByDefault() );</span>
+
+<span class="fc" id="L90">            clone.setName( original.getName() );</span>
+<span class="fc" id="L91">            clone.setDescription( original.getDescription() );</span>
+<span class="fc" id="L92">            clone.setRequiredMavenVersion( original.getRequiredMavenVersion() );</span>
+
+<span class="fc" id="L94">            clone.setPluginArtifact( ArtifactUtils.copyArtifactSafe( original.getPluginArtifact() ) );</span>
+
+<span class="fc" id="L96">            clone.setComponents( clone( original.getMojos(), clone ) );</span>
+<span class="fc" id="L97">            clone.setId( original.getId() );</span>
+<span class="fc" id="L98">            clone.setIsolatedRealm( original.isIsolatedRealm() );</span>
+<span class="fc" id="L99">            clone.setSource( original.getSource() );</span>
+
+<span class="fc" id="L101">            clone.setDependencies( original.getDependencies() );</span>
+        }
+
+<span class="fc" id="L104">        return clone;</span>
+    }
+
+    private static List&lt;ComponentDescriptor&lt;?&gt;&gt; clone( List&lt;MojoDescriptor&gt; mojos, PluginDescriptor pluginDescriptor )
+    {
+<span class="fc" id="L109">        List&lt;ComponentDescriptor&lt;?&gt;&gt; clones = null;</span>
+
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">        if ( mojos != null )</span>
+        {
+<span class="fc" id="L113">            clones = new ArrayList&lt;&gt;( mojos.size() );</span>
+
+<span class="fc bfc" id="L115" title="All 2 branches covered.">            for ( MojoDescriptor mojo : mojos )</span>
+            {
+<span class="fc" id="L117">                MojoDescriptor clone = mojo.clone();</span>
+<span class="fc" id="L118">                clone.setPluginDescriptor( pluginDescriptor );</span>
+<span class="fc" id="L119">                clones.add( clone );</span>
+<span class="fc" id="L120">            }</span>
+        }
+
+<span class="fc" id="L123">        return clones;</span>
+    }
+
+<span class="fc" id="L126">    private static final class CacheKey</span>
+        implements Key
+    {
+
+        private final String groupId;
+
+        private final String artifactId;
+
+        private final String version;
+
+        private final WorkspaceRepository workspace;
+
+        private final LocalRepository localRepo;
+
+        private final List&lt;RemoteRepository&gt; repositories;
+
+        private final int hashCode;
+
+        CacheKey( Plugin plugin, List&lt;RemoteRepository&gt; repositories, RepositorySystemSession session )
+<span class="fc" id="L145">        {</span>
+<span class="fc" id="L146">            groupId = plugin.getGroupId();</span>
+<span class="fc" id="L147">            artifactId = plugin.getArtifactId();</span>
+<span class="fc" id="L148">            version = plugin.getVersion();</span>
+
+<span class="fc" id="L150">            workspace = RepositoryUtils.getWorkspace( session );</span>
+<span class="fc" id="L151">            localRepo = session.getLocalRepository();</span>
+<span class="fc" id="L152">            this.repositories = new ArrayList&lt;&gt;( repositories.size() );</span>
+<span class="fc bfc" id="L153" title="All 2 branches covered.">            for ( RemoteRepository repository : repositories )</span>
+            {
+<span class="pc bpc" id="L155" title="1 of 2 branches missed.">                if ( repository.isRepositoryManager() )</span>
+                {
+<span class="nc" id="L157">                    this.repositories.addAll( repository.getMirroredRepositories() );</span>
+                }
+                else
+                {
+<span class="fc" id="L161">                    this.repositories.add( repository );</span>
+                }
+<span class="fc" id="L163">            }</span>
+
+<span class="fc" id="L165">            int hash = 17;</span>
+<span class="fc" id="L166">            hash = hash * 31 + groupId.hashCode();</span>
+<span class="fc" id="L167">            hash = hash * 31 + artifactId.hashCode();</span>
+<span class="fc" id="L168">            hash = hash * 31 + version.hashCode();</span>
+<span class="fc" id="L169">            hash = hash * 31 + hash( workspace );</span>
+<span class="fc" id="L170">            hash = hash * 31 + localRepo.hashCode();</span>
+<span class="fc" id="L171">            hash = hash * 31 + RepositoryUtils.repositoriesHashCode( repositories );</span>
+<span class="fc" id="L172">            this.hashCode = hash;</span>
+<span class="fc" id="L173">        }</span>
+
+        @Override
+        public int hashCode()
+        {
+<span class="fc" id="L178">            return hashCode;</span>
+        }
+
+        @Override
+        public boolean equals( Object obj )
+        {
+<span class="pc bpc" id="L184" title="1 of 2 branches missed.">            if ( this == obj )</span>
+            {
+<span class="nc" id="L186">                return true;</span>
+            }
+
+<span class="pc bpc" id="L189" title="1 of 2 branches missed.">            if ( !( obj instanceof CacheKey ) )</span>
+            {
+<span class="nc" id="L191">                return false;</span>
+            }
+
+<span class="fc" id="L194">            CacheKey that = (CacheKey) obj;</span>
+
+<span class="pc bpc" id="L196" title="6 of 12 branches missed.">            return eq( this.artifactId, that.artifactId ) &amp;&amp; eq( this.groupId, that.groupId )</span>
+                &amp;&amp; eq( this.version, that.version ) &amp;&amp; eq( this.localRepo, that.localRepo )
+                &amp;&amp; eq( this.workspace, that.workspace )
+                &amp;&amp; RepositoryUtils.repositoriesEquals( this.repositories, that.repositories );
+        }
+
+        @Override
+        public String toString()
+        {
+<span class="nc" id="L205">            return groupId + ':' + artifactId + ':' + version;</span>
+        }
+
+        private static int hash( Object obj )
+        {
+<span class="fc bfc" id="L210" title="All 2 branches covered.">            return obj != null ? obj.hashCode() : 0;</span>
+        }
+
+        private static &lt;T&gt; boolean eq( T s1, T s2 )
+        {
+<span class="pc bpc" id="L215" title="1 of 4 branches missed.">            return s1 != null ? s1.equals( s2 ) : s2 == null;</span>
+        }
+
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

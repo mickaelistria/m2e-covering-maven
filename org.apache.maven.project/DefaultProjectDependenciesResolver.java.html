@@ -1,0 +1,326 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultProjectDependenciesResolver.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.project</a> &gt; <span class="el_source">DefaultProjectDependenciesResolver.java</span></div><h1>DefaultProjectDependenciesResolver.java</h1><pre class="source lang-java linenums">package org.apache.maven.project;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.maven.RepositoryUtils;
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.model.Dependency;
+import org.apache.maven.model.DependencyManagement;
+import org.apache.maven.model.Exclusion;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
+import org.codehaus.plexus.logging.Logger;
+import org.codehaus.plexus.util.StringUtils;
+import org.eclipse.aether.DefaultRepositorySystemSession;
+import org.eclipse.aether.RepositorySystem;
+import org.eclipse.aether.RepositorySystemSession;
+import org.eclipse.aether.RequestTrace;
+import org.eclipse.aether.artifact.ArtifactType;
+import org.eclipse.aether.artifact.ArtifactTypeRegistry;
+import org.eclipse.aether.collection.CollectRequest;
+import org.eclipse.aether.collection.DependencyCollectionException;
+import org.eclipse.aether.graph.DependencyFilter;
+import org.eclipse.aether.graph.DependencyNode;
+import org.eclipse.aether.graph.DependencyVisitor;
+import org.eclipse.aether.resolution.ArtifactResult;
+import org.eclipse.aether.resolution.DependencyRequest;
+import org.eclipse.aether.util.artifact.ArtifactIdUtils;
+import org.eclipse.aether.util.artifact.JavaScopes;
+import org.eclipse.aether.util.graph.manager.DependencyManagerUtils;
+
+/**
+ * @author Benjamin Bentmann
+ */
+@Component( role = ProjectDependenciesResolver.class )
+<span class="fc" id="L57">public class DefaultProjectDependenciesResolver</span>
+    implements ProjectDependenciesResolver
+{
+
+    @Requirement
+    private Logger logger;
+
+    @Requirement
+    private RepositorySystem repoSystem;
+
+    @Requirement
+    private List&lt;RepositorySessionDecorator&gt; decorators;
+
+    public DependencyResolutionResult resolve( DependencyResolutionRequest request )
+        throws DependencyResolutionException
+    {
+<span class="fc" id="L73">        final RequestTrace trace = RequestTrace.newChild( null, request );</span>
+
+<span class="fc" id="L75">        final DefaultDependencyResolutionResult result = new DefaultDependencyResolutionResult();</span>
+
+<span class="fc" id="L77">        final MavenProject project = request.getMavenProject();</span>
+<span class="fc" id="L78">        final DependencyFilter filter = request.getResolutionFilter();</span>
+<span class="fc" id="L79">        RepositorySystemSession session = request.getRepositorySession();</span>
+<span class="fc" id="L80">        ArtifactTypeRegistry stereotypes = session.getArtifactTypeRegistry();</span>
+
+<span class="pc bpc" id="L82" title="3 of 4 branches missed.">        if ( logger.isDebugEnabled()</span>
+            &amp;&amp; session.getConfigProperties().get( DependencyManagerUtils.CONFIG_PROP_VERBOSE ) == null )
+        {
+<span class="nc" id="L85">            DefaultRepositorySystemSession verbose = new DefaultRepositorySystemSession( session );</span>
+<span class="nc" id="L86">            verbose.setConfigProperty( DependencyManagerUtils.CONFIG_PROP_VERBOSE, Boolean.TRUE );</span>
+<span class="nc" id="L87">            session = verbose;</span>
+        }
+
+<span class="pc bpc" id="L90" title="1 of 2 branches missed.">        for ( RepositorySessionDecorator decorator : decorators )</span>
+        {
+<span class="nc" id="L92">            RepositorySystemSession decorated = decorator.decorate( project, session );</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">            if ( decorated != null )</span>
+            {
+<span class="nc" id="L95">                session = decorated;</span>
+            }
+<span class="nc" id="L97">        }</span>
+
+<span class="fc" id="L99">        CollectRequest collect = new CollectRequest();</span>
+<span class="fc" id="L100">        collect.setRootArtifact( RepositoryUtils.toArtifact( project.getArtifact() ) );</span>
+<span class="fc" id="L101">        collect.setRequestContext( &quot;project&quot; );</span>
+<span class="fc" id="L102">        collect.setRepositories( project.getRemoteProjectRepositories() );</span>
+
+<span class="pc bpc" id="L104" title="1 of 2 branches missed.">        if ( project.getDependencyArtifacts() == null )</span>
+        {
+<span class="fc bfc" id="L106" title="All 2 branches covered.">            for ( Dependency dependency : project.getDependencies() )</span>
+            {
+<span class="pc bpc" id="L108" title="2 of 6 branches missed.">                if ( StringUtils.isEmpty( dependency.getGroupId() ) || StringUtils.isEmpty( dependency.getArtifactId() )</span>
+                    || StringUtils.isEmpty( dependency.getVersion() ) )
+                {
+                    // guard against case where best-effort resolution for invalid models is requested
+<span class="fc" id="L112">                    continue;</span>
+                }
+<span class="fc" id="L114">                collect.addDependency( RepositoryUtils.toDependency( dependency, stereotypes ) );</span>
+<span class="fc" id="L115">            }</span>
+        }
+        else
+        {
+<span class="nc" id="L119">            Map&lt;String, Dependency&gt; dependencies = new HashMap&lt;&gt;();</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">            for ( Dependency dependency : project.getDependencies() )</span>
+            {
+<span class="nc" id="L122">                String classifier = dependency.getClassifier();</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">                if ( classifier == null )</span>
+                {
+<span class="nc" id="L125">                    ArtifactType type = stereotypes.get( dependency.getType() );</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">                    if ( type != null )</span>
+                    {
+<span class="nc" id="L128">                        classifier = type.getClassifier();</span>
+                    }
+                }
+<span class="nc" id="L131">                String key =</span>
+                    ArtifactIdUtils.toVersionlessId( dependency.getGroupId(), dependency.getArtifactId(),
+                                                    dependency.getType(), classifier );
+<span class="nc" id="L134">                dependencies.put( key, dependency );</span>
+<span class="nc" id="L135">            }</span>
+<span class="nc bnc" id="L136" title="All 2 branches missed.">            for ( Artifact artifact : project.getDependencyArtifacts() )</span>
+            {
+<span class="nc" id="L138">                String key = artifact.getDependencyConflictId();</span>
+<span class="nc" id="L139">                Dependency dependency = dependencies.get( key );</span>
+<span class="nc bnc" id="L140" title="All 2 branches missed.">                Collection&lt;Exclusion&gt; exclusions = dependency != null ? dependency.getExclusions() : null;</span>
+<span class="nc" id="L141">                org.eclipse.aether.graph.Dependency dep = RepositoryUtils.toDependency( artifact, exclusions );</span>
+<span class="nc bnc" id="L142" title="All 4 branches missed.">                if ( !JavaScopes.SYSTEM.equals( dep.getScope() ) &amp;&amp; dep.getArtifact().getFile() != null )</span>
+                {
+                    // enable re-resolution
+<span class="nc" id="L145">                    org.eclipse.aether.artifact.Artifact art = dep.getArtifact();</span>
+<span class="nc" id="L146">                    art = art.setFile( null ).setVersion( art.getBaseVersion() );</span>
+<span class="nc" id="L147">                    dep = dep.setArtifact( art );</span>
+                }
+<span class="nc" id="L149">                collect.addDependency( dep );</span>
+<span class="nc" id="L150">            }</span>
+        }
+
+<span class="fc" id="L153">        DependencyManagement depMgmt = project.getDependencyManagement();</span>
+<span class="fc bfc" id="L154" title="All 2 branches covered.">        if ( depMgmt != null )</span>
+        {
+<span class="fc bfc" id="L156" title="All 2 branches covered.">            for ( Dependency dependency : depMgmt.getDependencies() )</span>
+            {
+<span class="fc" id="L158">                collect.addManagedDependency( RepositoryUtils.toDependency( dependency, stereotypes ) );</span>
+<span class="fc" id="L159">            }</span>
+        }
+
+<span class="fc" id="L162">        DependencyRequest depRequest = new DependencyRequest( collect, filter );</span>
+<span class="fc" id="L163">        depRequest.setTrace( trace );</span>
+
+        DependencyNode node;
+        try
+        {
+<span class="fc" id="L168">            collect.setTrace( RequestTrace.newChild( trace, depRequest ) );</span>
+<span class="fc" id="L169">            node = repoSystem.collectDependencies( session, collect ).getRoot();</span>
+<span class="fc" id="L170">            result.setDependencyGraph( node );</span>
+        }
+<span class="fc" id="L172">        catch ( DependencyCollectionException e )</span>
+        {
+<span class="fc" id="L174">            result.setDependencyGraph( e.getResult().getRoot() );</span>
+<span class="fc" id="L175">            result.setCollectionErrors( e.getResult().getExceptions() );</span>
+
+<span class="fc" id="L177">            throw new DependencyResolutionException( result, &quot;Could not resolve dependencies for project &quot;</span>
+                + project.getId() + &quot;: &quot; + e.getMessage(), e );
+<span class="fc" id="L179">        }</span>
+
+<span class="fc" id="L181">        depRequest.setRoot( node );</span>
+
+<span class="pc bpc" id="L183" title="1 of 2 branches missed.">        if ( logger.isWarnEnabled() )</span>
+        {
+<span class="fc bfc" id="L185" title="All 2 branches covered.">            for ( DependencyNode child : node.getChildren() )</span>
+            {
+<span class="pc bpc" id="L187" title="1 of 2 branches missed.">                if ( !child.getRelocations().isEmpty() )</span>
+                {
+<span class="nc" id="L189">                    logger.warn( &quot;The artifact &quot; + child.getRelocations().get( 0 ) + &quot; has been relocated to &quot;</span>
+                        + child.getDependency().getArtifact() );
+                }
+<span class="fc" id="L192">            }</span>
+        }
+
+<span class="pc bpc" id="L195" title="1 of 2 branches missed.">        if ( logger.isDebugEnabled() )</span>
+        {
+<span class="nc" id="L197">            node.accept( new GraphLogger( project ) );</span>
+        }
+
+        try
+        {
+<span class="fc" id="L202">            process( result, repoSystem.resolveDependencies( session, depRequest ).getArtifactResults() );</span>
+        }
+<span class="fc" id="L204">        catch ( org.eclipse.aether.resolution.DependencyResolutionException e )</span>
+        {
+<span class="fc" id="L206">            process( result, e.getResult().getArtifactResults() );</span>
+
+<span class="fc" id="L208">            throw new DependencyResolutionException( result, &quot;Could not resolve dependencies for project &quot;</span>
+                + project.getId() + &quot;: &quot; + e.getMessage(), e );
+<span class="fc" id="L210">        }</span>
+
+<span class="fc" id="L212">        return result;</span>
+    }
+
+    private void process( DefaultDependencyResolutionResult result, Collection&lt;ArtifactResult&gt; results )
+    {
+<span class="fc bfc" id="L217" title="All 2 branches covered.">        for ( ArtifactResult ar : results )</span>
+        {
+<span class="fc" id="L219">            DependencyNode node = ar.getRequest().getDependencyNode();</span>
+<span class="fc bfc" id="L220" title="All 2 branches covered.">            if ( ar.isResolved() )</span>
+            {
+<span class="fc" id="L222">                result.addResolvedDependency( node.getDependency() );</span>
+            }
+            else
+            {
+<span class="fc" id="L226">                result.setResolutionErrors( node.getDependency(), ar.getExceptions() );</span>
+            }
+<span class="fc" id="L228">        }</span>
+<span class="fc" id="L229">    }</span>
+
+<span class="fc" id="L231">    class GraphLogger</span>
+        implements DependencyVisitor
+    {
+
+        private final MavenProject project;
+
+<span class="nc" id="L237">        private String indent = &quot;&quot;;</span>
+
+        GraphLogger( MavenProject project )
+<span class="nc" id="L240">        {</span>
+<span class="nc" id="L241">            this.project = project;</span>
+<span class="nc" id="L242">        }</span>
+
+        public boolean visitEnter( DependencyNode node )
+        {
+<span class="nc" id="L246">            StringBuilder buffer = new StringBuilder( 128 );</span>
+<span class="nc" id="L247">            buffer.append( indent );</span>
+<span class="nc" id="L248">            org.eclipse.aether.graph.Dependency dep = node.getDependency();</span>
+<span class="nc bnc" id="L249" title="All 2 branches missed.">            if ( dep != null )</span>
+            {
+<span class="nc" id="L251">                org.eclipse.aether.artifact.Artifact art = dep.getArtifact();</span>
+
+<span class="nc" id="L253">                buffer.append( art );</span>
+<span class="nc" id="L254">                buffer.append( ':' ).append( dep.getScope() );</span>
+
+                // TODO We currently cannot tell which &lt;dependencyManagement&gt; section contained the management
+                //      information. When resolver 1.1 provides this information, these log messages should be updated
+                //      to contain it.
+<span class="nc bnc" id="L259" title="All 2 branches missed.">                if ( ( node.getManagedBits() &amp; DependencyNode.MANAGED_SCOPE ) == DependencyNode.MANAGED_SCOPE )</span>
+                {
+<span class="nc" id="L261">                    final String premanagedScope = DependencyManagerUtils.getPremanagedScope( node );</span>
+<span class="nc" id="L262">                    buffer.append( &quot; (scope managed from &quot; );</span>
+<span class="nc" id="L263">                    buffer.append( StringUtils.defaultString( premanagedScope, &quot;default&quot; ) );</span>
+<span class="nc" id="L264">                    buffer.append( ')' );</span>
+                }
+
+<span class="nc bnc" id="L267" title="All 2 branches missed.">                if ( ( node.getManagedBits() &amp; DependencyNode.MANAGED_VERSION ) == DependencyNode.MANAGED_VERSION )</span>
+                {
+<span class="nc" id="L269">                    final String premanagedVersion = DependencyManagerUtils.getPremanagedVersion( node );</span>
+<span class="nc" id="L270">                    buffer.append( &quot; (version managed from &quot; );</span>
+<span class="nc" id="L271">                    buffer.append( StringUtils.defaultString( premanagedVersion, &quot;default&quot; ) );</span>
+<span class="nc" id="L272">                    buffer.append( ')' );</span>
+                }
+
+<span class="nc bnc" id="L275" title="All 2 branches missed.">                if ( ( node.getManagedBits() &amp; DependencyNode.MANAGED_OPTIONAL ) == DependencyNode.MANAGED_OPTIONAL )</span>
+                {
+<span class="nc" id="L277">                    final Boolean premanagedOptional = DependencyManagerUtils.getPremanagedOptional( node );</span>
+<span class="nc" id="L278">                    buffer.append( &quot; (optionality managed from &quot; );</span>
+<span class="nc" id="L279">                    buffer.append( StringUtils.defaultString( premanagedOptional, &quot;default&quot; ) );</span>
+<span class="nc" id="L280">                    buffer.append( ')' );</span>
+                }
+
+<span class="nc bnc" id="L283" title="All 2 branches missed.">                if ( ( node.getManagedBits() &amp; DependencyNode.MANAGED_EXCLUSIONS )</span>
+                        == DependencyNode.MANAGED_EXCLUSIONS )
+                {
+                    // TODO As of resolver 1.1, use DependencyManagerUtils.getPremanagedExclusions( node ).
+                    //      The resolver 1.0.x releases do not record premanaged state of exclusions.
+<span class="nc" id="L288">                    buffer.append( &quot; (exclusions managed)&quot; );</span>
+                }
+
+<span class="nc bnc" id="L291" title="All 2 branches missed.">                if ( ( node.getManagedBits() &amp; DependencyNode.MANAGED_PROPERTIES )</span>
+                        == DependencyNode.MANAGED_PROPERTIES )
+                {
+                    // TODO As of resolver 1.1, use DependencyManagerUtils.getPremanagedProperties( node ).
+                    //      The resolver 1.0.x releases do not record premanaged state of properties.
+<span class="nc" id="L296">                    buffer.append( &quot; (properties managed)&quot; );</span>
+                }
+
+<span class="nc bnc" id="L299" title="All 2 branches missed.">                if ( dep.isOptional() )</span>
+                {
+<span class="nc" id="L301">                    buffer.append( &quot; (optional)&quot; );</span>
+                }
+<span class="nc" id="L303">            }</span>
+            else
+            {
+<span class="nc" id="L306">                buffer.append( project.getGroupId() );</span>
+<span class="nc" id="L307">                buffer.append( ':' ).append( project.getArtifactId() );</span>
+<span class="nc" id="L308">                buffer.append( ':' ).append( project.getPackaging() );</span>
+<span class="nc" id="L309">                buffer.append( ':' ).append( project.getVersion() );</span>
+            }
+
+<span class="nc" id="L312">            logger.debug( buffer.toString() );</span>
+<span class="nc" id="L313">            indent += &quot;   &quot;;</span>
+<span class="nc" id="L314">            return true;</span>
+        }
+
+        public boolean visitLeave( DependencyNode node )
+        {
+<span class="nc" id="L319">            indent = indent.substring( 0, indent.length() - 3 );</span>
+<span class="nc" id="L320">            return true;</span>
+        }
+
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

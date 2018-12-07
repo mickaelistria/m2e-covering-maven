@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultModelPathTranslator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.model.path</a> &gt; <span class="el_source">DefaultModelPathTranslator.java</span></div><h1>DefaultModelPathTranslator.java</h1><pre class="source lang-java linenums">package org.apache.maven.model.path;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.maven.model.Build;
+import org.apache.maven.model.Model;
+import org.apache.maven.model.Reporting;
+import org.apache.maven.model.Resource;
+import org.apache.maven.model.building.ModelBuildingRequest;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
+
+/**
+ * Resolves relative paths within a model against a specific base directory.
+ *
+ * @author Benjamin Bentmann
+ */
+@Component( role = ModelPathTranslator.class )
+<span class="fc" id="L40">public class DefaultModelPathTranslator</span>
+    implements ModelPathTranslator
+{
+
+    @Requirement
+    private PathTranslator pathTranslator;
+
+    public DefaultModelPathTranslator setPathTranslator( PathTranslator pathTranslator )
+    {
+<span class="fc" id="L49">        this.pathTranslator = pathTranslator;</span>
+<span class="fc" id="L50">        return this;</span>
+    }
+
+    @Override
+    public void alignToBaseDirectory( Model model, File basedir, ModelBuildingRequest request )
+    {
+<span class="pc bpc" id="L56" title="1 of 4 branches missed.">        if ( model == null || basedir == null )</span>
+        {
+<span class="fc" id="L58">            return;</span>
+        }
+
+<span class="fc" id="L61">        Build build = model.getBuild();</span>
+
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">        if ( build != null )</span>
+        {
+<span class="fc" id="L65">            build.setDirectory( alignToBaseDirectory( build.getDirectory(), basedir ) );</span>
+
+<span class="fc" id="L67">            build.setSourceDirectory( alignToBaseDirectory( build.getSourceDirectory(), basedir ) );</span>
+
+<span class="fc" id="L69">            build.setTestSourceDirectory( alignToBaseDirectory( build.getTestSourceDirectory(), basedir ) );</span>
+
+<span class="fc" id="L71">            build.setScriptSourceDirectory( alignToBaseDirectory( build.getScriptSourceDirectory(), basedir ) );</span>
+
+<span class="fc bfc" id="L73" title="All 2 branches covered.">            for ( Resource resource : build.getResources() )</span>
+            {
+<span class="fc" id="L75">                resource.setDirectory( alignToBaseDirectory( resource.getDirectory(), basedir ) );</span>
+<span class="fc" id="L76">            }</span>
+
+<span class="fc bfc" id="L78" title="All 2 branches covered.">            for ( Resource resource : build.getTestResources() )</span>
+            {
+<span class="fc" id="L80">                resource.setDirectory( alignToBaseDirectory( resource.getDirectory(), basedir ) );</span>
+<span class="fc" id="L81">            }</span>
+
+<span class="pc bpc" id="L83" title="1 of 2 branches missed.">            if ( build.getFilters() != null )</span>
+            {
+<span class="fc" id="L85">                List&lt;String&gt; filters = new ArrayList&lt;&gt;( build.getFilters().size() );</span>
+<span class="fc bfc" id="L86" title="All 2 branches covered.">                for ( String filter : build.getFilters() )</span>
+                {
+<span class="fc" id="L88">                    filters.add( alignToBaseDirectory( filter, basedir ) );</span>
+<span class="fc" id="L89">                }</span>
+<span class="fc" id="L90">                build.setFilters( filters );</span>
+            }
+
+<span class="fc" id="L93">            build.setOutputDirectory( alignToBaseDirectory( build.getOutputDirectory(), basedir ) );</span>
+
+<span class="fc" id="L95">            build.setTestOutputDirectory( alignToBaseDirectory( build.getTestOutputDirectory(), basedir ) );</span>
+        }
+
+<span class="fc" id="L98">        Reporting reporting = model.getReporting();</span>
+
+<span class="pc bpc" id="L100" title="1 of 2 branches missed.">        if ( reporting != null )</span>
+        {
+<span class="fc" id="L102">            reporting.setOutputDirectory( alignToBaseDirectory( reporting.getOutputDirectory(), basedir ) );</span>
+        }
+<span class="fc" id="L104">    }</span>
+
+    private String alignToBaseDirectory( String path, File basedir )
+    {
+<span class="fc" id="L108">        return pathTranslator.alignToBaseDirectory( path, basedir );</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

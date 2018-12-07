@@ -1,0 +1,95 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ModelProblemCollectorRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.model.building</a> &gt; <span class="el_source">ModelProblemCollectorRequest.java</span></div><h1>ModelProblemCollectorRequest.java</h1><pre class="source lang-java linenums">package org.apache.maven.model.building;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.commons.lang3.Validate;
+import org.apache.maven.model.InputLocation;
+import org.apache.maven.model.building.ModelProblem.Severity;
+import org.apache.maven.model.building.ModelProblem.Version;
+
+/**
+ * Class to wrap request parameters to ModelProblemCollector.addProblem
+ *
+ * @author mkleint
+ */
+public final class ModelProblemCollectorRequest
+{
+
+    private final ModelProblem.Severity severity;
+    private final ModelProblem.Version version;
+    private Exception exception;
+    private String message;
+    private InputLocation location;
+
+    /**
+     * Create a new request with mandatory parameters.
+     * @param severity
+     * @param version
+     */
+    public ModelProblemCollectorRequest( Severity severity, Version version )
+<span class="fc" id="L47">    {</span>
+<span class="fc" id="L48">        this.severity = Validate.notNull( severity, &quot;severity cannot be null&quot; );</span>
+<span class="fc" id="L49">        this.version = Validate.notNull( version, &quot;version cannot be null&quot; );</span>
+<span class="fc" id="L50">    }</span>
+
+    public Severity getSeverity()
+    {
+<span class="fc" id="L54">        return severity;</span>
+    }
+
+    public Version getVersion()
+    {
+<span class="fc" id="L59">        return version;</span>
+    }
+
+    public Exception getException()
+    {
+<span class="fc" id="L64">        return exception;</span>
+    }
+
+    public ModelProblemCollectorRequest setException( Exception exception )
+    {
+<span class="fc" id="L69">        this.exception = exception;</span>
+<span class="fc" id="L70">        return this;</span>
+    }
+
+    public String getMessage()
+    {
+<span class="fc" id="L75">        return message;</span>
+    }
+
+    public ModelProblemCollectorRequest setMessage( String message )
+    {
+<span class="fc" id="L80">        this.message = message;</span>
+<span class="fc" id="L81">        return this;</span>
+    }
+
+    public InputLocation getLocation()
+    {
+<span class="fc" id="L86">        return location;</span>
+    }
+
+    public ModelProblemCollectorRequest setLocation( InputLocation location )
+    {
+<span class="fc" id="L91">        this.location = location;</span>
+<span class="fc" id="L92">        return this;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

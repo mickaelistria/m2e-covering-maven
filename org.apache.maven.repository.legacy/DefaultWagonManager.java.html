@@ -1,0 +1,852 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultWagonManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository.legacy</a> &gt; <span class="el_source">DefaultWagonManager.java</span></div><h1>DefaultWagonManager.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository.legacy;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+import java.io.IOException;
+import java.lang.reflect.Method;
+import java.security.NoSuchAlgorithmException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.metadata.ArtifactMetadata;
+import org.apache.maven.artifact.repository.ArtifactRepository;
+import org.apache.maven.artifact.repository.ArtifactRepositoryPolicy;
+import org.apache.maven.plugin.LegacySupport;
+import org.apache.maven.wagon.ConnectionException;
+import org.apache.maven.wagon.ResourceDoesNotExistException;
+import org.apache.maven.wagon.TransferFailedException;
+import org.apache.maven.wagon.UnsupportedProtocolException;
+import org.apache.maven.wagon.Wagon;
+import org.apache.maven.wagon.authentication.AuthenticationException;
+import org.apache.maven.wagon.authentication.AuthenticationInfo;
+import org.apache.maven.wagon.authorization.AuthorizationException;
+import org.apache.maven.wagon.events.TransferListener;
+import org.apache.maven.wagon.observers.ChecksumObserver;
+import org.apache.maven.wagon.proxy.ProxyInfo;
+import org.apache.maven.wagon.repository.Repository;
+import org.codehaus.plexus.PlexusContainer;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
+import org.codehaus.plexus.component.repository.exception.ComponentLifecycleException;
+import org.codehaus.plexus.component.repository.exception.ComponentLookupException;
+import org.codehaus.plexus.logging.Logger;
+import org.codehaus.plexus.util.FileUtils;
+import org.eclipse.aether.ConfigurationProperties;
+import org.eclipse.aether.util.ConfigUtils;
+
+//TODO remove the update check manager
+//TODO separate into retriever and publisher
+//TODO remove hardcoding of checksum logic
+
+/**
+ * Manages &lt;a href=&quot;https://maven.apache.org/wagon&quot;&gt;Wagon&lt;/a&gt; related operations in Maven.
+ */
+@Component( role = WagonManager.class )
+<span class="fc" id="L67">public class DefaultWagonManager</span>
+    implements WagonManager
+{
+
+<span class="fc" id="L71">    private static final String[] CHECKSUM_IDS =</span>
+    {
+        &quot;md5&quot;, &quot;sha1&quot;
+    };
+
+    /**
+     * have to match the CHECKSUM_IDS
+     */
+<span class="fc" id="L79">    private static final String[] CHECKSUM_ALGORITHMS =</span>
+    {
+        &quot;MD5&quot;, &quot;SHA-1&quot;
+    };
+
+    @Requirement
+    private Logger logger;
+
+    @Requirement
+    private PlexusContainer container;
+
+    @Requirement
+    private UpdateCheckManager updateCheckManager;
+
+    @Requirement
+    private LegacySupport legacySupport;
+
+    //
+    // Retriever
+    //
+    @Override
+    public void getArtifact( Artifact artifact, ArtifactRepository repository, TransferListener downloadMonitor,
+                             boolean force )
+        throws TransferFailedException, ResourceDoesNotExistException
+    {
+<span class="nc" id="L104">        String remotePath = repository.pathOf( artifact );</span>
+
+<span class="nc bnc" id="L106" title="All 2 branches missed.">        ArtifactRepositoryPolicy policy = artifact.isSnapshot() ? repository.getSnapshots() : repository.getReleases();</span>
+
+<span class="nc bnc" id="L108" title="All 2 branches missed.">        if ( !policy.isEnabled() )</span>
+        {
+<span class="nc" id="L110">            logger.debug( &quot;Skipping disabled repository &quot; + repository.getId() + &quot; for resolution of &quot;</span>
+                              + artifact.getId() );
+
+        }
+<span class="nc bnc" id="L114" title="All 4 branches missed.">        else if ( artifact.isSnapshot() || !artifact.getFile().exists() )</span>
+        {
+<span class="nc bnc" id="L116" title="All 4 branches missed.">            if ( force || updateCheckManager.isUpdateRequired( artifact, repository ) )</span>
+            {
+<span class="nc" id="L118">                logger.debug( &quot;Trying repository &quot; + repository.getId() + &quot; for resolution of &quot; + artifact.getId()</span>
+                                  + &quot; from &quot; + remotePath );
+
+                try
+                {
+<span class="nc" id="L123">                    getRemoteFile( repository, artifact.getFile(), remotePath, downloadMonitor,</span>
+                                   policy.getChecksumPolicy(), false );
+
+<span class="nc" id="L126">                    updateCheckManager.touch( artifact, repository, null );</span>
+                }
+<span class="nc" id="L128">                catch ( ResourceDoesNotExistException e )</span>
+                {
+<span class="nc" id="L130">                    updateCheckManager.touch( artifact, repository, null );</span>
+<span class="nc" id="L131">                    throw e;</span>
+                }
+<span class="nc" id="L133">                catch ( TransferFailedException e )</span>
+                {
+<span class="nc bnc" id="L135" title="All 2 branches missed.">                    String error = ( e.getMessage() != null ) ? e.getMessage() : e.getClass().getSimpleName();</span>
+<span class="nc" id="L136">                    updateCheckManager.touch( artifact, repository, error );</span>
+<span class="nc" id="L137">                    throw e;</span>
+<span class="nc" id="L138">                }</span>
+
+<span class="nc" id="L140">                logger.debug( &quot;  Artifact &quot; + artifact.getId() + &quot; resolved to &quot; + artifact.getFile() );</span>
+
+<span class="nc" id="L142">                artifact.setResolved( true );</span>
+            }
+<span class="nc bnc" id="L144" title="All 2 branches missed.">            else if ( !artifact.getFile().exists() )</span>
+            {
+<span class="nc" id="L146">                String error = updateCheckManager.getError( artifact, repository );</span>
+<span class="nc bnc" id="L147" title="All 2 branches missed.">                if ( error != null )</span>
+                {
+<span class="nc" id="L149">                    throw new TransferFailedException(</span>
+                        &quot;Failure to resolve &quot; + remotePath + &quot; from &quot; + repository.getUrl()
+                            + &quot; was cached in the local repository. &quot;
+                            + &quot;Resolution will not be reattempted until the update interval of &quot;
+                            + repository.getId() + &quot; has elapsed or updates are forced. Original error: &quot; + error );
+
+                }
+                else
+                {
+<span class="nc" id="L158">                    throw new ResourceDoesNotExistException(</span>
+                        &quot;Failure to resolve &quot; + remotePath + &quot; from &quot; + repository.getUrl()
+                            + &quot; was cached in the local repository. &quot;
+                            + &quot;Resolution will not be reattempted until the update interval of &quot;
+                            + repository.getId() + &quot; has elapsed or updates are forced.&quot; );
+
+                }
+            }
+        }
+<span class="nc" id="L167">    }</span>
+
+    @Override
+    public void getArtifact( Artifact artifact, List&lt;ArtifactRepository&gt; remoteRepositories,
+                             TransferListener downloadMonitor, boolean force )
+        throws TransferFailedException, ResourceDoesNotExistException
+    {
+<span class="nc" id="L174">        TransferFailedException tfe = null;</span>
+
+<span class="nc bnc" id="L176" title="All 2 branches missed.">        for ( ArtifactRepository repository : remoteRepositories )</span>
+        {
+            try
+            {
+<span class="nc" id="L180">                getArtifact( artifact, repository, downloadMonitor, force );</span>
+
+<span class="nc bnc" id="L182" title="All 2 branches missed.">                if ( artifact.isResolved() )</span>
+                {
+<span class="nc" id="L184">                    artifact.setRepository( repository );</span>
+<span class="nc" id="L185">                    break;</span>
+                }
+            }
+<span class="nc" id="L188">            catch ( ResourceDoesNotExistException e )</span>
+            {
+                // This one we will eat when looking through remote repositories
+                // because we want to cycle through them all before squawking.
+
+<span class="nc" id="L193">                logger.debug( &quot;Unable to find artifact &quot; + artifact.getId() + &quot; in repository &quot; + repository.getId()</span>
+                                  + &quot; (&quot; + repository.getUrl() + &quot;)&quot;, e );
+
+            }
+<span class="nc" id="L197">            catch ( TransferFailedException e )</span>
+            {
+<span class="nc" id="L199">                tfe = e;</span>
+
+<span class="nc" id="L201">                String msg =</span>
+                    &quot;Unable to get artifact &quot; + artifact.getId() + &quot; from repository &quot; + repository.getId() + &quot; (&quot;
+                        + repository.getUrl() + &quot;): &quot; + e.getMessage();
+
+<span class="nc bnc" id="L205" title="All 2 branches missed.">                if ( logger.isDebugEnabled() )</span>
+                {
+<span class="nc" id="L207">                    logger.warn( msg, e );</span>
+                }
+                else
+                {
+<span class="nc" id="L211">                    logger.warn( msg );</span>
+                }
+<span class="nc" id="L213">            }</span>
+<span class="nc" id="L214">        }</span>
+
+        // if it already exists locally we were just trying to force it - ignore the update
+<span class="nc bnc" id="L217" title="All 2 branches missed.">        if ( !artifact.getFile().exists() )</span>
+        {
+<span class="nc bnc" id="L219" title="All 2 branches missed.">            if ( tfe != null )</span>
+            {
+<span class="nc" id="L221">                throw tfe;</span>
+            }
+            else
+            {
+<span class="nc" id="L225">                throw new ResourceDoesNotExistException( &quot;Unable to download the artifact from any repository&quot; );</span>
+            }
+        }
+<span class="nc" id="L228">    }</span>
+
+    @Override
+    public void getArtifactMetadata( ArtifactMetadata metadata, ArtifactRepository repository, File destination,
+                                     String checksumPolicy )
+        throws TransferFailedException, ResourceDoesNotExistException
+    {
+<span class="nc" id="L235">        String remotePath = repository.pathOfRemoteRepositoryMetadata( metadata );</span>
+
+<span class="nc" id="L237">        getRemoteFile( repository, destination, remotePath, null, checksumPolicy, true );</span>
+<span class="nc" id="L238">    }</span>
+
+    @Override
+    public void getArtifactMetadataFromDeploymentRepository( ArtifactMetadata metadata, ArtifactRepository repository,
+                                                             File destination, String checksumPolicy )
+        throws TransferFailedException, ResourceDoesNotExistException
+    {
+<span class="nc" id="L245">        String remotePath = repository.pathOfRemoteRepositoryMetadata( metadata );</span>
+
+<span class="nc" id="L247">        getRemoteFile( repository, destination, remotePath, null, checksumPolicy, true );</span>
+<span class="nc" id="L248">    }</span>
+
+    /**
+     * Deal with connecting to a wagon repository taking into account authentication and proxies.
+     *
+     * @param wagon
+     * @param repository
+     *
+     * @throws ConnectionException
+     * @throws AuthenticationException
+     */
+    private void connectWagon( Wagon wagon, ArtifactRepository repository )
+        throws ConnectionException, AuthenticationException
+    {
+        // MNG-5509
+        // See org.eclipse.aether.connector.wagon.WagonRepositoryConnector.connectWagon(Wagon)
+<span class="nc bnc" id="L264" title="All 2 branches missed.">        if ( legacySupport.getRepositorySession() != null )</span>
+        {
+<span class="nc" id="L266">            String userAgent = ConfigUtils.getString( legacySupport.getRepositorySession(), null,</span>
+                                                      ConfigurationProperties.USER_AGENT );
+
+<span class="nc bnc" id="L269" title="All 2 branches missed.">            if ( userAgent == null )</span>
+            {
+<span class="nc" id="L271">                Properties headers = new Properties();</span>
+
+<span class="nc" id="L273">                headers.put( &quot;User-Agent&quot;, ConfigUtils.getString( legacySupport.getRepositorySession(), &quot;Maven&quot;,</span>
+                                                                  ConfigurationProperties.USER_AGENT ) );
+                try
+                {
+<span class="nc" id="L277">                    Method setHttpHeaders = wagon.getClass().getMethod( &quot;setHttpHeaders&quot;, Properties.class );</span>
+<span class="nc" id="L278">                    setHttpHeaders.invoke( wagon, headers );</span>
+                }
+<span class="nc" id="L280">                catch ( NoSuchMethodException e )</span>
+                {
+                    // normal for non-http wagons
+                }
+<span class="nc" id="L284">                catch ( Exception e )</span>
+                {
+<span class="nc" id="L286">                    logger.debug( &quot;Could not set user agent for wagon &quot; + wagon.getClass().getName() + &quot;: &quot; + e );</span>
+<span class="nc" id="L287">                }</span>
+            }
+        }
+
+<span class="nc bnc" id="L291" title="All 4 branches missed.">        if ( repository.getProxy() != null &amp;&amp; logger.isDebugEnabled() )</span>
+        {
+<span class="nc" id="L293">            logger.debug( &quot;Using proxy &quot; + repository.getProxy().getHost() + &quot;:&quot; + repository.getProxy().getPort()</span>
+                              + &quot; for &quot; + repository.getUrl() );
+
+        }
+
+<span class="nc bnc" id="L298" title="All 4 branches missed.">        if ( repository.getAuthentication() != null &amp;&amp; repository.getProxy() != null )</span>
+        {
+<span class="nc" id="L300">            wagon.connect( new Repository( repository.getId(), repository.getUrl() ), authenticationInfo( repository ),</span>
+                           proxyInfo( repository ) );
+
+        }
+<span class="nc bnc" id="L304" title="All 2 branches missed.">        else if ( repository.getAuthentication() != null )</span>
+        {
+<span class="nc" id="L306">            wagon.connect( new Repository( repository.getId(), repository.getUrl() ),</span>
+                           authenticationInfo( repository ) );
+
+        }
+<span class="nc bnc" id="L310" title="All 2 branches missed.">        else if ( repository.getProxy() != null )</span>
+        {
+<span class="nc" id="L312">            wagon.connect( new Repository( repository.getId(), repository.getUrl() ), proxyInfo( repository ) );</span>
+        }
+        else
+        {
+<span class="nc" id="L316">            wagon.connect( new Repository( repository.getId(), repository.getUrl() ) );</span>
+        }
+<span class="nc" id="L318">    }</span>
+
+    private AuthenticationInfo authenticationInfo( ArtifactRepository repository )
+    {
+<span class="nc" id="L322">        AuthenticationInfo ai = new AuthenticationInfo();</span>
+<span class="nc" id="L323">        ai.setUserName( repository.getAuthentication().getUsername() );</span>
+<span class="nc" id="L324">        ai.setPassword( repository.getAuthentication().getPassword() );</span>
+<span class="nc" id="L325">        return ai;</span>
+    }
+
+    private ProxyInfo proxyInfo( ArtifactRepository repository )
+    {
+<span class="nc" id="L330">        ProxyInfo proxyInfo = new ProxyInfo();</span>
+<span class="nc" id="L331">        proxyInfo.setHost( repository.getProxy().getHost() );</span>
+<span class="nc" id="L332">        proxyInfo.setType( repository.getProxy().getProtocol() );</span>
+<span class="nc" id="L333">        proxyInfo.setPort( repository.getProxy().getPort() );</span>
+<span class="nc" id="L334">        proxyInfo.setNonProxyHosts( repository.getProxy().getNonProxyHosts() );</span>
+<span class="nc" id="L335">        proxyInfo.setUserName( repository.getProxy().getUserName() );</span>
+<span class="nc" id="L336">        proxyInfo.setPassword( repository.getProxy().getPassword() );</span>
+<span class="nc" id="L337">        return proxyInfo;</span>
+    }
+
+    @SuppressWarnings( &quot;checkstyle:methodlength&quot; )
+    @Override
+    public void getRemoteFile( ArtifactRepository repository, File destination, String remotePath,
+                               TransferListener downloadMonitor, String checksumPolicy, boolean force )
+        throws TransferFailedException, ResourceDoesNotExistException
+    {
+<span class="nc" id="L346">        String protocol = repository.getProtocol();</span>
+
+        Wagon wagon;
+
+        try
+        {
+<span class="nc" id="L352">            wagon = getWagon( protocol );</span>
+        }
+<span class="nc" id="L354">        catch ( UnsupportedProtocolException e )</span>
+        {
+<span class="nc" id="L356">            throw new TransferFailedException( &quot;Unsupported Protocol: '&quot; + protocol + &quot;': &quot; + e.getMessage(), e );</span>
+<span class="nc" id="L357">        }</span>
+
+<span class="nc bnc" id="L359" title="All 2 branches missed.">        if ( downloadMonitor != null )</span>
+        {
+<span class="nc" id="L361">            wagon.addTransferListener( downloadMonitor );</span>
+        }
+
+<span class="nc" id="L364">        File temp = new File( destination + &quot;.tmp&quot; );</span>
+
+<span class="nc" id="L366">        temp.deleteOnExit();</span>
+
+<span class="nc" id="L368">        boolean downloaded = false;</span>
+
+        try
+        {
+<span class="nc" id="L372">            connectWagon( wagon, repository );</span>
+
+<span class="nc" id="L374">            boolean firstRun = true;</span>
+<span class="nc" id="L375">            boolean retry = true;</span>
+
+            // this will run at most twice. The first time, the firstRun flag is turned off, and if the retry flag
+            // is set on the first run, it will be turned off and not re-set on the second try. This is because the
+            // only way the retry flag can be set is if ( firstRun == true ).
+<span class="nc bnc" id="L380" title="All 4 branches missed.">            while ( firstRun || retry )</span>
+            {
+<span class="nc" id="L382">                ChecksumObserver md5ChecksumObserver = null;</span>
+<span class="nc" id="L383">                ChecksumObserver sha1ChecksumObserver = null;</span>
+                try
+                {
+                    // TODO configure on repository
+<span class="nc" id="L387">                    int i = 0;</span>
+
+<span class="nc" id="L389">                    md5ChecksumObserver = addChecksumObserver( wagon, CHECKSUM_ALGORITHMS[i++] );</span>
+<span class="nc" id="L390">                    sha1ChecksumObserver = addChecksumObserver( wagon, CHECKSUM_ALGORITHMS[i++] );</span>
+
+                    // reset the retry flag.
+<span class="nc" id="L393">                    retry = false;</span>
+
+                    // This should take care of creating destination directory now on
+<span class="nc bnc" id="L396" title="All 4 branches missed.">                    if ( destination.exists() &amp;&amp; !force )</span>
+                    {
+                        try
+                        {
+<span class="nc" id="L400">                            downloaded = wagon.getIfNewer( remotePath, temp, destination.lastModified() );</span>
+
+<span class="nc bnc" id="L402" title="All 2 branches missed.">                            if ( !downloaded )</span>
+                            {
+                                // prevent additional checks of this artifact until it expires again
+<span class="nc" id="L405">                                destination.setLastModified( System.currentTimeMillis() );</span>
+                            }
+                        }
+<span class="nc" id="L408">                        catch ( UnsupportedOperationException e )</span>
+                        {
+                            // older wagons throw this. Just get() instead
+<span class="nc" id="L411">                            wagon.get( remotePath, temp );</span>
+
+<span class="nc" id="L413">                            downloaded = true;</span>
+<span class="nc" id="L414">                        }</span>
+                    }
+                    else
+                    {
+<span class="nc" id="L418">                        wagon.get( remotePath, temp );</span>
+<span class="nc" id="L419">                        downloaded = true;</span>
+                    }
+                }
+                finally
+                {
+<span class="nc" id="L424">                    wagon.removeTransferListener( md5ChecksumObserver );</span>
+<span class="nc" id="L425">                    wagon.removeTransferListener( sha1ChecksumObserver );</span>
+                }
+
+<span class="nc bnc" id="L428" title="All 2 branches missed.">                if ( downloaded )</span>
+                {
+                    // keep the checksum files from showing up on the download monitor...
+<span class="nc bnc" id="L431" title="All 2 branches missed.">                    if ( downloadMonitor != null )</span>
+                    {
+<span class="nc" id="L433">                        wagon.removeTransferListener( downloadMonitor );</span>
+                    }
+
+                    // try to verify the SHA-1 checksum for this file.
+                    try
+                    {
+<span class="nc" id="L439">                        verifyChecksum( sha1ChecksumObserver, destination, temp, remotePath, &quot;.sha1&quot;, wagon );</span>
+                    }
+<span class="nc" id="L441">                    catch ( ChecksumFailedException e )</span>
+                    {
+                        // if we catch a ChecksumFailedException, it means the transfer/read succeeded, but the 
+                        // checksum doesn't match. This could be a problem with the server (ibiblio HTTP-200 error
+                        // page), so we'll try this up to two times. On the second try, we'll handle it as a bona-fide
+                        // error, based on the repository's checksum checking policy.
+<span class="nc bnc" id="L447" title="All 2 branches missed.">                        if ( firstRun )</span>
+                        {
+<span class="nc" id="L449">                            logger.warn( &quot;*** CHECKSUM FAILED - &quot; + e.getMessage() + &quot; - RETRYING&quot; );</span>
+<span class="nc" id="L450">                            retry = true;</span>
+                        }
+                        else
+                        {
+<span class="nc" id="L454">                            handleChecksumFailure( checksumPolicy, e.getMessage(), e.getCause() );</span>
+                        }
+                    }
+<span class="nc" id="L457">                    catch ( ResourceDoesNotExistException sha1TryException )</span>
+                    {
+<span class="nc" id="L459">                        logger.debug( &quot;SHA1 not found, trying MD5: &quot; + sha1TryException.getMessage() );</span>
+
+                        // if this IS NOT a ChecksumFailedException, it was a problem with transfer/read of the checksum
+                        // file...we'll try again with the MD5 checksum.
+                        try
+                        {
+<span class="nc" id="L465">                            verifyChecksum( md5ChecksumObserver, destination, temp, remotePath, &quot;.md5&quot;, wagon );</span>
+                        }
+<span class="nc" id="L467">                        catch ( ChecksumFailedException e )</span>
+                        {
+                            // if we also fail to verify based on the MD5 checksum, and the checksum transfer/read
+                            // succeeded, then we need to determine whether to retry or handle it as a failure.
+<span class="nc bnc" id="L471" title="All 2 branches missed.">                            if ( firstRun )</span>
+                            {
+<span class="nc" id="L473">                                retry = true;</span>
+                            }
+                            else
+                            {
+<span class="nc" id="L477">                                handleChecksumFailure( checksumPolicy, e.getMessage(), e.getCause() );</span>
+                            }
+                        }
+<span class="nc" id="L480">                        catch ( ResourceDoesNotExistException md5TryException )</span>
+                        {
+                            // this was a failed transfer, and we don't want to retry.
+<span class="nc" id="L483">                            handleChecksumFailure( checksumPolicy, &quot;Error retrieving checksum file for &quot; + remotePath,</span>
+                                                   md5TryException );
+<span class="nc" id="L485">                        }</span>
+<span class="nc" id="L486">                    }</span>
+
+                    // reinstate the download monitor...
+<span class="nc bnc" id="L489" title="All 2 branches missed.">                    if ( downloadMonitor != null )</span>
+                    {
+<span class="nc" id="L491">                        wagon.addTransferListener( downloadMonitor );</span>
+                    }
+                }
+
+                // unset the firstRun flag, so we don't get caught in an infinite loop...
+<span class="nc" id="L496">                firstRun = false;</span>
+<span class="nc" id="L497">            }</span>
+        }
+<span class="nc" id="L499">        catch ( ConnectionException e )</span>
+        {
+<span class="nc" id="L501">            throw new TransferFailedException( &quot;Connection failed: &quot; + e.getMessage(), e );</span>
+        }
+<span class="nc" id="L503">        catch ( AuthenticationException e )</span>
+        {
+<span class="nc" id="L505">            throw new TransferFailedException( &quot;Authentication failed: &quot; + e.getMessage(), e );</span>
+        }
+<span class="nc" id="L507">        catch ( AuthorizationException e )</span>
+        {
+<span class="nc" id="L509">            throw new TransferFailedException( &quot;Authorization failed: &quot; + e.getMessage(), e );</span>
+        }
+        finally
+        {
+            // Remove remaining TransferListener instances (checksum handlers removed in above finally clause)
+<span class="nc bnc" id="L514" title="All 2 branches missed.">            if ( downloadMonitor != null )</span>
+            {
+<span class="nc" id="L516">                wagon.removeTransferListener( downloadMonitor );</span>
+            }
+
+<span class="nc" id="L519">            disconnectWagon( wagon );</span>
+
+<span class="nc" id="L521">            releaseWagon( protocol, wagon );</span>
+        }
+
+<span class="nc bnc" id="L524" title="All 2 branches missed.">        if ( downloaded )</span>
+        {
+<span class="nc bnc" id="L526" title="All 2 branches missed.">            if ( !temp.exists() )</span>
+            {
+<span class="nc" id="L528">                throw new ResourceDoesNotExistException( &quot;Downloaded file does not exist: &quot; + temp );</span>
+            }
+
+            // The temporary file is named destination + &quot;.tmp&quot; and is done this way to ensure
+            // that the temporary file is in the same file system as the destination because the
+            // File.renameTo operation doesn't really work across file systems.
+            // So we will attempt to do a File.renameTo for efficiency and atomicity, if this fails
+            // then we will use a brute force copy and delete the temporary file.
+<span class="nc bnc" id="L536" title="All 2 branches missed.">            if ( !temp.renameTo( destination ) )</span>
+            {
+                try
+                {
+<span class="nc" id="L540">                    FileUtils.copyFile( temp, destination );</span>
+
+<span class="nc bnc" id="L542" title="All 2 branches missed.">                    if ( !temp.delete() )</span>
+                    {
+<span class="nc" id="L544">                        temp.deleteOnExit();</span>
+                    }
+                }
+<span class="nc" id="L547">                catch ( IOException e )</span>
+                {
+<span class="nc" id="L549">                    throw new TransferFailedException( &quot;Error copying temporary file to the final destination: &quot;</span>
+                                                           + e.getMessage(), e );
+
+<span class="nc" id="L552">                }</span>
+            }
+        }
+<span class="nc" id="L555">    }</span>
+
+    //
+    // Publisher
+    //
+    @Override
+    public void putArtifact( File source, Artifact artifact, ArtifactRepository deploymentRepository,
+                             TransferListener downloadMonitor )
+        throws TransferFailedException
+    {
+<span class="nc" id="L565">        putRemoteFile( deploymentRepository, source, deploymentRepository.pathOf( artifact ), downloadMonitor );</span>
+<span class="nc" id="L566">    }</span>
+
+    @Override
+    public void putArtifactMetadata( File source, ArtifactMetadata artifactMetadata, ArtifactRepository repository )
+        throws TransferFailedException
+    {
+<span class="nc" id="L572">        logger.info( &quot;Uploading &quot; + artifactMetadata );</span>
+<span class="nc" id="L573">        putRemoteFile( repository, source, repository.pathOfRemoteRepositoryMetadata( artifactMetadata ), null );</span>
+<span class="nc" id="L574">    }</span>
+
+    @Override
+    public void putRemoteFile( ArtifactRepository repository, File source, String remotePath,
+                               TransferListener downloadMonitor )
+        throws TransferFailedException
+    {
+<span class="nc" id="L581">        String protocol = repository.getProtocol();</span>
+
+        Wagon wagon;
+        try
+        {
+<span class="nc" id="L586">            wagon = getWagon( protocol );</span>
+        }
+<span class="nc" id="L588">        catch ( UnsupportedProtocolException e )</span>
+        {
+<span class="nc" id="L590">            throw new TransferFailedException( &quot;Unsupported Protocol: '&quot; + protocol + &quot;': &quot; + e.getMessage(), e );</span>
+<span class="nc" id="L591">        }</span>
+
+<span class="nc bnc" id="L593" title="All 2 branches missed.">        if ( downloadMonitor != null )</span>
+        {
+<span class="nc" id="L595">            wagon.addTransferListener( downloadMonitor );</span>
+        }
+
+<span class="nc" id="L598">        Map&lt;String, ChecksumObserver&gt; checksums = new HashMap&lt;&gt;( 2 );</span>
+
+<span class="nc" id="L600">        Map&lt;String, String&gt; sums = new HashMap&lt;&gt;( 2 );</span>
+
+        // TODO configure these on the repository
+<span class="nc bnc" id="L603" title="All 2 branches missed.">        for ( int i = 0; i &lt; CHECKSUM_IDS.length; i++ )</span>
+        {
+<span class="nc" id="L605">            checksums.put( CHECKSUM_IDS[i], addChecksumObserver( wagon, CHECKSUM_ALGORITHMS[i] ) );</span>
+        }
+
+<span class="nc" id="L608">        List&lt;File&gt; temporaryFiles = new ArrayList&lt;&gt;();</span>
+
+        try
+        {
+            try
+            {
+<span class="nc" id="L614">                connectWagon( wagon, repository );</span>
+
+<span class="nc" id="L616">                wagon.put( source, remotePath );</span>
+            }
+            finally
+            {
+<span class="nc bnc" id="L620" title="All 2 branches missed.">                if ( downloadMonitor != null )</span>
+                {
+<span class="nc" id="L622">                    wagon.removeTransferListener( downloadMonitor );</span>
+                }
+            }
+
+            // Pre-store the checksums as any future puts will overwrite them
+<span class="nc bnc" id="L627" title="All 2 branches missed.">            for ( String extension : checksums.keySet() )</span>
+            {
+<span class="nc" id="L629">                ChecksumObserver observer = checksums.get( extension );</span>
+<span class="nc" id="L630">                sums.put( extension, observer.getActualChecksum() );</span>
+<span class="nc" id="L631">            }</span>
+
+            // We do this in here so we can checksum the artifact metadata too, otherwise it could be metadata itself
+<span class="nc bnc" id="L634" title="All 2 branches missed.">            for ( String extension : checksums.keySet() )</span>
+            {
+                // TODO shouldn't need a file intermediatary - improve wagon to take a stream
+<span class="nc" id="L637">                File temp = File.createTempFile( &quot;maven-artifact&quot;, null );</span>
+<span class="nc" id="L638">                temp.deleteOnExit();</span>
+<span class="nc" id="L639">                FileUtils.fileWrite( temp.getAbsolutePath(), &quot;UTF-8&quot;, sums.get( extension ) );</span>
+
+<span class="nc" id="L641">                temporaryFiles.add( temp );</span>
+<span class="nc" id="L642">                wagon.put( temp, remotePath + &quot;.&quot; + extension );</span>
+<span class="nc" id="L643">            }</span>
+        }
+<span class="nc" id="L645">        catch ( ConnectionException e )</span>
+        {
+<span class="nc" id="L647">            throw new TransferFailedException( &quot;Connection failed: &quot; + e.getMessage(), e );</span>
+        }
+<span class="nc" id="L649">        catch ( AuthenticationException e )</span>
+        {
+<span class="nc" id="L651">            throw new TransferFailedException( &quot;Authentication failed: &quot; + e.getMessage(), e );</span>
+        }
+<span class="nc" id="L653">        catch ( AuthorizationException e )</span>
+        {
+<span class="nc" id="L655">            throw new TransferFailedException( &quot;Authorization failed: &quot; + e.getMessage(), e );</span>
+        }
+<span class="nc" id="L657">        catch ( ResourceDoesNotExistException e )</span>
+        {
+<span class="nc" id="L659">            throw new TransferFailedException( &quot;Resource to deploy not found: &quot; + e.getMessage(), e );</span>
+        }
+<span class="nc" id="L661">        catch ( IOException e )</span>
+        {
+<span class="nc" id="L663">            throw new TransferFailedException( &quot;Error creating temporary file for deployment: &quot; + e.getMessage(), e );</span>
+        }
+        finally
+        {
+            // MNG-4543
+<span class="nc" id="L668">            cleanupTemporaryFiles( temporaryFiles );</span>
+
+            // Remove every checksum listener
+<span class="nc bnc" id="L671" title="All 2 branches missed.">            for ( String id : CHECKSUM_IDS )</span>
+            {
+<span class="nc" id="L673">                TransferListener checksumListener = checksums.get( id );</span>
+<span class="nc bnc" id="L674" title="All 2 branches missed.">                if ( checksumListener != null )</span>
+                {
+<span class="nc" id="L676">                    wagon.removeTransferListener( checksumListener );</span>
+                }
+            }
+
+<span class="nc" id="L680">            disconnectWagon( wagon );</span>
+
+<span class="nc" id="L682">            releaseWagon( protocol, wagon );</span>
+        }
+<span class="nc" id="L684">    }</span>
+
+    private void cleanupTemporaryFiles( List&lt;File&gt; files )
+    {
+<span class="nc bnc" id="L688" title="All 2 branches missed.">        for ( File file : files )</span>
+        {
+            // really don't care if it failed here only log warning
+<span class="nc bnc" id="L691" title="All 2 branches missed.">            if ( !file.delete() )</span>
+            {
+<span class="nc" id="L693">                logger.warn( &quot;skip failed to delete temporary file : &quot; + file.getAbsolutePath() );</span>
+<span class="nc" id="L694">                file.deleteOnExit();</span>
+            }
+<span class="nc" id="L696">        }</span>
+
+<span class="nc" id="L698">    }</span>
+
+    private ChecksumObserver addChecksumObserver( Wagon wagon, String algorithm )
+        throws TransferFailedException
+    {
+        try
+        {
+<span class="nc" id="L705">            ChecksumObserver checksumObserver = new ChecksumObserver( algorithm );</span>
+<span class="nc" id="L706">            wagon.addTransferListener( checksumObserver );</span>
+<span class="nc" id="L707">            return checksumObserver;</span>
+        }
+<span class="nc" id="L709">        catch ( NoSuchAlgorithmException e )</span>
+        {
+<span class="nc" id="L711">            throw new TransferFailedException( &quot;Unable to add checksum for unsupported algorithm &quot; + algorithm, e );</span>
+        }
+    }
+
+    private void handleChecksumFailure( String checksumPolicy, String message, Throwable cause )
+        throws ChecksumFailedException
+    {
+<span class="nc bnc" id="L718" title="All 2 branches missed.">        if ( ArtifactRepositoryPolicy.CHECKSUM_POLICY_FAIL.equals( checksumPolicy ) )</span>
+        {
+<span class="nc" id="L720">            throw new ChecksumFailedException( message, cause );</span>
+        }
+<span class="nc bnc" id="L722" title="All 2 branches missed.">        else if ( !ArtifactRepositoryPolicy.CHECKSUM_POLICY_IGNORE.equals( checksumPolicy ) )</span>
+        {
+            // warn if it is set to anything other than ignore
+<span class="nc" id="L725">            logger.warn( &quot;*** CHECKSUM FAILED - &quot; + message + &quot; - IGNORING&quot; );</span>
+        }
+        // otherwise it is ignore
+<span class="nc" id="L728">    }</span>
+
+    private void verifyChecksum( ChecksumObserver checksumObserver, File destination, File tempDestination,
+                                 String remotePath, String checksumFileExtension, Wagon wagon )
+        throws ResourceDoesNotExistException, TransferFailedException, AuthorizationException
+    {
+        try
+        {
+            // grab it first, because it's about to change...
+<span class="nc" id="L737">            String actualChecksum = checksumObserver.getActualChecksum();</span>
+
+<span class="nc" id="L739">            File tempChecksumFile = new File( tempDestination + checksumFileExtension + &quot;.tmp&quot; );</span>
+<span class="nc" id="L740">            tempChecksumFile.deleteOnExit();</span>
+<span class="nc" id="L741">            wagon.get( remotePath + checksumFileExtension, tempChecksumFile );</span>
+
+<span class="nc" id="L743">            String expectedChecksum = FileUtils.fileRead( tempChecksumFile, &quot;UTF-8&quot; );</span>
+
+            // remove whitespaces at the end
+<span class="nc" id="L746">            expectedChecksum = expectedChecksum.trim();</span>
+
+            // check for 'ALGO (name) = CHECKSUM' like used by openssl
+<span class="nc bnc" id="L749" title="All 4 branches missed.">            if ( expectedChecksum.regionMatches( true, 0, &quot;MD&quot;, 0, 2 )</span>
+                     || expectedChecksum.regionMatches( true, 0, &quot;SHA&quot;, 0, 3 ) )
+            {
+<span class="nc" id="L752">                int lastSpacePos = expectedChecksum.lastIndexOf( ' ' );</span>
+<span class="nc" id="L753">                expectedChecksum = expectedChecksum.substring( lastSpacePos + 1 );</span>
+<span class="nc" id="L754">            }</span>
+            else
+            {
+                // remove everything after the first space (if available)
+<span class="nc" id="L758">                int spacePos = expectedChecksum.indexOf( ' ' );</span>
+
+<span class="nc bnc" id="L760" title="All 2 branches missed.">                if ( spacePos != -1 )</span>
+                {
+<span class="nc" id="L762">                    expectedChecksum = expectedChecksum.substring( 0, spacePos );</span>
+                }
+            }
+<span class="nc bnc" id="L765" title="All 2 branches missed.">            if ( expectedChecksum.equalsIgnoreCase( actualChecksum ) )</span>
+            {
+<span class="nc" id="L767">                File checksumFile = new File( destination + checksumFileExtension );</span>
+<span class="nc bnc" id="L768" title="All 2 branches missed.">                if ( checksumFile.exists() )</span>
+                {
+<span class="nc" id="L770">                    checksumFile.delete(); // ignore if failed as we will overwrite</span>
+                }
+<span class="nc" id="L772">                FileUtils.copyFile( tempChecksumFile, checksumFile );</span>
+<span class="nc bnc" id="L773" title="All 2 branches missed.">                if ( !tempChecksumFile.delete() )</span>
+                {
+<span class="nc" id="L775">                    tempChecksumFile.deleteOnExit();</span>
+                }
+<span class="nc" id="L777">            }</span>
+            else
+            {
+<span class="nc" id="L780">                throw new ChecksumFailedException( &quot;Checksum failed on download: local = '&quot; + actualChecksum</span>
+                                                       + &quot;'; remote = '&quot; + expectedChecksum + &quot;'&quot; );
+
+            }
+        }
+<span class="nc" id="L785">        catch ( IOException e )</span>
+        {
+<span class="nc" id="L787">            throw new ChecksumFailedException( &quot;Invalid checksum file&quot;, e );</span>
+<span class="nc" id="L788">        }</span>
+<span class="nc" id="L789">    }</span>
+
+    private void disconnectWagon( Wagon wagon )
+    {
+        try
+        {
+<span class="nc" id="L795">            wagon.disconnect();</span>
+        }
+<span class="nc" id="L797">        catch ( ConnectionException e )</span>
+        {
+<span class="nc" id="L799">            logger.error( &quot;Problem disconnecting from wagon - ignoring: &quot; + e.getMessage() );</span>
+<span class="nc" id="L800">        }</span>
+<span class="nc" id="L801">    }</span>
+
+    private void releaseWagon( String protocol, Wagon wagon )
+    {
+        try
+        {
+<span class="nc" id="L807">            container.release( wagon );</span>
+        }
+<span class="nc" id="L809">        catch ( ComponentLifecycleException e )</span>
+        {
+<span class="nc" id="L811">            logger.error( &quot;Problem releasing wagon - ignoring: &quot; + e.getMessage() );</span>
+<span class="nc" id="L812">            logger.debug( &quot;&quot;, e );</span>
+<span class="nc" id="L813">        }</span>
+<span class="nc" id="L814">    }</span>
+
+    @Override
+    @Deprecated
+    public Wagon getWagon( Repository repository )
+        throws UnsupportedProtocolException
+    {
+<span class="fc" id="L821">        return getWagon( repository.getProtocol() );</span>
+    }
+
+    @Override
+    @Deprecated
+    public Wagon getWagon( String protocol )
+        throws UnsupportedProtocolException
+    {
+<span class="pc bpc" id="L829" title="1 of 2 branches missed.">        if ( protocol == null )</span>
+        {
+<span class="nc" id="L831">            throw new UnsupportedProtocolException( &quot;Unspecified protocol&quot; );</span>
+        }
+
+<span class="fc" id="L834">        String hint = protocol.toLowerCase( java.util.Locale.ENGLISH );</span>
+
+        Wagon wagon;
+        try
+        {
+<span class="fc" id="L839">            wagon = container.lookup( Wagon.class, hint );</span>
+        }
+<span class="nc" id="L841">        catch ( ComponentLookupException e )</span>
+        {
+<span class="nc" id="L843">            throw new UnsupportedProtocolException( &quot;Cannot find wagon which supports the requested protocol: &quot;</span>
+                                                        + protocol, e );
+
+<span class="fc" id="L846">        }</span>
+
+<span class="fc" id="L848">        return wagon;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

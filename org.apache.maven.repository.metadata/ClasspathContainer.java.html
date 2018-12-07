@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ClasspathContainer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository.metadata</a> &gt; <span class="el_source">ClasspathContainer.java</span></div><h1>ClasspathContainer.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository.metadata;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+
+import org.apache.maven.artifact.ArtifactScopeEnum;
+
+/**
+ * classpath container that is aware of the classpath scope
+ *
+ * @author &lt;a href=&quot;oleg@codehaus.org&quot;&gt;Oleg Gusakov&lt;/a&gt;
+ *
+ */
+public class ClasspathContainer
+implements Iterable&lt;ArtifactMetadata&gt;
+{
+    private List&lt;ArtifactMetadata&gt; classpath;
+
+    private ArtifactScopeEnum scope;
+
+    // -------------------------------------------------------------------------------------------
+    public ClasspathContainer( ArtifactScopeEnum scope )
+<span class="nc" id="L43">    {</span>
+<span class="nc" id="L44">        this.scope = ArtifactScopeEnum.checkScope( scope );</span>
+<span class="nc" id="L45">    }</span>
+
+    // -------------------------------------------------------------------------------------------
+    public ClasspathContainer( List&lt;ArtifactMetadata&gt; classpath, ArtifactScopeEnum scope )
+    {
+<span class="nc" id="L50">        this( scope );</span>
+<span class="nc" id="L51">        this.classpath = classpath;</span>
+<span class="nc" id="L52">    }</span>
+
+    // -------------------------------------------------------------------------------------------
+    public Iterator&lt;ArtifactMetadata&gt; iterator()
+    {
+<span class="nc bnc" id="L57" title="All 2 branches missed.">        return classpath == null ? null : classpath.iterator();</span>
+    }
+
+    // -------------------------------------------------------------------------------------------
+    public ClasspathContainer add( ArtifactMetadata md )
+    {
+<span class="nc bnc" id="L63" title="All 2 branches missed.">        if ( classpath == null )</span>
+        {
+<span class="nc" id="L65">            classpath = new ArrayList&lt;&gt;( 16 );</span>
+        }
+
+<span class="nc" id="L68">        classpath.add( md );</span>
+
+<span class="nc" id="L70">        return this;</span>
+    }
+
+    // -------------------------------------------------------------------------------------------
+    public List&lt;ArtifactMetadata&gt; getClasspath()
+    {
+<span class="nc" id="L76">        return classpath;</span>
+    }
+
+    // -------------------------------------------------------------------------------------------
+    public MetadataTreeNode getClasspathAsTree()
+        throws MetadataResolutionException
+    {
+<span class="nc bnc" id="L83" title="All 4 branches missed.">        if ( classpath == null || classpath.size() &lt; 1 )</span>
+        {
+<span class="nc" id="L85">            return null;</span>
+        }
+
+<span class="nc" id="L88">        MetadataTreeNode tree = null;</span>
+<span class="nc" id="L89">        MetadataTreeNode parent = null;</span>
+
+<span class="nc bnc" id="L91" title="All 2 branches missed.">        for ( ArtifactMetadata md : classpath )</span>
+        {
+<span class="nc" id="L93">            MetadataTreeNode node = new MetadataTreeNode( md, parent, md.isResolved(), md.getArtifactScope() );</span>
+<span class="nc bnc" id="L94" title="All 2 branches missed.">            if ( tree == null )</span>
+            {
+<span class="nc" id="L96">                tree = node;</span>
+            }
+
+<span class="nc bnc" id="L99" title="All 2 branches missed.">            if ( parent != null )</span>
+            {
+<span class="nc" id="L101">                parent.setNChildren( 1 );</span>
+<span class="nc" id="L102">                parent.addChild( 0, node );</span>
+            }
+
+<span class="nc" id="L105">            parent = node;</span>
+
+<span class="nc" id="L107">        }</span>
+<span class="nc" id="L108">        return tree;</span>
+    }
+
+    public void setClasspath( List&lt;ArtifactMetadata&gt; classpath )
+    {
+<span class="nc" id="L113">        this.classpath = classpath;</span>
+<span class="nc" id="L114">    }</span>
+
+    public ArtifactScopeEnum getScope()
+    {
+<span class="nc" id="L118">        return scope;</span>
+    }
+
+    public void setScope( ArtifactScopeEnum scope )
+    {
+<span class="nc" id="L123">        this.scope = scope;</span>
+<span class="nc" id="L124">    }</span>
+
+    // -------------------------------------------------------------------------------------------
+    @Override
+    public String toString()
+    {
+<span class="nc" id="L130">        StringBuilder sb = new StringBuilder( 256 );</span>
+<span class="nc" id="L131">        sb.append( &quot;[scope=&quot; ).append( scope.getScope() );</span>
+<span class="nc bnc" id="L132" title="All 2 branches missed.">        if ( classpath != null )</span>
+        {
+<span class="nc bnc" id="L134" title="All 2 branches missed.">            for ( ArtifactMetadata md : classpath )</span>
+            {
+<span class="nc" id="L136">                sb.append( &quot;: &quot; ).append( md.toString() ).append( '{' ).append( md.getArtifactUri() ).append( '}' );</span>
+<span class="nc" id="L137">            }</span>
+        }
+<span class="nc" id="L139">        sb.append( ']' );</span>
+<span class="nc" id="L140">        return sb.toString();</span>
+    }
+    // -------------------------------------------------------------------------------------------
+    // -------------------------------------------------------------------------------------------
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

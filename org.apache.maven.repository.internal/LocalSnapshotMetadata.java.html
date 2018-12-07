@@ -1,0 +1,164 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LocalSnapshotMetadata.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository.internal</a> &gt; <span class="el_source">LocalSnapshotMetadata.java</span></div><h1>LocalSnapshotMetadata.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository.internal;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedHashMap;
+import java.util.Map;
+
+import org.apache.maven.artifact.repository.metadata.Metadata;
+import org.apache.maven.artifact.repository.metadata.Snapshot;
+import org.apache.maven.artifact.repository.metadata.SnapshotVersion;
+import org.apache.maven.artifact.repository.metadata.Versioning;
+import org.eclipse.aether.artifact.Artifact;
+
+/**
+ * @author Benjamin Bentmann
+ */
+final class LocalSnapshotMetadata
+    extends MavenMetadata
+{
+
+<span class="nc" id="L41">    private final Collection&lt;Artifact&gt; artifacts = new ArrayList&lt;&gt;();</span>
+
+    private final boolean legacyFormat;
+
+    LocalSnapshotMetadata( Artifact artifact, boolean legacyFormat )
+    {
+<span class="nc" id="L47">        super( createMetadata( artifact, legacyFormat ), null );</span>
+<span class="nc" id="L48">        this.legacyFormat = legacyFormat;</span>
+<span class="nc" id="L49">    }</span>
+
+    LocalSnapshotMetadata( Metadata metadata, File file, boolean legacyFormat )
+    {
+<span class="nc" id="L53">        super( metadata, file );</span>
+<span class="nc" id="L54">        this.legacyFormat = legacyFormat;</span>
+<span class="nc" id="L55">    }</span>
+
+    private static Metadata createMetadata( Artifact artifact, boolean legacyFormat )
+    {
+<span class="nc" id="L59">        Snapshot snapshot = new Snapshot();</span>
+<span class="nc" id="L60">        snapshot.setLocalCopy( true );</span>
+<span class="nc" id="L61">        Versioning versioning = new Versioning();</span>
+<span class="nc" id="L62">        versioning.setSnapshot( snapshot );</span>
+
+<span class="nc" id="L64">        Metadata metadata = new Metadata();</span>
+<span class="nc" id="L65">        metadata.setVersioning( versioning );</span>
+<span class="nc" id="L66">        metadata.setGroupId( artifact.getGroupId() );</span>
+<span class="nc" id="L67">        metadata.setArtifactId( artifact.getArtifactId() );</span>
+<span class="nc" id="L68">        metadata.setVersion( artifact.getBaseVersion() );</span>
+
+<span class="nc bnc" id="L70" title="All 2 branches missed.">        if ( !legacyFormat )</span>
+        {
+<span class="nc" id="L72">            metadata.setModelVersion( &quot;1.1.0&quot; );</span>
+        }
+
+<span class="nc" id="L75">        return metadata;</span>
+    }
+
+    public void bind( Artifact artifact )
+    {
+<span class="nc" id="L80">        artifacts.add( artifact );</span>
+<span class="nc" id="L81">    }</span>
+
+    public MavenMetadata setFile( File file )
+    {
+<span class="nc" id="L85">        return new LocalSnapshotMetadata( metadata, file, legacyFormat );</span>
+    }
+
+    public Object getKey()
+    {
+<span class="nc" id="L90">        return getGroupId() + ':' + getArtifactId() + ':' + getVersion();</span>
+    }
+
+    public static Object getKey( Artifact artifact )
+    {
+<span class="nc" id="L95">        return artifact.getGroupId() + ':' + artifact.getArtifactId() + ':' + artifact.getBaseVersion();</span>
+    }
+
+    @Override
+    protected void merge( Metadata recessive )
+    {
+<span class="nc" id="L101">        metadata.getVersioning().updateTimestamp();</span>
+
+<span class="nc bnc" id="L103" title="All 2 branches missed.">        if ( !legacyFormat )</span>
+        {
+<span class="nc" id="L105">            String lastUpdated = metadata.getVersioning().getLastUpdated();</span>
+
+<span class="nc" id="L107">            Map&lt;String, SnapshotVersion&gt; versions = new LinkedHashMap&lt;&gt;();</span>
+
+<span class="nc bnc" id="L109" title="All 2 branches missed.">            for ( Artifact artifact : artifacts )</span>
+            {
+<span class="nc" id="L111">                SnapshotVersion sv = new SnapshotVersion();</span>
+<span class="nc" id="L112">                sv.setClassifier( artifact.getClassifier() );</span>
+<span class="nc" id="L113">                sv.setExtension( artifact.getExtension() );</span>
+<span class="nc" id="L114">                sv.setVersion( getVersion() );</span>
+<span class="nc" id="L115">                sv.setUpdated( lastUpdated );</span>
+<span class="nc" id="L116">                versions.put( getKey( sv.getClassifier(), sv.getExtension() ), sv );</span>
+<span class="nc" id="L117">            }</span>
+
+<span class="nc" id="L119">            Versioning versioning = recessive.getVersioning();</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">            if ( versioning != null )</span>
+            {
+<span class="nc bnc" id="L122" title="All 2 branches missed.">                for ( SnapshotVersion sv : versioning.getSnapshotVersions() )</span>
+                {
+<span class="nc" id="L124">                    String key = getKey( sv.getClassifier(), sv.getExtension() );</span>
+<span class="nc bnc" id="L125" title="All 2 branches missed.">                    if ( !versions.containsKey( key ) )</span>
+                    {
+<span class="nc" id="L127">                        versions.put( key, sv );</span>
+                    }
+<span class="nc" id="L129">                }</span>
+            }
+
+<span class="nc" id="L132">            metadata.getVersioning().setSnapshotVersions( new ArrayList&lt;&gt;( versions.values() ) );</span>
+        }
+
+<span class="nc" id="L135">        artifacts.clear();</span>
+<span class="nc" id="L136">    }</span>
+
+    private String getKey( String classifier, String extension )
+    {
+<span class="nc" id="L140">        return classifier + ':' + extension;</span>
+    }
+
+    public String getGroupId()
+    {
+<span class="nc" id="L145">        return metadata.getGroupId();</span>
+    }
+
+    public String getArtifactId()
+    {
+<span class="nc" id="L150">        return metadata.getArtifactId();</span>
+    }
+
+    public String getVersion()
+    {
+<span class="nc" id="L155">        return metadata.getVersion();</span>
+    }
+
+    public Nature getNature()
+    {
+<span class="nc" id="L160">        return Nature.SNAPSHOT;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

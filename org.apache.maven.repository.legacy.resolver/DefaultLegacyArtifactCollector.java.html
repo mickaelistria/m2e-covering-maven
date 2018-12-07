@@ -1,0 +1,819 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultLegacyArtifactCollector.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository.legacy.resolver</a> &gt; <span class="el_source">DefaultLegacyArtifactCollector.java</span></div><h1>DefaultLegacyArtifactCollector.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository.legacy.resolver;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.metadata.ArtifactMetadataSource;
+import org.apache.maven.artifact.metadata.ResolutionGroup;
+import org.apache.maven.artifact.repository.ArtifactRepository;
+import org.apache.maven.artifact.resolver.ArtifactResolutionException;
+import org.apache.maven.artifact.resolver.ArtifactResolutionRequest;
+import org.apache.maven.artifact.resolver.ArtifactResolutionResult;
+import org.apache.maven.artifact.resolver.CyclicDependencyException;
+import org.apache.maven.artifact.resolver.ResolutionListener;
+import org.apache.maven.artifact.resolver.ResolutionListenerForDepMgmt;
+import org.apache.maven.artifact.resolver.ResolutionNode;
+import org.apache.maven.artifact.resolver.filter.AndArtifactFilter;
+import org.apache.maven.artifact.resolver.filter.ArtifactFilter;
+import org.apache.maven.artifact.versioning.ArtifactVersion;
+import org.apache.maven.artifact.versioning.ManagedVersionMap;
+import org.apache.maven.artifact.versioning.OverConstrainedVersionException;
+import org.apache.maven.artifact.versioning.VersionRange;
+import org.apache.maven.execution.MavenSession;
+import org.apache.maven.plugin.LegacySupport;
+import org.apache.maven.repository.legacy.metadata.ArtifactMetadataRetrievalException;
+import org.apache.maven.repository.legacy.metadata.DefaultMetadataResolutionRequest;
+import org.apache.maven.repository.legacy.metadata.MetadataResolutionRequest;
+import org.apache.maven.repository.legacy.resolver.conflict.ConflictResolver;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
+import org.codehaus.plexus.logging.Logger;
+
+/**
+ * @author &lt;a href=&quot;mailto:brett@apache.org&quot;&gt;Brett Porter&lt;/a&gt;
+ * @author Jason van Zyl
+ */
+@Component( role = LegacyArtifactCollector.class )
+<span class="fc" id="L63">public class DefaultLegacyArtifactCollector</span>
+    implements LegacyArtifactCollector
+{
+
+    @Requirement( hint = &quot;nearest&quot; )
+    private ConflictResolver defaultConflictResolver;
+
+    @Requirement
+    private Logger logger;
+
+    @Requirement
+    private LegacySupport legacySupport;
+
+    private void injectSession( ArtifactResolutionRequest request )
+    {
+<span class="nc" id="L78">        MavenSession session = legacySupport.getSession();</span>
+
+<span class="nc bnc" id="L80" title="All 2 branches missed.">        if ( session != null )</span>
+        {
+<span class="nc" id="L82">            request.setOffline( session.isOffline() );</span>
+<span class="nc" id="L83">            request.setForceUpdate( session.getRequest().isUpdateSnapshots() );</span>
+<span class="nc" id="L84">            request.setServers( session.getRequest().getServers() );</span>
+<span class="nc" id="L85">            request.setMirrors( session.getRequest().getMirrors() );</span>
+<span class="nc" id="L86">            request.setProxies( session.getRequest().getProxies() );</span>
+        }
+<span class="nc" id="L88">    }</span>
+
+    @SuppressWarnings( &quot;checkstyle:parameternumber&quot; )
+    public ArtifactResolutionResult collect( Set&lt;Artifact&gt; artifacts, Artifact originatingArtifact,
+                                             Map&lt;String, Artifact&gt; managedVersions, ArtifactRepository localRepository,
+                                             List&lt;ArtifactRepository&gt; remoteRepositories,
+                                             ArtifactMetadataSource source, ArtifactFilter filter,
+                                             List&lt;ResolutionListener&gt; listeners,
+                                             List&lt;ConflictResolver&gt; conflictResolvers )
+    {
+<span class="nc" id="L98">        ArtifactResolutionRequest request = new ArtifactResolutionRequest();</span>
+<span class="nc" id="L99">        request.setLocalRepository( localRepository );</span>
+<span class="nc" id="L100">        request.setRemoteRepositories( remoteRepositories );</span>
+<span class="nc" id="L101">        injectSession( request );</span>
+<span class="nc" id="L102">        return collect( artifacts, originatingArtifact, managedVersions, request, source, filter, listeners,</span>
+                        conflictResolvers );
+    }
+
+    @SuppressWarnings( &quot;checkstyle:parameternumber&quot; )
+    public ArtifactResolutionResult collect( Set&lt;Artifact&gt; artifacts, Artifact originatingArtifact,
+                                             Map&lt;String, Artifact&gt; managedVersions,
+                                             ArtifactResolutionRequest repositoryRequest,
+                                             ArtifactMetadataSource source, ArtifactFilter filter,
+                                             List&lt;ResolutionListener&gt; listeners,
+                                             List&lt;ConflictResolver&gt; conflictResolvers )
+    {
+<span class="nc" id="L114">        ArtifactResolutionResult result = new ArtifactResolutionResult();</span>
+
+<span class="nc" id="L116">        result.setOriginatingArtifact( originatingArtifact );</span>
+
+<span class="nc bnc" id="L118" title="All 2 branches missed.">        if ( conflictResolvers == null )</span>
+        {
+<span class="nc" id="L120">            conflictResolvers = Collections.singletonList( defaultConflictResolver );</span>
+        }
+
+<span class="nc" id="L123">        Map&lt;Object, List&lt;ResolutionNode&gt;&gt; resolvedArtifacts = new LinkedHashMap&lt;&gt;();</span>
+
+<span class="nc" id="L125">        ResolutionNode root = new ResolutionNode( originatingArtifact, repositoryRequest.getRemoteRepositories() );</span>
+
+        try
+        {
+<span class="nc" id="L129">            root.addDependencies( artifacts, repositoryRequest.getRemoteRepositories(), filter );</span>
+        }
+<span class="nc" id="L131">        catch ( CyclicDependencyException e )</span>
+        {
+<span class="nc" id="L133">            result.addCircularDependencyException( e );</span>
+
+<span class="nc" id="L135">            return result;</span>
+        }
+<span class="nc" id="L137">        catch ( OverConstrainedVersionException e )</span>
+        {
+<span class="nc" id="L139">            result.addVersionRangeViolation( e );</span>
+
+<span class="nc" id="L141">            return result;</span>
+<span class="nc" id="L142">        }</span>
+
+<span class="nc" id="L144">        ManagedVersionMap versionMap = getManagedVersionsMap( originatingArtifact, managedVersions );</span>
+
+        try
+        {
+<span class="nc" id="L148">            recurse( result, root, resolvedArtifacts, versionMap, repositoryRequest, source, filter, listeners,</span>
+                     conflictResolvers );
+        }
+<span class="nc" id="L151">        catch ( CyclicDependencyException e )</span>
+        {
+<span class="nc" id="L153">            logger.debug( &quot;While recursing: &quot; + e.getMessage(), e );</span>
+<span class="nc" id="L154">            result.addCircularDependencyException( e );</span>
+        }
+<span class="nc" id="L156">        catch ( OverConstrainedVersionException e )</span>
+        {
+<span class="nc" id="L158">            logger.debug( &quot;While recursing: &quot; + e.getMessage(), e );</span>
+<span class="nc" id="L159">            result.addVersionRangeViolation( e );</span>
+        }
+<span class="nc" id="L161">        catch ( ArtifactResolutionException e )</span>
+        {
+<span class="nc" id="L163">            logger.debug( &quot;While recursing: &quot; + e.getMessage(), e );</span>
+<span class="nc" id="L164">            result.addErrorArtifactException( e );</span>
+<span class="nc" id="L165">        }</span>
+
+<span class="nc" id="L167">        Set&lt;ResolutionNode&gt; set = new LinkedHashSet&lt;&gt;();</span>
+
+<span class="nc bnc" id="L169" title="All 2 branches missed.">        for ( List&lt;ResolutionNode&gt; nodes : resolvedArtifacts.values() )</span>
+        {
+<span class="nc bnc" id="L171" title="All 2 branches missed.">            for ( ResolutionNode node : nodes )</span>
+            {
+<span class="nc bnc" id="L173" title="All 4 branches missed.">                if ( !node.equals( root ) &amp;&amp; node.isActive() )</span>
+                {
+<span class="nc" id="L175">                    Artifact artifact = node.getArtifact();</span>
+
+                    try
+                    {
+<span class="nc bnc" id="L179" title="All 2 branches missed.">                        if ( node.filterTrail( filter ) )</span>
+                        {
+                            // If it was optional and not a direct dependency,
+                            // we don't add it or its children, just allow the update of the version and artifactScope
+<span class="nc bnc" id="L183" title="All 4 branches missed.">                            if ( node.isChildOfRootNode() || !artifact.isOptional() )</span>
+                            {
+<span class="nc" id="L185">                                artifact.setDependencyTrail( node.getDependencyTrail() );</span>
+
+<span class="nc" id="L187">                                set.add( node );</span>
+
+                                // This is required right now.
+<span class="nc" id="L190">                                result.addArtifact( artifact );</span>
+                            }
+                        }
+                    }
+<span class="nc" id="L194">                    catch ( OverConstrainedVersionException e )</span>
+                    {
+<span class="nc" id="L196">                        result.addVersionRangeViolation( e );</span>
+<span class="nc" id="L197">                    }</span>
+                }
+<span class="nc" id="L199">            }</span>
+<span class="nc" id="L200">        }</span>
+
+<span class="nc" id="L202">        result.setArtifactResolutionNodes( set );</span>
+
+<span class="nc" id="L204">        return result;</span>
+    }
+
+    /**
+     * Get the map of managed versions, removing the originating artifact if it is also in managed versions
+     *
+     * @param originatingArtifact artifact we are processing
+     * @param managedVersions original managed versions
+     */
+    private ManagedVersionMap getManagedVersionsMap( Artifact originatingArtifact,
+                                                     Map&lt;String, Artifact&gt; managedVersions )
+    {
+        ManagedVersionMap versionMap;
+<span class="nc bnc" id="L217" title="All 4 branches missed.">        if ( ( managedVersions != null ) &amp;&amp; ( managedVersions instanceof ManagedVersionMap ) )</span>
+        {
+<span class="nc" id="L219">            versionMap = (ManagedVersionMap) managedVersions;</span>
+        }
+        else
+        {
+<span class="nc" id="L223">            versionMap = new ManagedVersionMap( managedVersions );</span>
+        }
+
+        // remove the originating artifact if it is also in managed versions to avoid being modified during resolution
+<span class="nc" id="L227">        Artifact managedOriginatingArtifact = versionMap.get( originatingArtifact.getDependencyConflictId() );</span>
+
+<span class="nc bnc" id="L229" title="All 2 branches missed.">        if ( managedOriginatingArtifact != null )</span>
+        {
+            // TODO we probably want to warn the user that he is building an artifact with
+            // different values than in dependencyManagement
+<span class="nc bnc" id="L233" title="All 2 branches missed.">            if ( managedVersions instanceof ManagedVersionMap )</span>
+            {
+                /* avoid modifying the managedVersions parameter creating a new map */
+<span class="nc" id="L236">                versionMap = new ManagedVersionMap( managedVersions );</span>
+            }
+<span class="nc" id="L238">            versionMap.remove( originatingArtifact.getDependencyConflictId() );</span>
+        }
+
+<span class="nc" id="L241">        return versionMap;</span>
+    }
+
+    @SuppressWarnings( { &quot;checkstyle:parameternumber&quot;, &quot;checkstyle:methodlength&quot; } )
+    private void recurse( ArtifactResolutionResult result, ResolutionNode node,
+                          Map&lt;Object, List&lt;ResolutionNode&gt;&gt; resolvedArtifacts, ManagedVersionMap managedVersions,
+                          ArtifactResolutionRequest request, ArtifactMetadataSource source, ArtifactFilter filter,
+                          List&lt;ResolutionListener&gt; listeners, List&lt;ConflictResolver&gt; conflictResolvers )
+        throws ArtifactResolutionException
+    {
+<span class="nc" id="L251">        fireEvent( ResolutionListener.TEST_ARTIFACT, listeners, node );</span>
+
+<span class="nc" id="L253">        Object key = node.getKey();</span>
+
+        // TODO Does this check need to happen here? Had to add the same call
+        // below when we iterate on child nodes -- will that suffice?
+<span class="nc bnc" id="L257" title="All 2 branches missed.">        if ( managedVersions.containsKey( key ) )</span>
+        {
+<span class="nc" id="L259">            manageArtifact( node, managedVersions, listeners );</span>
+        }
+
+<span class="nc" id="L262">        List&lt;ResolutionNode&gt; previousNodes = resolvedArtifacts.get( key );</span>
+
+<span class="nc bnc" id="L264" title="All 2 branches missed.">        if ( previousNodes != null )</span>
+        {
+<span class="nc bnc" id="L266" title="All 2 branches missed.">            for ( ResolutionNode previous : previousNodes )</span>
+            {
+                try
+                {
+<span class="nc bnc" id="L270" title="All 2 branches missed.">                    if ( previous.isActive() )</span>
+                    {
+                        // Version mediation
+<span class="nc" id="L273">                        VersionRange previousRange = previous.getArtifact().getVersionRange();</span>
+<span class="nc" id="L274">                        VersionRange currentRange = node.getArtifact().getVersionRange();</span>
+
+<span class="nc bnc" id="L276" title="All 4 branches missed.">                        if ( ( previousRange != null ) &amp;&amp; ( currentRange != null ) )</span>
+                        {
+                            // TODO shouldn't need to double up on this work, only done for simplicity of handling
+                            // recommended
+                            // version but the restriction is identical
+<span class="nc" id="L281">                            VersionRange newRange = previousRange.restrict( currentRange );</span>
+                            // TODO ick. this forces the OCE that should have come from the previous call. It is still
+                            // correct
+<span class="nc bnc" id="L284" title="All 2 branches missed.">                            if ( newRange.isSelectedVersionKnown( previous.getArtifact() ) )</span>
+                            {
+<span class="nc" id="L286">                                fireEvent( ResolutionListener.RESTRICT_RANGE, listeners, node, previous.getArtifact(),</span>
+                                           newRange );
+                            }
+<span class="nc" id="L289">                            previous.getArtifact().setVersionRange( newRange );</span>
+<span class="nc" id="L290">                            node.getArtifact().setVersionRange( currentRange.restrict( previousRange ) );</span>
+
+                            // Select an appropriate available version from the (now restricted) range
+                            // Note this version was selected before to get the appropriate POM
+                            // But it was reset by the call to setVersionRange on restricting the version
+<span class="nc" id="L295">                            ResolutionNode[] resetNodes =</span>
+                            {
+                                previous, node
+                            };
+<span class="nc bnc" id="L299" title="All 2 branches missed.">                            for ( int j = 0; j &lt; 2; j++ )</span>
+                            {
+<span class="nc" id="L301">                                Artifact resetArtifact = resetNodes[j].getArtifact();</span>
+
+                                // MNG-2123: if the previous node was not a range, then it wouldn't have any available
+                                // versions. We just clobbered the selected version above. (why? i have no idea.)
+                                // So since we are here and this is ranges we must go figure out the version (for a
+                                // third time...)
+<span class="nc bnc" id="L307" title="All 4 branches missed.">                                if ( resetArtifact.getVersion() == null &amp;&amp; resetArtifact.getVersionRange() != null )</span>
+                                {
+
+                                    // go find the version. This is a total hack. See previous comment.
+<span class="nc" id="L311">                                    List&lt;ArtifactVersion&gt; versions = resetArtifact.getAvailableVersions();</span>
+<span class="nc bnc" id="L312" title="All 2 branches missed.">                                    if ( versions == null )</span>
+                                    {
+                                        try
+                                        {
+<span class="nc" id="L316">                                            MetadataResolutionRequest metadataRequest =</span>
+                                                new DefaultMetadataResolutionRequest( request );
+
+<span class="nc" id="L319">                                            metadataRequest.setArtifact( resetArtifact );</span>
+<span class="nc" id="L320">                                            versions = source.retrieveAvailableVersions( metadataRequest );</span>
+<span class="nc" id="L321">                                            resetArtifact.setAvailableVersions( versions );</span>
+                                        }
+<span class="nc" id="L323">                                        catch ( ArtifactMetadataRetrievalException e )</span>
+                                        {
+<span class="nc" id="L325">                                            resetArtifact.setDependencyTrail( node.getDependencyTrail() );</span>
+<span class="nc" id="L326">                                            throw new ArtifactResolutionException(</span>
+                                                &quot;Unable to get dependency information: &quot;
+                                                    + e.getMessage(), resetArtifact, request.getRemoteRepositories(),
+                                                e );
+
+<span class="nc" id="L331">                                        }</span>
+                                    }
+                                    // end hack
+
+                                    // MNG-2861: match version can return null
+<span class="nc" id="L336">                                    ArtifactVersion selectedVersion = resetArtifact.getVersionRange().</span>
+                                        matchVersion( resetArtifact.getAvailableVersions() );
+
+<span class="nc bnc" id="L339" title="All 2 branches missed.">                                    if ( selectedVersion != null )</span>
+                                    {
+<span class="nc" id="L341">                                        resetArtifact.selectVersion( selectedVersion.toString() );</span>
+                                    }
+                                    else
+                                    {
+<span class="nc" id="L345">                                        throw new OverConstrainedVersionException(</span>
+                                            &quot;Unable to find a version in &quot; + resetArtifact.getAvailableVersions()
+                                                + &quot; to match the range &quot; + resetArtifact.getVersionRange(),
+                                            resetArtifact );
+
+                                    }
+
+<span class="nc" id="L352">                                    fireEvent( ResolutionListener.SELECT_VERSION_FROM_RANGE, listeners, resetNodes[j] );</span>
+                                }
+                            }
+                        }
+
+                        // Conflict Resolution
+<span class="nc" id="L358">                        ResolutionNode resolved = null;</span>
+<span class="nc" id="L359">                        for ( Iterator&lt;ConflictResolver&gt; j = conflictResolvers.iterator();</span>
+<span class="nc bnc" id="L360" title="All 4 branches missed.">                              resolved == null &amp;&amp; j.hasNext(); )</span>
+                        {
+<span class="nc" id="L362">                            ConflictResolver conflictResolver = j.next();</span>
+
+<span class="nc" id="L364">                            resolved = conflictResolver.resolveConflict( previous, node );</span>
+<span class="nc" id="L365">                        }</span>
+
+<span class="nc bnc" id="L367" title="All 2 branches missed.">                        if ( resolved == null )</span>
+                        {
+                            // TODO add better exception that can detail the two conflicting artifacts
+<span class="nc" id="L370">                            ArtifactResolutionException are =</span>
+                                new ArtifactResolutionException( &quot;Cannot resolve artifact version conflict between &quot;
+                                                                     + previous.getArtifact().getVersion() + &quot; and &quot;
+                                                                     + node.getArtifact().getVersion(),
+                                                                 previous.getArtifact() );
+
+<span class="nc" id="L376">                            result.addVersionRangeViolation( are );</span>
+                        }
+
+<span class="nc bnc" id="L379" title="All 4 branches missed.">                        if ( ( resolved != previous ) &amp;&amp; ( resolved != node ) )</span>
+                        {
+                            // TODO add better exception
+<span class="nc" id="L382">                            result.addVersionRangeViolation( new ArtifactResolutionException(</span>
+                                &quot;Conflict resolver returned unknown resolution node: &quot;,
+                                resolved.getArtifact() ) );
+
+                        }
+
+                        // TODO should this be part of mediation?
+                        // previous one is more dominant
+                        ResolutionNode nearest;
+                        ResolutionNode farthest;
+
+<span class="nc bnc" id="L393" title="All 2 branches missed.">                        if ( resolved == previous )</span>
+                        {
+<span class="nc" id="L395">                            nearest = previous;</span>
+<span class="nc" id="L396">                            farthest = node;</span>
+                        }
+                        else
+                        {
+<span class="nc" id="L400">                            nearest = node;</span>
+<span class="nc" id="L401">                            farthest = previous;</span>
+                        }
+
+<span class="nc bnc" id="L404" title="All 2 branches missed.">                        if ( checkScopeUpdate( farthest, nearest, listeners ) )</span>
+                        {
+                            // if we need to update artifactScope of nearest to use farthest artifactScope, use the
+                            // nearest version, but farthest artifactScope
+<span class="nc" id="L408">                            nearest.disable();</span>
+<span class="nc" id="L409">                            farthest.getArtifact().setVersion( nearest.getArtifact().getVersion() );</span>
+<span class="nc" id="L410">                            fireEvent( ResolutionListener.OMIT_FOR_NEARER, listeners, nearest, farthest.getArtifact() );</span>
+                        }
+                        else
+                        {
+<span class="nc" id="L414">                            farthest.disable();</span>
+<span class="nc" id="L415">                            fireEvent( ResolutionListener.OMIT_FOR_NEARER, listeners, farthest, nearest.getArtifact() );</span>
+                        }
+                    }
+                }
+<span class="nc" id="L419">                catch ( OverConstrainedVersionException e )</span>
+                {
+<span class="nc" id="L421">                    result.addVersionRangeViolation( e );</span>
+<span class="nc" id="L422">                }</span>
+<span class="nc" id="L423">            }</span>
+        }
+        else
+        {
+<span class="nc" id="L427">            previousNodes = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L429">            resolvedArtifacts.put( key, previousNodes );</span>
+        }
+<span class="nc" id="L431">        previousNodes.add( node );</span>
+
+<span class="nc bnc" id="L433" title="All 2 branches missed.">        if ( node.isActive() )</span>
+        {
+<span class="nc" id="L435">            fireEvent( ResolutionListener.INCLUDE_ARTIFACT, listeners, node );</span>
+        }
+
+        // don't pull in the transitive deps of a system-scoped dependency.
+<span class="nc bnc" id="L439" title="All 4 branches missed.">        if ( node.isActive() &amp;&amp; !Artifact.SCOPE_SYSTEM.equals( node.getArtifact().getScope() ) )</span>
+        {
+<span class="nc" id="L441">            fireEvent( ResolutionListener.PROCESS_CHILDREN, listeners, node );</span>
+
+<span class="nc" id="L443">            Artifact parentArtifact = node.getArtifact();</span>
+
+<span class="nc bnc" id="L445" title="All 2 branches missed.">            for ( Iterator&lt;ResolutionNode&gt; i = node.getChildrenIterator(); i.hasNext(); )</span>
+            {
+<span class="nc" id="L447">                ResolutionNode child = i.next();</span>
+
+                try
+                {
+
+                    // We leave in optional ones, but don't pick up its dependencies
+<span class="nc bnc" id="L453" title="All 6 branches missed.">                    if ( !child.isResolved() &amp;&amp; ( !child.getArtifact().isOptional() || child.isChildOfRootNode() ) )</span>
+                    {
+<span class="nc" id="L455">                        Artifact artifact = child.getArtifact();</span>
+<span class="nc" id="L456">                        artifact.setDependencyTrail( node.getDependencyTrail() );</span>
+<span class="nc" id="L457">                        List&lt;ArtifactRepository&gt; childRemoteRepositories = child.getRemoteRepositories();</span>
+
+<span class="nc" id="L459">                        MetadataResolutionRequest metadataRequest =</span>
+                            new DefaultMetadataResolutionRequest( request );
+<span class="nc" id="L461">                        metadataRequest.setArtifact( artifact );</span>
+<span class="nc" id="L462">                        metadataRequest.setRemoteRepositories( childRemoteRepositories );</span>
+
+                        try
+                        {
+                            ResolutionGroup rGroup;
+
+                            Object childKey;
+                            do
+                            {
+<span class="nc" id="L471">                                childKey = child.getKey();</span>
+
+<span class="nc bnc" id="L473" title="All 2 branches missed.">                                if ( managedVersions.containsKey( childKey ) )</span>
+                                {
+                                    // If this child node is a managed dependency, ensure
+                                    // we are using the dependency management version
+                                    // of this child if applicable b/c we want to use the
+                                    // managed version's POM, *not* any other version's POM.
+                                    // We retrieve the POM below in the retrieval step.
+<span class="nc" id="L480">                                    manageArtifact( child, managedVersions, listeners );</span>
+
+                                    // Also, we need to ensure that any exclusions it presents are
+                                    // added to the artifact before we retrieve the metadata
+                                    // for the artifact; otherwise we may end up with unwanted
+                                    // dependencies.
+<span class="nc" id="L486">                                    Artifact ma = managedVersions.get( childKey );</span>
+<span class="nc" id="L487">                                    ArtifactFilter managedExclusionFilter = ma.getDependencyFilter();</span>
+<span class="nc bnc" id="L488" title="All 2 branches missed.">                                    if ( null != managedExclusionFilter )</span>
+                                    {
+<span class="nc bnc" id="L490" title="All 2 branches missed.">                                        if ( null != artifact.getDependencyFilter() )</span>
+                                        {
+<span class="nc" id="L492">                                            AndArtifactFilter aaf = new AndArtifactFilter();</span>
+<span class="nc" id="L493">                                            aaf.add( artifact.getDependencyFilter() );</span>
+<span class="nc" id="L494">                                            aaf.add( managedExclusionFilter );</span>
+<span class="nc" id="L495">                                            artifact.setDependencyFilter( aaf );</span>
+<span class="nc" id="L496">                                        }</span>
+                                        else
+                                        {
+<span class="nc" id="L499">                                            artifact.setDependencyFilter( managedExclusionFilter );</span>
+                                        }
+                                    }
+                                }
+
+<span class="nc bnc" id="L504" title="All 2 branches missed.">                                if ( artifact.getVersion() == null )</span>
+                                {
+                                    // set the recommended version
+                                    // TODO maybe its better to just pass the range through to retrieval and use a
+                                    // transformation?
+                                    ArtifactVersion version;
+<span class="nc bnc" id="L510" title="All 2 branches missed.">                                    if ( !artifact.isSelectedVersionKnown() )</span>
+                                    {
+<span class="nc" id="L512">                                        List&lt;ArtifactVersion&gt; versions = artifact.getAvailableVersions();</span>
+<span class="nc bnc" id="L513" title="All 2 branches missed.">                                        if ( versions == null )</span>
+                                        {
+<span class="nc" id="L515">                                            versions = source.retrieveAvailableVersions( metadataRequest );</span>
+<span class="nc" id="L516">                                            artifact.setAvailableVersions( versions );</span>
+                                        }
+
+<span class="nc" id="L519">                                        Collections.sort( versions );</span>
+
+<span class="nc" id="L521">                                        VersionRange versionRange = artifact.getVersionRange();</span>
+
+<span class="nc" id="L523">                                        version = versionRange.matchVersion( versions );</span>
+
+<span class="nc bnc" id="L525" title="All 2 branches missed.">                                        if ( version == null )</span>
+                                        {
+<span class="nc bnc" id="L527" title="All 2 branches missed.">                                            if ( versions.isEmpty() )</span>
+                                            {
+<span class="nc" id="L529">                                                throw new OverConstrainedVersionException(</span>
+                                                    &quot;No versions are present in the repository for the artifact&quot;
+                                                        + &quot; with a range &quot; + versionRange, artifact,
+                                                    childRemoteRepositories );
+
+                                            }
+
+<span class="nc" id="L536">                                            throw new OverConstrainedVersionException(</span>
+                                                &quot;Couldn't find a version in &quot; + versions + &quot; to match range &quot;
+                                                    + versionRange, artifact, childRemoteRepositories );
+
+                                        }
+<span class="nc" id="L541">                                    }</span>
+                                    else
+                                    {
+<span class="nc" id="L544">                                        version = artifact.getSelectedVersion();</span>
+                                    }
+
+<span class="nc" id="L547">                                    artifact.selectVersion( version.toString() );</span>
+<span class="nc" id="L548">                                    fireEvent( ResolutionListener.SELECT_VERSION_FROM_RANGE, listeners, child );</span>
+                                }
+
+<span class="nc" id="L551">                                rGroup = source.retrieve( metadataRequest );</span>
+
+<span class="nc bnc" id="L553" title="All 2 branches missed.">                                if ( rGroup == null )</span>
+                                {
+<span class="nc" id="L555">                                    break;</span>
+                                }
+                            }
+<span class="nc bnc" id="L558" title="All 2 branches missed.">                            while ( !childKey.equals( child.getKey() ) );</span>
+
+<span class="nc bnc" id="L560" title="All 6 branches missed.">                            if ( parentArtifact != null &amp;&amp; parentArtifact.getDependencyFilter() != null</span>
+                                     &amp;&amp; !parentArtifact.getDependencyFilter().include( artifact ) )
+                            {
+                                // MNG-3769: the [probably relocated] artifact is excluded.
+                                // We could process exclusions on relocated artifact details in the
+                                // MavenMetadataSource.createArtifacts(..) step, BUT that would
+                                // require resolving the POM from the repository very early on in
+                                // the build.
+<span class="nc" id="L568">                                continue;</span>
+                            }
+
+                            // TODO might be better to have source.retrieve() throw a specific exception for this
+                            // situation
+                            // and catch here rather than have it return null
+<span class="nc bnc" id="L574" title="All 2 branches missed.">                            if ( rGroup == null )</span>
+                            {
+                                // relocated dependency artifact is declared excluded, no need to add and recurse
+                                // further
+<span class="nc" id="L578">                                continue;</span>
+                            }
+
+<span class="nc" id="L581">                            child.addDependencies( rGroup.getArtifacts(), rGroup.getResolutionRepositories(), filter );</span>
+
+                        }
+<span class="nc" id="L584">                        catch ( CyclicDependencyException e )</span>
+                        {
+                            // would like to throw this, but we have crappy stuff in the repo
+
+<span class="nc" id="L588">                            fireEvent( ResolutionListener.OMIT_FOR_CYCLE, listeners,</span>
+                                       new ResolutionNode( e.getArtifact(), childRemoteRepositories, child ) );
+                        }
+<span class="nc" id="L591">                        catch ( ArtifactMetadataRetrievalException e )</span>
+                        {
+<span class="nc" id="L593">                            artifact.setDependencyTrail( node.getDependencyTrail() );</span>
+
+<span class="nc" id="L595">                            throw new ArtifactResolutionException( &quot;Unable to get dependency information for &quot;</span>
+                                                                       + artifact.getId() + &quot;: &quot; + e.getMessage(),
+                                                                   artifact, childRemoteRepositories, e );
+
+<span class="nc" id="L599">                        }</span>
+
+<span class="nc" id="L601">                        ArtifactResolutionRequest subRequest = new ArtifactResolutionRequest( metadataRequest );</span>
+<span class="nc" id="L602">                        subRequest.setServers( request.getServers() );</span>
+<span class="nc" id="L603">                        subRequest.setMirrors( request.getMirrors() );</span>
+<span class="nc" id="L604">                        subRequest.setProxies( request.getProxies() );</span>
+<span class="nc" id="L605">                        recurse( result, child, resolvedArtifacts, managedVersions, subRequest, source, filter,</span>
+                                 listeners, conflictResolvers );
+
+                    }
+                }
+<span class="nc" id="L610">                catch ( OverConstrainedVersionException e )</span>
+                {
+<span class="nc" id="L612">                    result.addVersionRangeViolation( e );</span>
+                }
+<span class="nc" id="L614">                catch ( ArtifactResolutionException e )</span>
+                {
+<span class="nc" id="L616">                    result.addMetadataResolutionException( e );</span>
+<span class="nc" id="L617">                }</span>
+<span class="nc" id="L618">            }</span>
+
+<span class="nc" id="L620">            fireEvent( ResolutionListener.FINISH_PROCESSING_CHILDREN, listeners, node );</span>
+        }
+<span class="nc" id="L622">    }</span>
+
+    private void manageArtifact( ResolutionNode node, ManagedVersionMap managedVersions,
+                                 List&lt;ResolutionListener&gt; listeners )
+    {
+<span class="nc" id="L627">        Artifact artifact = managedVersions.get( node.getKey() );</span>
+
+        // Before we update the version of the artifact, we need to know
+        // whether we are working on a transitive dependency or not. This
+        // allows depMgmt to always override transitive dependencies, while
+        // explicit child override depMgmt (viz. depMgmt should only
+        // provide defaults to children, but should override transitives).
+        // We can do this by calling isChildOfRootNode on the current node.
+<span class="nc bnc" id="L635" title="All 6 branches missed.">        if ( ( artifact.getVersion() != null )</span>
+                 &amp;&amp; ( !node.isChildOfRootNode() || node.getArtifact().getVersion() == null ) )
+        {
+<span class="nc" id="L638">            fireEvent( ResolutionListener.MANAGE_ARTIFACT_VERSION, listeners, node, artifact );</span>
+<span class="nc" id="L639">            node.getArtifact().setVersion( artifact.getVersion() );</span>
+        }
+
+<span class="nc bnc" id="L642" title="All 6 branches missed.">        if ( ( artifact.getScope() != null ) &amp;&amp; ( !node.isChildOfRootNode() || node.getArtifact().getScope() == null ) )</span>
+        {
+<span class="nc" id="L644">            fireEvent( ResolutionListener.MANAGE_ARTIFACT_SCOPE, listeners, node, artifact );</span>
+<span class="nc" id="L645">            node.getArtifact().setScope( artifact.getScope() );</span>
+        }
+
+<span class="nc bnc" id="L648" title="All 6 branches missed.">        if ( Artifact.SCOPE_SYSTEM.equals( node.getArtifact().getScope() ) &amp;&amp; ( node.getArtifact().getFile() == null )</span>
+                 &amp;&amp; ( artifact.getFile() != null ) )
+        {
+<span class="nc" id="L651">            fireEvent( ResolutionListener.MANAGE_ARTIFACT_SYSTEM_PATH, listeners, node, artifact );</span>
+<span class="nc" id="L652">            node.getArtifact().setFile( artifact.getFile() );</span>
+        }
+<span class="nc" id="L654">    }</span>
+
+    /**
+     * Check if the artifactScope needs to be updated. &lt;a
+     * href=&quot;http://docs.codehaus.org/x/IGU#DependencyMediationandConflictResolution-Scoperesolution&quot;&gt;More info&lt;/a&gt;.
+     *
+     * @param farthest farthest resolution node
+     * @param nearest nearest resolution node
+     * @param listeners
+     */
+    boolean checkScopeUpdate( ResolutionNode farthest, ResolutionNode nearest, List&lt;ResolutionListener&gt; listeners )
+    {
+<span class="nc" id="L666">        boolean updateScope = false;</span>
+<span class="nc" id="L667">        Artifact farthestArtifact = farthest.getArtifact();</span>
+<span class="nc" id="L668">        Artifact nearestArtifact = nearest.getArtifact();</span>
+
+        /* farthest is runtime and nearest has lower priority, change to runtime */
+<span class="nc bnc" id="L671" title="All 6 branches missed.">        if ( Artifact.SCOPE_RUNTIME.equals( farthestArtifact.getScope() )</span>
+                 &amp;&amp; ( Artifact.SCOPE_TEST.equals( nearestArtifact.getScope() )
+                      || Artifact.SCOPE_PROVIDED.equals( nearestArtifact.getScope() ) ) )
+        {
+<span class="nc" id="L675">            updateScope = true;</span>
+        }
+
+        /* farthest is compile and nearest is not (has lower priority), change to compile */
+<span class="nc bnc" id="L679" title="All 4 branches missed.">        if ( Artifact.SCOPE_COMPILE.equals( farthestArtifact.getScope() )</span>
+                 &amp;&amp; !Artifact.SCOPE_COMPILE.equals( nearestArtifact.getScope() ) )
+        {
+<span class="nc" id="L682">            updateScope = true;</span>
+        }
+
+        /* current POM rules all, if nearest is in current pom, do not update its artifactScope */
+<span class="nc bnc" id="L686" title="All 4 branches missed.">        if ( ( nearest.getDepth() &lt; 2 ) &amp;&amp; updateScope )</span>
+        {
+<span class="nc" id="L688">            updateScope = false;</span>
+
+<span class="nc" id="L690">            fireEvent( ResolutionListener.UPDATE_SCOPE_CURRENT_POM, listeners, nearest, farthestArtifact );</span>
+        }
+
+<span class="nc bnc" id="L693" title="All 2 branches missed.">        if ( updateScope )</span>
+        {
+<span class="nc" id="L695">            fireEvent( ResolutionListener.UPDATE_SCOPE, listeners, nearest, farthestArtifact );</span>
+
+            // previously we cloned the artifact, but it is more efficient to just update the artifactScope
+            // if problems are later discovered that the original object needs its original artifactScope value, 
+            // cloning may
+            // again be appropriate
+<span class="nc" id="L701">            nearestArtifact.setScope( farthestArtifact.getScope() );</span>
+        }
+
+<span class="nc" id="L704">        return updateScope;</span>
+    }
+
+    private void fireEvent( int event, List&lt;ResolutionListener&gt; listeners, ResolutionNode node )
+    {
+<span class="nc" id="L709">        fireEvent( event, listeners, node, null );</span>
+<span class="nc" id="L710">    }</span>
+
+    private void fireEvent( int event, List&lt;ResolutionListener&gt; listeners, ResolutionNode node, Artifact replacement )
+    {
+<span class="nc" id="L714">        fireEvent( event, listeners, node, replacement, null );</span>
+<span class="nc" id="L715">    }</span>
+
+    private void fireEvent( int event, List&lt;ResolutionListener&gt; listeners, ResolutionNode node, Artifact replacement,
+                            VersionRange newRange )
+    {
+<span class="nc bnc" id="L720" title="All 2 branches missed.">        for ( ResolutionListener listener : listeners )</span>
+        {
+<span class="nc bnc" id="L722" title="All 14 branches missed.">            switch ( event )</span>
+            {
+                case ResolutionListener.TEST_ARTIFACT:
+<span class="nc" id="L725">                    listener.testArtifact( node.getArtifact() );</span>
+<span class="nc" id="L726">                    break;</span>
+                case ResolutionListener.PROCESS_CHILDREN:
+<span class="nc" id="L728">                    listener.startProcessChildren( node.getArtifact() );</span>
+<span class="nc" id="L729">                    break;</span>
+                case ResolutionListener.FINISH_PROCESSING_CHILDREN:
+<span class="nc" id="L731">                    listener.endProcessChildren( node.getArtifact() );</span>
+<span class="nc" id="L732">                    break;</span>
+                case ResolutionListener.INCLUDE_ARTIFACT:
+<span class="nc" id="L734">                    listener.includeArtifact( node.getArtifact() );</span>
+<span class="nc" id="L735">                    break;</span>
+                case ResolutionListener.OMIT_FOR_NEARER:
+<span class="nc" id="L737">                    listener.omitForNearer( node.getArtifact(), replacement );</span>
+<span class="nc" id="L738">                    break;</span>
+                case ResolutionListener.OMIT_FOR_CYCLE:
+<span class="nc" id="L740">                    listener.omitForCycle( node.getArtifact() );</span>
+<span class="nc" id="L741">                    break;</span>
+                case ResolutionListener.UPDATE_SCOPE:
+<span class="nc" id="L743">                    listener.updateScope( node.getArtifact(), replacement.getScope() );</span>
+<span class="nc" id="L744">                    break;</span>
+                case ResolutionListener.UPDATE_SCOPE_CURRENT_POM:
+<span class="nc" id="L746">                    listener.updateScopeCurrentPom( node.getArtifact(), replacement.getScope() );</span>
+<span class="nc" id="L747">                    break;</span>
+                case ResolutionListener.MANAGE_ARTIFACT_VERSION:
+<span class="nc bnc" id="L749" title="All 2 branches missed.">                    if ( listener instanceof ResolutionListenerForDepMgmt )</span>
+                    {
+<span class="nc" id="L751">                        ResolutionListenerForDepMgmt asImpl = (ResolutionListenerForDepMgmt) listener;</span>
+<span class="nc" id="L752">                        asImpl.manageArtifactVersion( node.getArtifact(), replacement );</span>
+<span class="nc" id="L753">                    }</span>
+                    else
+                    {
+<span class="nc" id="L756">                        listener.manageArtifact( node.getArtifact(), replacement );</span>
+                    }
+<span class="nc" id="L758">                    break;</span>
+                case ResolutionListener.MANAGE_ARTIFACT_SCOPE:
+<span class="nc bnc" id="L760" title="All 2 branches missed.">                    if ( listener instanceof ResolutionListenerForDepMgmt )</span>
+                    {
+<span class="nc" id="L762">                        ResolutionListenerForDepMgmt asImpl = (ResolutionListenerForDepMgmt) listener;</span>
+<span class="nc" id="L763">                        asImpl.manageArtifactScope( node.getArtifact(), replacement );</span>
+<span class="nc" id="L764">                    }</span>
+                    else
+                    {
+<span class="nc" id="L767">                        listener.manageArtifact( node.getArtifact(), replacement );</span>
+                    }
+<span class="nc" id="L769">                    break;</span>
+                case ResolutionListener.MANAGE_ARTIFACT_SYSTEM_PATH:
+<span class="nc bnc" id="L771" title="All 2 branches missed.">                    if ( listener instanceof ResolutionListenerForDepMgmt )</span>
+                    {
+<span class="nc" id="L773">                        ResolutionListenerForDepMgmt asImpl = (ResolutionListenerForDepMgmt) listener;</span>
+<span class="nc" id="L774">                        asImpl.manageArtifactSystemPath( node.getArtifact(), replacement );</span>
+<span class="nc" id="L775">                    }</span>
+                    else
+                    {
+<span class="nc" id="L778">                        listener.manageArtifact( node.getArtifact(), replacement );</span>
+                    }
+<span class="nc" id="L780">                    break;</span>
+                case ResolutionListener.SELECT_VERSION_FROM_RANGE:
+<span class="nc" id="L782">                    listener.selectVersionFromRange( node.getArtifact() );</span>
+<span class="nc" id="L783">                    break;</span>
+                case ResolutionListener.RESTRICT_RANGE:
+<span class="nc bnc" id="L785" title="All 4 branches missed.">                    if ( node.getArtifact().getVersionRange().hasRestrictions()</span>
+                             || replacement.getVersionRange().hasRestrictions() )
+                    {
+<span class="nc" id="L788">                        listener.restrictRange( node.getArtifact(), replacement, newRange );</span>
+                    }
+                    break;
+                default:
+<span class="nc" id="L792">                    throw new IllegalStateException( &quot;Unknown event: &quot; + event );</span>
+            }
+<span class="nc" id="L794">        }</span>
+<span class="nc" id="L795">    }</span>
+
+    @SuppressWarnings( &quot;checkstyle:parameternumber&quot; )
+    public ArtifactResolutionResult collect( Set&lt;Artifact&gt; artifacts, Artifact originatingArtifact,
+                                             Map&lt;String, Artifact&gt; managedVersions, ArtifactRepository localRepository,
+                                             List&lt;ArtifactRepository&gt; remoteRepositories,
+                                             ArtifactMetadataSource source, ArtifactFilter filter,
+                                             List&lt;ResolutionListener&gt; listeners )
+    {
+<span class="nc" id="L804">        return collect( artifacts, originatingArtifact, managedVersions, localRepository, remoteRepositories, source,</span>
+                        filter, listeners, null );
+    }
+
+    public ArtifactResolutionResult collect( Set&lt;Artifact&gt; artifacts, Artifact originatingArtifact,
+                                             ArtifactRepository localRepository,
+                                             List&lt;ArtifactRepository&gt; remoteRepositories,
+                                             ArtifactMetadataSource source, ArtifactFilter filter,
+                                             List&lt;ResolutionListener&gt; listeners )
+    {
+<span class="nc" id="L814">        return collect( artifacts, originatingArtifact, null, localRepository, remoteRepositories, source, filter,</span>
+                        listeners );
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

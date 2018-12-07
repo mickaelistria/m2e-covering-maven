@@ -1,0 +1,412 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultModelBuildingRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.model.building</a> &gt; <span class="el_source">DefaultModelBuildingRequest.java</span></div><h1>DefaultModelBuildingRequest.java</h1><pre class="source lang-java linenums">package org.apache.maven.model.building;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.List;
+import java.util.Properties;
+
+import org.apache.maven.model.Model;
+import org.apache.maven.model.Profile;
+import org.apache.maven.model.resolution.ModelResolver;
+import org.apache.maven.model.resolution.WorkspaceModelResolver;
+
+/**
+ * Collects settings that control building of effective models.
+ *
+ * @author Benjamin Bentmann
+ */
+public class DefaultModelBuildingRequest
+    implements ModelBuildingRequest
+{
+
+    private Model rawModel;
+
+    private File pomFile;
+
+    private ModelSource modelSource;
+
+<span class="pc" id="L48">    private int validationLevel = VALIDATION_LEVEL_STRICT;</span>
+
+    private boolean processPlugins;
+
+    private boolean twoPhaseBuilding;
+
+    private boolean locationTracking;
+
+    private List&lt;Profile&gt; profiles;
+
+    private List&lt;String&gt; activeProfileIds;
+
+    private List&lt;String&gt; inactiveProfileIds;
+
+    private Properties systemProperties;
+
+    private Properties userProperties;
+
+    private Date buildStartTime;
+
+    private ModelResolver modelResolver;
+
+    private ModelBuildingListener modelBuildingListener;
+
+    private ModelCache modelCache;
+
+    private WorkspaceModelResolver workspaceResolver;
+
+    /**
+     * Creates an empty request.
+     */
+    public DefaultModelBuildingRequest()
+<span class="fc" id="L80">    {</span>
+<span class="fc" id="L81">    }</span>
+
+    /**
+     * Creates a shallow copy of the specified request.
+     *
+     * @param request The request to copy, must not be {@code null}.
+     */
+    public DefaultModelBuildingRequest( ModelBuildingRequest request )
+<span class="nc" id="L89">    {</span>
+<span class="nc" id="L90">        setPomFile( request.getPomFile() );</span>
+<span class="nc" id="L91">        setModelSource( request.getModelSource() );</span>
+<span class="nc" id="L92">        setValidationLevel( request.getValidationLevel() );</span>
+<span class="nc" id="L93">        setProcessPlugins( request.isProcessPlugins() );</span>
+<span class="nc" id="L94">        setTwoPhaseBuilding( request.isTwoPhaseBuilding() );</span>
+<span class="nc" id="L95">        setProfiles( request.getProfiles() );</span>
+<span class="nc" id="L96">        setActiveProfileIds( request.getActiveProfileIds() );</span>
+<span class="nc" id="L97">        setInactiveProfileIds( request.getInactiveProfileIds() );</span>
+<span class="nc" id="L98">        setSystemProperties( request.getSystemProperties() );</span>
+<span class="nc" id="L99">        setUserProperties( request.getUserProperties() );</span>
+<span class="nc" id="L100">        setBuildStartTime( request.getBuildStartTime() );</span>
+<span class="nc" id="L101">        setModelResolver( request.getModelResolver() );</span>
+<span class="nc" id="L102">        setModelBuildingListener( request.getModelBuildingListener() );</span>
+<span class="nc" id="L103">        setModelCache( request.getModelCache() );</span>
+<span class="nc" id="L104">    }</span>
+
+    @Override
+    public File getPomFile()
+    {
+<span class="fc" id="L109">        return pomFile;</span>
+    }
+
+    @Override
+    public DefaultModelBuildingRequest setPomFile( File pomFile )
+    {
+<span class="fc bfc" id="L115" title="All 2 branches covered.">        this.pomFile = ( pomFile != null ) ? pomFile.getAbsoluteFile() : null;</span>
+
+<span class="fc" id="L117">        return this;</span>
+    }
+
+    @Override
+    public synchronized ModelSource getModelSource()
+    {
+<span class="pc bpc" id="L123" title="1 of 4 branches missed.">        if ( modelSource == null &amp;&amp; pomFile != null )</span>
+        {
+<span class="fc" id="L125">            modelSource = new FileModelSource( pomFile );</span>
+        }
+<span class="fc" id="L127">        return modelSource;</span>
+    }
+
+    @Override
+    public DefaultModelBuildingRequest setModelSource( ModelSource modelSource )
+    {
+<span class="fc" id="L133">        this.modelSource = modelSource;</span>
+
+<span class="fc" id="L135">        return this;</span>
+    }
+
+    @Override
+    public int getValidationLevel()
+    {
+<span class="fc" id="L141">        return validationLevel;</span>
+    }
+
+    @Override
+    public DefaultModelBuildingRequest setValidationLevel( int validationLevel )
+    {
+<span class="fc" id="L147">        this.validationLevel = validationLevel;</span>
+
+<span class="fc" id="L149">        return this;</span>
+    }
+
+    @Override
+    public boolean isProcessPlugins()
+    {
+<span class="fc" id="L155">        return processPlugins;</span>
+    }
+
+    @Override
+    public DefaultModelBuildingRequest setProcessPlugins( boolean processPlugins )
+    {
+<span class="fc" id="L161">        this.processPlugins = processPlugins;</span>
+
+<span class="fc" id="L163">        return this;</span>
+    }
+
+    @Override
+    public boolean isTwoPhaseBuilding()
+    {
+<span class="fc" id="L169">        return twoPhaseBuilding;</span>
+    }
+
+    @Override
+    public DefaultModelBuildingRequest setTwoPhaseBuilding( boolean twoPhaseBuilding )
+    {
+<span class="fc" id="L175">        this.twoPhaseBuilding = twoPhaseBuilding;</span>
+
+<span class="fc" id="L177">        return this;</span>
+    }
+
+    @Override
+    public boolean isLocationTracking()
+    {
+<span class="fc" id="L183">        return locationTracking;</span>
+    }
+
+    @Override
+    public DefaultModelBuildingRequest setLocationTracking( boolean locationTracking )
+    {
+<span class="fc" id="L189">        this.locationTracking = locationTracking;</span>
+
+<span class="fc" id="L191">        return this;</span>
+    }
+
+    @Override
+    public List&lt;Profile&gt; getProfiles()
+    {
+<span class="fc bfc" id="L197" title="All 2 branches covered.">        if ( profiles == null )</span>
+        {
+<span class="fc" id="L199">            profiles = new ArrayList&lt;&gt;();</span>
+        }
+
+<span class="fc" id="L202">        return profiles;</span>
+    }
+
+    @Override
+    public DefaultModelBuildingRequest setProfiles( List&lt;Profile&gt; profiles )
+    {
+<span class="pc bpc" id="L208" title="1 of 2 branches missed.">        if ( profiles != null )</span>
+        {
+<span class="fc" id="L210">            this.profiles = new ArrayList&lt;&gt;( profiles );</span>
+        }
+        else
+        {
+<span class="nc" id="L214">            this.profiles = null;</span>
+        }
+
+<span class="fc" id="L217">        return this;</span>
+    }
+
+    @Override
+    public List&lt;String&gt; getActiveProfileIds()
+    {
+<span class="fc bfc" id="L223" title="All 2 branches covered.">        if ( activeProfileIds == null )</span>
+        {
+<span class="fc" id="L225">            activeProfileIds = new ArrayList&lt;&gt;();</span>
+        }
+
+<span class="fc" id="L228">        return activeProfileIds;</span>
+    }
+
+    @Override
+    public DefaultModelBuildingRequest setActiveProfileIds( List&lt;String&gt; activeProfileIds )
+    {
+<span class="pc bpc" id="L234" title="1 of 2 branches missed.">        if ( activeProfileIds != null )</span>
+        {
+<span class="fc" id="L236">            this.activeProfileIds = new ArrayList&lt;&gt;( activeProfileIds );</span>
+        }
+        else
+        {
+<span class="nc" id="L240">            this.activeProfileIds = null;</span>
+        }
+
+<span class="fc" id="L243">        return this;</span>
+    }
+
+    @Override
+    public List&lt;String&gt; getInactiveProfileIds()
+    {
+<span class="fc bfc" id="L249" title="All 2 branches covered.">        if ( inactiveProfileIds == null )</span>
+        {
+<span class="fc" id="L251">            inactiveProfileIds = new ArrayList&lt;&gt;();</span>
+        }
+
+<span class="fc" id="L254">        return inactiveProfileIds;</span>
+    }
+
+    @Override
+    public DefaultModelBuildingRequest setInactiveProfileIds( List&lt;String&gt; inactiveProfileIds )
+    {
+<span class="pc bpc" id="L260" title="1 of 2 branches missed.">        if ( inactiveProfileIds != null )</span>
+        {
+<span class="fc" id="L262">            this.inactiveProfileIds = new ArrayList&lt;&gt;( inactiveProfileIds );</span>
+        }
+        else
+        {
+<span class="nc" id="L266">            this.inactiveProfileIds = null;</span>
+        }
+
+<span class="fc" id="L269">        return this;</span>
+    }
+
+    @Override
+    public Properties getSystemProperties()
+    {
+<span class="fc bfc" id="L275" title="All 2 branches covered.">        if ( systemProperties == null )</span>
+        {
+<span class="fc" id="L277">            systemProperties = new Properties();</span>
+        }
+
+<span class="fc" id="L280">        return systemProperties;</span>
+    }
+
+    @Override
+    public DefaultModelBuildingRequest setSystemProperties( Properties systemProperties )
+    {
+<span class="pc bpc" id="L286" title="1 of 2 branches missed.">        if ( systemProperties != null )</span>
+        {
+<span class="fc" id="L288">            this.systemProperties = new Properties();</span>
+<span class="fc" id="L289">            synchronized ( systemProperties )</span>
+            { // avoid concurrentmodification if someone else sets/removes an unrelated system property
+<span class="fc" id="L291">                this.systemProperties.putAll( systemProperties );</span>
+<span class="fc" id="L292">            }</span>
+        }
+        else
+        {
+<span class="nc" id="L296">            this.systemProperties = null;</span>
+        }
+
+<span class="fc" id="L299">        return this;</span>
+    }
+
+    @Override
+    public Properties getUserProperties()
+    {
+<span class="fc bfc" id="L305" title="All 2 branches covered.">        if ( userProperties == null )</span>
+        {
+<span class="fc" id="L307">            userProperties = new Properties();</span>
+        }
+
+<span class="fc" id="L310">        return userProperties;</span>
+    }
+
+    @Override
+    public DefaultModelBuildingRequest setUserProperties( Properties userProperties )
+    {
+<span class="pc bpc" id="L316" title="1 of 2 branches missed.">        if ( userProperties != null )</span>
+        {
+<span class="fc" id="L318">            this.userProperties = new Properties();</span>
+<span class="fc" id="L319">            this.userProperties.putAll( userProperties );</span>
+        }
+        else
+        {
+<span class="nc" id="L323">            this.userProperties = null;</span>
+        }
+
+<span class="fc" id="L326">        return this;</span>
+    }
+
+    @Override
+    public Date getBuildStartTime()
+    {
+<span class="fc" id="L332">        return buildStartTime;</span>
+    }
+
+    @Override
+    public ModelBuildingRequest setBuildStartTime( Date buildStartTime )
+    {
+<span class="fc" id="L338">        this.buildStartTime = buildStartTime;</span>
+
+<span class="fc" id="L340">        return this;</span>
+    }
+
+    @Override
+    public ModelResolver getModelResolver()
+    {
+<span class="fc" id="L346">        return this.modelResolver;</span>
+    }
+
+    @Override
+    public DefaultModelBuildingRequest setModelResolver( ModelResolver modelResolver )
+    {
+<span class="fc" id="L352">        this.modelResolver = modelResolver;</span>
+
+<span class="fc" id="L354">        return this;</span>
+    }
+
+    @Override
+    public ModelBuildingListener getModelBuildingListener()
+    {
+<span class="fc" id="L360">        return modelBuildingListener;</span>
+    }
+
+    @Override
+    public ModelBuildingRequest setModelBuildingListener( ModelBuildingListener modelBuildingListener )
+    {
+<span class="fc" id="L366">        this.modelBuildingListener = modelBuildingListener;</span>
+
+<span class="fc" id="L368">        return this;</span>
+    }
+
+    @Override
+    public ModelCache getModelCache()
+    {
+<span class="fc" id="L374">        return this.modelCache;</span>
+    }
+
+    @Override
+    public DefaultModelBuildingRequest setModelCache( ModelCache modelCache )
+    {
+<span class="fc" id="L380">        this.modelCache = modelCache;</span>
+
+<span class="fc" id="L382">        return this;</span>
+    }
+
+    @Override
+    public Model getRawModel()
+    {
+<span class="fc" id="L388">        return rawModel;</span>
+    }
+
+    @Override
+    public ModelBuildingRequest setRawModel( Model rawModel )
+    {
+<span class="nc" id="L394">        this.rawModel = rawModel;</span>
+<span class="nc" id="L395">        return this;</span>
+    }
+
+    @Override
+    public WorkspaceModelResolver getWorkspaceModelResolver()
+    {
+<span class="fc" id="L401">        return workspaceResolver;</span>
+    }
+
+    @Override
+    public ModelBuildingRequest setWorkspaceModelResolver( WorkspaceModelResolver workspaceResolver )
+    {
+<span class="nc" id="L407">        this.workspaceResolver = workspaceResolver;</span>
+<span class="nc" id="L408">        return this;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

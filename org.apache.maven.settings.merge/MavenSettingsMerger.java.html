@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MavenSettingsMerger.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.settings.merge</a> &gt; <span class="el_source">MavenSettingsMerger.java</span></div><h1>MavenSettingsMerger.java</h1><pre class="source lang-java linenums">package org.apache.maven.settings.merge;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.maven.settings.IdentifiableBase;
+import org.apache.maven.settings.Settings;
+import org.codehaus.plexus.util.StringUtils;
+
+/**
+ * @author &lt;a href=&quot;mailto:vincent.siveton@gmail.com&quot;&gt;Vincent Siveton&lt;/a&gt;
+ * @author Benjamin Bentmann
+ */
+<span class="fc" id="L35">public class MavenSettingsMerger</span>
+{
+
+    /**
+     * @param dominant
+     * @param recessive
+     * @param recessiveSourceLevel
+     */
+    public void merge( Settings dominant, Settings recessive, String recessiveSourceLevel )
+    {
+<span class="pc bpc" id="L45" title="2 of 4 branches missed.">        if ( dominant == null || recessive == null )</span>
+        {
+<span class="nc" id="L47">            return;</span>
+        }
+
+<span class="fc" id="L50">        recessive.setSourceLevel( recessiveSourceLevel );</span>
+
+<span class="fc" id="L52">        List&lt;String&gt; dominantActiveProfiles = dominant.getActiveProfiles();</span>
+<span class="fc" id="L53">        List&lt;String&gt; recessiveActiveProfiles = recessive.getActiveProfiles();</span>
+
+<span class="pc bpc" id="L55" title="1 of 2 branches missed.">        if ( recessiveActiveProfiles != null )</span>
+        {
+<span class="pc bpc" id="L57" title="1 of 2 branches missed.">            if ( dominantActiveProfiles == null )</span>
+            {
+<span class="nc" id="L59">                dominantActiveProfiles = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L60">                dominant.setActiveProfiles( dominantActiveProfiles );</span>
+            }
+
+<span class="fc bfc" id="L63" title="All 2 branches covered.">            for ( String profileId : recessiveActiveProfiles )</span>
+            {
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">                if ( !dominantActiveProfiles.contains( profileId ) )</span>
+                {
+<span class="fc" id="L67">                    dominantActiveProfiles.add( profileId );</span>
+                }
+<span class="fc" id="L69">            }</span>
+        }
+
+<span class="fc" id="L72">        List&lt;String&gt; dominantPluginGroupIds = dominant.getPluginGroups();</span>
+
+<span class="fc" id="L74">        List&lt;String&gt; recessivePluginGroupIds = recessive.getPluginGroups();</span>
+
+<span class="pc bpc" id="L76" title="1 of 2 branches missed.">        if ( recessivePluginGroupIds != null )</span>
+        {
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">            if ( dominantPluginGroupIds == null )</span>
+            {
+<span class="nc" id="L80">                dominantPluginGroupIds = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L81">                dominant.setPluginGroups( dominantPluginGroupIds );</span>
+            }
+
+<span class="pc bpc" id="L84" title="1 of 2 branches missed.">            for ( String pluginGroupId : recessivePluginGroupIds )</span>
+            {
+<span class="nc bnc" id="L86" title="All 2 branches missed.">                if ( !dominantPluginGroupIds.contains( pluginGroupId ) )</span>
+                {
+<span class="nc" id="L88">                    dominantPluginGroupIds.add( pluginGroupId );</span>
+                }
+<span class="nc" id="L90">            }</span>
+        }
+
+<span class="fc bfc" id="L93" title="All 2 branches covered.">        if ( StringUtils.isEmpty( dominant.getLocalRepository() ) )</span>
+        {
+<span class="fc" id="L95">            dominant.setLocalRepository( recessive.getLocalRepository() );</span>
+        }
+
+<span class="fc" id="L98">        shallowMergeById( dominant.getMirrors(), recessive.getMirrors(), recessiveSourceLevel );</span>
+<span class="fc" id="L99">        shallowMergeById( dominant.getServers(), recessive.getServers(), recessiveSourceLevel );</span>
+<span class="fc" id="L100">        shallowMergeById( dominant.getProxies(), recessive.getProxies(), recessiveSourceLevel );</span>
+<span class="fc" id="L101">        shallowMergeById( dominant.getProfiles(), recessive.getProfiles(), recessiveSourceLevel );</span>
+
+<span class="fc" id="L103">    }</span>
+
+    /**
+     * @param dominant
+     * @param recessive
+     * @param recessiveSourceLevel
+     */
+    private static &lt;T extends IdentifiableBase&gt; void shallowMergeById( List&lt;T&gt; dominant, List&lt;T&gt; recessive,
+                                                                       String recessiveSourceLevel )
+    {
+<span class="fc" id="L113">        Map&lt;String, T&gt; dominantById = mapById( dominant );</span>
+
+<span class="fc bfc" id="L115" title="All 2 branches covered.">        for ( T identifiable : recessive )</span>
+        {
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">            if ( !dominantById.containsKey( identifiable.getId() ) )</span>
+            {
+<span class="fc" id="L119">                identifiable.setSourceLevel( recessiveSourceLevel );</span>
+
+<span class="fc" id="L121">                dominant.add( identifiable );</span>
+            }
+<span class="fc" id="L123">        }</span>
+<span class="fc" id="L124">    }</span>
+
+    /**
+     * @param identifiables
+     * @return a map
+     */
+    private static &lt;T extends IdentifiableBase&gt; Map&lt;String, T&gt; mapById( List&lt;T&gt; identifiables )
+    {
+<span class="fc" id="L132">        Map&lt;String, T&gt; byId = new HashMap&lt;&gt;();</span>
+
+<span class="fc bfc" id="L134" title="All 2 branches covered.">        for ( T identifiable : identifiables )</span>
+        {
+<span class="fc" id="L136">            byId.put( identifiable.getId(), identifiable );</span>
+<span class="fc" id="L137">        }</span>
+
+<span class="fc" id="L139">        return byId;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

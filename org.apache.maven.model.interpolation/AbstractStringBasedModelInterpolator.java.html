@@ -1,0 +1,292 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractStringBasedModelInterpolator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.model.interpolation</a> &gt; <span class="el_source">AbstractStringBasedModelInterpolator.java</span></div><h1>AbstractStringBasedModelInterpolator.java</h1><pre class="source lang-java linenums">package org.apache.maven.model.interpolation;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Properties;
+
+import org.apache.maven.model.Model;
+import org.apache.maven.model.building.ModelBuildingRequest;
+import org.apache.maven.model.building.ModelProblem.Severity;
+import org.apache.maven.model.building.ModelProblem.Version;
+import org.apache.maven.model.building.ModelProblemCollector;
+import org.apache.maven.model.building.ModelProblemCollectorRequest;
+import org.apache.maven.model.path.PathTranslator;
+import org.apache.maven.model.path.UrlNormalizer;
+import org.codehaus.plexus.component.annotations.Requirement;
+import org.codehaus.plexus.interpolation.AbstractValueSource;
+import org.codehaus.plexus.interpolation.InterpolationException;
+import org.codehaus.plexus.interpolation.InterpolationPostProcessor;
+import org.codehaus.plexus.interpolation.Interpolator;
+import org.codehaus.plexus.interpolation.MapBasedValueSource;
+import org.codehaus.plexus.interpolation.ObjectBasedValueSource;
+import org.codehaus.plexus.interpolation.PrefixAwareRecursionInterceptor;
+import org.codehaus.plexus.interpolation.PrefixedObjectValueSource;
+import org.codehaus.plexus.interpolation.PrefixedValueSourceWrapper;
+import org.codehaus.plexus.interpolation.RecursionInterceptor;
+import org.codehaus.plexus.interpolation.ValueSource;
+
+/**
+ * Use a regular expression search to find and resolve expressions within the POM.
+ *
+ * @author jdcasey Created on Feb 3, 2005
+ */
+public abstract class AbstractStringBasedModelInterpolator
+    implements ModelInterpolator
+{
+    public static final String SHA1_PROPERTY = &quot;sha1&quot;;
+
+    public static final String CHANGELIST_PROPERTY = &quot;changelist&quot;;
+
+    public static final String REVISION_PROPERTY = &quot;revision&quot;;
+    
+<span class="fc" id="L65">    private static final List&lt;String&gt; PROJECT_PREFIXES = Arrays.asList( &quot;pom.&quot;, &quot;project.&quot; );</span>
+
+    private static final Collection&lt;String&gt; TRANSLATED_PATH_EXPRESSIONS;
+
+    static
+    {
+<span class="fc" id="L71">        Collection&lt;String&gt; translatedPrefixes = new HashSet&lt;&gt;();</span>
+
+        // MNG-1927, MNG-2124, MNG-3355:
+        // If the build section is present and the project directory is non-null, we should make
+        // sure interpolation of the directories below uses translated paths.
+        // Afterward, we'll double back and translate any paths that weren't covered during interpolation via the
+        // code below...
+<span class="fc" id="L78">        translatedPrefixes.add( &quot;build.directory&quot; );</span>
+<span class="fc" id="L79">        translatedPrefixes.add( &quot;build.outputDirectory&quot; );</span>
+<span class="fc" id="L80">        translatedPrefixes.add( &quot;build.testOutputDirectory&quot; );</span>
+<span class="fc" id="L81">        translatedPrefixes.add( &quot;build.sourceDirectory&quot; );</span>
+<span class="fc" id="L82">        translatedPrefixes.add( &quot;build.testSourceDirectory&quot; );</span>
+<span class="fc" id="L83">        translatedPrefixes.add( &quot;build.scriptSourceDirectory&quot; );</span>
+<span class="fc" id="L84">        translatedPrefixes.add( &quot;reporting.outputDirectory&quot; );</span>
+
+<span class="fc" id="L86">        TRANSLATED_PATH_EXPRESSIONS = translatedPrefixes;</span>
+<span class="fc" id="L87">    }</span>
+
+    @Requirement
+    private PathTranslator pathTranslator;
+
+    @Requirement
+    private UrlNormalizer urlNormalizer;
+
+    private Interpolator interpolator;
+
+    private RecursionInterceptor recursionInterceptor;
+
+    public AbstractStringBasedModelInterpolator()
+<span class="fc" id="L100">    {</span>
+<span class="fc" id="L101">        interpolator = createInterpolator();</span>
+<span class="fc" id="L102">        recursionInterceptor = new PrefixAwareRecursionInterceptor( PROJECT_PREFIXES );</span>
+<span class="fc" id="L103">    }</span>
+
+    public AbstractStringBasedModelInterpolator setPathTranslator( PathTranslator pathTranslator )
+    {
+<span class="fc" id="L107">        this.pathTranslator = pathTranslator;</span>
+<span class="fc" id="L108">        return this;</span>
+    }
+
+    public AbstractStringBasedModelInterpolator setUrlNormalizer( UrlNormalizer urlNormalizer )
+    {
+<span class="fc" id="L113">        this.urlNormalizer = urlNormalizer;</span>
+<span class="fc" id="L114">        return this;</span>
+    }
+
+    protected List&lt;ValueSource&gt; createValueSources( final Model model, final File projectDir,
+                                                    final ModelBuildingRequest config,
+                                                    final ModelProblemCollector problems )
+    {
+<span class="fc" id="L121">        Properties modelProperties = model.getProperties();</span>
+
+<span class="fc" id="L123">        ValueSource modelValueSource1 = new PrefixedObjectValueSource( PROJECT_PREFIXES, model, false );</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">        if ( config.getValidationLevel() &gt;= ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_2_0 )</span>
+        {
+<span class="fc" id="L126">            modelValueSource1 = new ProblemDetectingValueSource( modelValueSource1, &quot;pom.&quot;, &quot;project.&quot;, problems );</span>
+        }
+
+<span class="fc" id="L129">        ValueSource modelValueSource2 = new ObjectBasedValueSource( model );</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">        if ( config.getValidationLevel() &gt;= ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_2_0 )</span>
+        {
+<span class="fc" id="L132">            modelValueSource2 = new ProblemDetectingValueSource( modelValueSource2, &quot;&quot;, &quot;project.&quot;, problems );</span>
+        }
+
+        // NOTE: Order counts here!
+<span class="fc" id="L136">        List&lt;ValueSource&gt; valueSources = new ArrayList&lt;&gt;( 9 );</span>
+
+<span class="fc bfc" id="L138" title="All 2 branches covered.">        if ( projectDir != null )</span>
+        {
+<span class="fc" id="L140">            ValueSource basedirValueSource = new PrefixedValueSourceWrapper( new AbstractValueSource( false )</span>
+<span class="fc" id="L141">            {</span>
+                @Override
+                public Object getValue( String expression )
+                {
+<span class="fc bfc" id="L145" title="All 2 branches covered.">                    if ( &quot;basedir&quot;.equals( expression ) )</span>
+                    {
+<span class="fc" id="L147">                        return projectDir.getAbsolutePath();</span>
+                    }
+<span class="fc" id="L149">                    return null;</span>
+                }
+            }, PROJECT_PREFIXES, true );
+<span class="fc" id="L152">            valueSources.add( basedirValueSource );</span>
+
+<span class="fc" id="L154">            ValueSource baseUriValueSource = new PrefixedValueSourceWrapper( new AbstractValueSource( false )</span>
+<span class="fc" id="L155">            {</span>
+                @Override
+                public Object getValue( String expression )
+                {
+<span class="pc bpc" id="L159" title="1 of 2 branches missed.">                    if ( &quot;baseUri&quot;.equals( expression ) )</span>
+                    {
+<span class="nc" id="L161">                        return projectDir.getAbsoluteFile().toURI().toString();</span>
+                    }
+<span class="fc" id="L163">                    return null;</span>
+                }
+            }, PROJECT_PREFIXES, false );
+<span class="fc" id="L166">            valueSources.add( baseUriValueSource );</span>
+<span class="fc" id="L167">            valueSources.add( new BuildTimestampValueSource( config.getBuildStartTime(), modelProperties ) );</span>
+        }
+
+<span class="fc" id="L170">        valueSources.add( modelValueSource1 );</span>
+
+<span class="fc" id="L172">        valueSources.add( new MapBasedValueSource( config.getUserProperties() ) );</span>
+
+        // Overwrite existing values in model properties. Otherwise it's not possible
+        // to define the version via command line: mvn -Drevision=6.5.7 ...
+<span class="pc bpc" id="L176" title="1 of 2 branches missed.">        if ( config.getSystemProperties().containsKey( REVISION_PROPERTY ) )</span>
+        {
+<span class="nc" id="L178">            modelProperties.put( REVISION_PROPERTY, config.getSystemProperties().get( REVISION_PROPERTY ) );</span>
+        }
+<span class="pc bpc" id="L180" title="1 of 2 branches missed.">        if ( config.getSystemProperties().containsKey( CHANGELIST_PROPERTY ) )</span>
+        {
+<span class="nc" id="L182">            modelProperties.put( CHANGELIST_PROPERTY, config.getSystemProperties().get( CHANGELIST_PROPERTY ) );</span>
+        }
+<span class="pc bpc" id="L184" title="1 of 2 branches missed.">        if ( config.getSystemProperties().containsKey( SHA1_PROPERTY ) )</span>
+        {
+<span class="nc" id="L186">            modelProperties.put( SHA1_PROPERTY, config.getSystemProperties().get( SHA1_PROPERTY ) );</span>
+        }
+<span class="fc" id="L188">        valueSources.add( new MapBasedValueSource( modelProperties ) );</span>
+
+<span class="fc" id="L190">        valueSources.add( new MapBasedValueSource( config.getSystemProperties() ) );</span>
+
+<span class="fc" id="L192">        valueSources.add( new AbstractValueSource( false )</span>
+<span class="fc" id="L193">        {</span>
+            @Override
+            public Object getValue( String expression )
+            {
+<span class="fc" id="L197">                return config.getSystemProperties().getProperty( &quot;env.&quot; + expression );</span>
+            }
+        } );
+
+<span class="fc" id="L201">        valueSources.add( modelValueSource2 );</span>
+
+<span class="fc" id="L203">        return valueSources;</span>
+    }
+
+    protected List&lt;? extends InterpolationPostProcessor&gt; createPostProcessors( final Model model,
+                                                                               final File projectDir,
+                                                                               final ModelBuildingRequest config )
+    {
+<span class="fc" id="L210">        List&lt;InterpolationPostProcessor&gt; processors = new ArrayList&lt;&gt;( 2 );</span>
+<span class="fc bfc" id="L211" title="All 2 branches covered.">        if ( projectDir != null )</span>
+        {
+<span class="fc" id="L213">            processors.add( new PathTranslatingPostProcessor( PROJECT_PREFIXES, TRANSLATED_PATH_EXPRESSIONS,</span>
+                                                              projectDir, pathTranslator ) );
+        }
+<span class="fc" id="L216">        processors.add( new UrlNormalizingPostProcessor( urlNormalizer ) );</span>
+<span class="fc" id="L217">        return processors;</span>
+    }
+
+    protected String interpolateInternal( String src, List&lt;? extends ValueSource&gt; valueSources,
+                                          List&lt;? extends InterpolationPostProcessor&gt; postProcessors,
+                                          ModelProblemCollector problems )
+    {
+<span class="fc bfc" id="L224" title="All 2 branches covered.">        if ( !src.contains( &quot;${&quot; ) )</span>
+        {
+<span class="fc" id="L226">            return src;</span>
+        }
+
+<span class="fc" id="L229">        String result = src;</span>
+<span class="fc" id="L230">        synchronized ( this )</span>
+        {
+
+<span class="fc bfc" id="L233" title="All 2 branches covered.">            for ( ValueSource vs : valueSources )</span>
+            {
+<span class="fc" id="L235">                interpolator.addValueSource( vs );</span>
+<span class="fc" id="L236">            }</span>
+
+<span class="fc bfc" id="L238" title="All 2 branches covered.">            for ( InterpolationPostProcessor postProcessor : postProcessors )</span>
+            {
+<span class="fc" id="L240">                interpolator.addPostProcessor( postProcessor );</span>
+<span class="fc" id="L241">            }</span>
+
+            try
+            {
+                try
+                {
+<span class="fc" id="L247">                    result = interpolator.interpolate( result, recursionInterceptor );</span>
+                }
+<span class="nc" id="L249">                catch ( InterpolationException e )</span>
+                {
+<span class="nc" id="L251">                    problems.add( new ModelProblemCollectorRequest( Severity.ERROR, Version.BASE )</span>
+                        .setMessage( e.getMessage() ).setException( e ) );
+<span class="fc" id="L253">                }</span>
+
+<span class="fc" id="L255">                interpolator.clearFeedback();</span>
+            }
+            finally
+            {
+<span class="fc bfc" id="L259" title="All 2 branches covered.">                for ( ValueSource vs : valueSources )</span>
+                {
+<span class="fc" id="L261">                    interpolator.removeValuesSource( vs );</span>
+<span class="fc" id="L262">                }</span>
+
+<span class="fc bfc" id="L264" title="All 2 branches covered.">                for ( InterpolationPostProcessor postProcessor : postProcessors )</span>
+                {
+<span class="fc" id="L266">                    interpolator.removePostProcessor( postProcessor );</span>
+<span class="fc" id="L267">                }</span>
+            }
+<span class="fc" id="L269">        }</span>
+
+<span class="fc" id="L271">        return result;</span>
+    }
+
+    protected RecursionInterceptor getRecursionInterceptor()
+    {
+<span class="nc" id="L276">        return recursionInterceptor;</span>
+    }
+
+    protected void setRecursionInterceptor( RecursionInterceptor recursionInterceptor )
+    {
+<span class="nc" id="L281">        this.recursionInterceptor = recursionInterceptor;</span>
+<span class="nc" id="L282">    }</span>
+
+    protected abstract Interpolator createInterpolator();
+
+    protected final Interpolator getInterpolator()
+    {
+<span class="fc" id="L288">        return interpolator;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

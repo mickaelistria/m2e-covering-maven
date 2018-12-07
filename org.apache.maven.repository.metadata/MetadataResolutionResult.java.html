@@ -1,0 +1,169 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MetadataResolutionResult.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository.metadata</a> &gt; <span class="el_source">MetadataResolutionResult.java</span></div><h1>MetadataResolutionResult.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository.metadata;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.maven.artifact.ArtifactScopeEnum;
+import org.codehaus.plexus.PlexusContainer;
+import org.codehaus.plexus.component.repository.exception.ComponentLookupException;
+
+/**
+ * This object is tinted with ClasspathTransformation and GraphConflictResolver.
+ * Get rid of them after debugging
+ *
+ * @author &lt;a href=&quot;oleg@codehaus.org&quot;&gt;Oleg Gusakov&lt;/a&gt;
+ */
+public class MetadataResolutionResult
+{
+    MetadataTreeNode treeRoot;
+
+    /**
+     * these components are are initialized on demand by
+     * explicit call of the initTreeProcessing()
+     */
+    ClasspathTransformation classpathTransformation;
+    GraphConflictResolver conflictResolver;
+
+    //----------------------------------------------------------------------------
+    public MetadataResolutionResult( )
+<span class="nc" id="L45">    {</span>
+<span class="nc" id="L46">    }</span>
+    //----------------------------------------------------------------------------
+    public MetadataResolutionResult( MetadataTreeNode root )
+<span class="nc" id="L49">    {</span>
+<span class="nc" id="L50">        this.treeRoot = root;</span>
+<span class="nc" id="L51">    }</span>
+    //----------------------------------------------------------------------------
+    public MetadataTreeNode getTree()
+    {
+<span class="nc" id="L55">        return treeRoot;</span>
+    }
+    //----------------------------------------------------------------------------
+    public void setTree( MetadataTreeNode root )
+    {
+<span class="nc" id="L60">        this.treeRoot = root;</span>
+<span class="nc" id="L61">    }</span>
+
+    public void initTreeProcessing( PlexusContainer plexus )
+        throws ComponentLookupException
+    {
+<span class="nc" id="L66">        classpathTransformation = plexus.lookup( ClasspathTransformation.class );</span>
+<span class="nc" id="L67">        conflictResolver = plexus.lookup( GraphConflictResolver.class );</span>
+<span class="nc" id="L68">    }</span>
+    //----------------------------------------------------------------------------
+    public MetadataGraph getGraph()
+        throws MetadataResolutionException
+    {
+<span class="nc bnc" id="L73" title="All 2 branches missed.">        return treeRoot == null ? null : new MetadataGraph( treeRoot );</span>
+    }
+    //----------------------------------------------------------------------------
+    public MetadataGraph getGraph( ArtifactScopeEnum scope )
+        throws MetadataResolutionException, GraphConflictResolutionException
+    {
+<span class="nc bnc" id="L79" title="All 2 branches missed.">        if ( treeRoot == null )</span>
+        {
+<span class="nc" id="L81">            return null;</span>
+        }
+
+<span class="nc bnc" id="L84" title="All 2 branches missed.">        if ( conflictResolver == null )</span>
+        {
+<span class="nc" id="L86">            return null;</span>
+        }
+
+<span class="nc" id="L89">        return conflictResolver.resolveConflicts( getGraph(), scope );</span>
+    }
+    //----------------------------------------------------------------------------
+    public MetadataGraph getGraph( MetadataResolutionRequestTypeEnum requestType )
+        throws MetadataResolutionException, GraphConflictResolutionException
+    {
+<span class="nc bnc" id="L95" title="All 2 branches missed.">        if ( requestType == null )</span>
+        {
+<span class="nc" id="L97">            return null;</span>
+        }
+
+<span class="nc bnc" id="L100" title="All 2 branches missed.">        if ( treeRoot == null )</span>
+        {
+<span class="nc" id="L102">            return null;</span>
+        }
+
+<span class="nc bnc" id="L105" title="All 2 branches missed.">        if ( conflictResolver == null )</span>
+        {
+<span class="nc" id="L107">            return null;</span>
+        }
+
+<span class="nc bnc" id="L110" title="All 2 branches missed.">        if ( requestType.equals( MetadataResolutionRequestTypeEnum.classpathCompile ) )</span>
+        {
+<span class="nc" id="L112">            return conflictResolver.resolveConflicts( getGraph(), ArtifactScopeEnum.compile );</span>
+        }
+<span class="nc bnc" id="L114" title="All 2 branches missed.">        else if ( requestType.equals( MetadataResolutionRequestTypeEnum.classpathRuntime ) )</span>
+        {
+<span class="nc" id="L116">            return conflictResolver.resolveConflicts( getGraph(), ArtifactScopeEnum.runtime );</span>
+        }
+<span class="nc bnc" id="L118" title="All 2 branches missed.">        else if ( requestType.equals( MetadataResolutionRequestTypeEnum.classpathTest ) )</span>
+        {
+<span class="nc" id="L120">            return conflictResolver.resolveConflicts( getGraph(), ArtifactScopeEnum.test );</span>
+        }
+<span class="nc bnc" id="L122" title="All 2 branches missed.">        else if ( requestType.equals( MetadataResolutionRequestTypeEnum.graph ) )</span>
+        {
+<span class="nc" id="L124">            return getGraph();</span>
+        }
+<span class="nc bnc" id="L126" title="All 2 branches missed.">        else if ( requestType.equals( MetadataResolutionRequestTypeEnum.versionedGraph ) )</span>
+        {
+<span class="nc" id="L128">            return new MetadataGraph( getTree(), true, false );</span>
+        }
+<span class="nc bnc" id="L130" title="All 2 branches missed.">        else if ( requestType.equals( MetadataResolutionRequestTypeEnum.scopedGraph ) )</span>
+        {
+<span class="nc" id="L132">            return new MetadataGraph( getTree(), true, true );</span>
+        }
+<span class="nc" id="L134">        return null;</span>
+    }
+    //----------------------------------------------------------------------------
+    public ClasspathContainer getClasspath( ArtifactScopeEnum scope )
+        throws MetadataGraphTransformationException, MetadataResolutionException
+    {
+<span class="nc bnc" id="L140" title="All 2 branches missed.">        if ( classpathTransformation == null )</span>
+        {
+<span class="nc" id="L142">            return null;</span>
+        }
+
+<span class="nc" id="L145">        MetadataGraph dirtyGraph = getGraph();</span>
+<span class="nc bnc" id="L146" title="All 2 branches missed.">        if ( dirtyGraph == null )</span>
+        {
+<span class="nc" id="L148">            return null;</span>
+        }
+
+<span class="nc" id="L151">        return classpathTransformation.transform( dirtyGraph, scope, false );</span>
+    }
+
+    //----------------------------------------------------------------------------
+    public MetadataTreeNode getClasspathTree( ArtifactScopeEnum scope )
+        throws MetadataGraphTransformationException, MetadataResolutionException
+    {
+<span class="nc" id="L158">        ClasspathContainer cpc = getClasspath( scope );</span>
+<span class="nc bnc" id="L159" title="All 2 branches missed.">        if ( cpc == null )</span>
+        {
+<span class="nc" id="L161">            return null;</span>
+        }
+
+<span class="nc" id="L164">        return cpc.getClasspathAsTree();</span>
+    }
+    //----------------------------------------------------------------------------
+    //----------------------------------------------------------------------------
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

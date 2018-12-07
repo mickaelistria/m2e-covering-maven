@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Mojo.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.plugin</a> &gt; <span class="el_source">Mojo.java</span></div><h1>Mojo.java</h1><pre class="source lang-java linenums">package org.apache.maven.plugin;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.maven.plugin.logging.Log;
+
+/**
+ * This interface forms the contract required for &lt;code&gt;Mojos&lt;/code&gt; to interact with the &lt;code&gt;Maven&lt;/code&gt;
+ * infrastructure.&lt;br&gt;
+ * It features an &lt;code&gt;execute()&lt;/code&gt; method, which triggers the Mojo's build-process behavior, and can throw
+ * a MojoExecutionException or MojoFailureException if error conditions occur.&lt;br&gt;
+ * Also included is the &lt;code&gt;setLog(...)&lt;/code&gt; method, which simply allows Maven to inject a logging mechanism which
+ * will allow the Mojo to communicate to the outside world through standard Maven channels.
+ *
+ * @author Jason van Zyl
+ */
+public interface Mojo
+{
+    /** The component &lt;code&gt;role&lt;/code&gt; hint for Plexus container */
+<span class="fc" id="L37">    String ROLE = Mojo.class.getName();</span>
+
+    /**
+     * Perform whatever build-process behavior this &lt;code&gt;Mojo&lt;/code&gt; implements.&lt;br&gt;
+     * This is the main trigger for the &lt;code&gt;Mojo&lt;/code&gt; inside the &lt;code&gt;Maven&lt;/code&gt; system, and allows
+     * the &lt;code&gt;Mojo&lt;/code&gt; to communicate errors.
+     *
+     * @throws MojoExecutionException if an unexpected problem occurs.
+     * Throwing this exception causes a &quot;BUILD ERROR&quot; message to be displayed.
+     * @throws MojoFailureException if an expected problem (such as a compilation failure) occurs.
+     * Throwing this exception causes a &quot;BUILD FAILURE&quot; message to be displayed.
+     */
+    void execute()
+        throws MojoExecutionException, MojoFailureException;
+
+    /**
+     * Inject a standard &lt;code&gt;Maven&lt;/code&gt; logging mechanism to allow this &lt;code&gt;Mojo&lt;/code&gt; to communicate events
+     * and feedback to the user.
+     *
+     * @param log a new logger
+     */
+    // TODO not sure about this here, and may want a getLog on here as well/instead
+    void setLog( Log log );
+
+    /**
+     * Furnish access to the standard Maven logging mechanism which is managed in this base class.
+     *
+     * @return a log4j-like logger object which allows plugins to create messages at levels of &lt;code&gt;&quot;debug&quot;&lt;/code&gt;,
+     * &lt;code&gt;&quot;info&quot;&lt;/code&gt;, &lt;code&gt;&quot;warn&quot;&lt;/code&gt;, and &lt;code&gt;&quot;error&quot;&lt;/code&gt;. This logger is the accepted means to display
+     * information to the user.
+     */
+    Log getLog();
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

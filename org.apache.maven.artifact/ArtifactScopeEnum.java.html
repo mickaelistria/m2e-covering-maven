@@ -1,0 +1,132 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ArtifactScopeEnum.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.artifact</a> &gt; <span class="el_source">ArtifactScopeEnum.java</span></div><h1>ArtifactScopeEnum.java</h1><pre class="source lang-java linenums">package org.apache.maven.artifact;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/**
+ * Type safe reincarnation of Artifact scope. Also supplies the {@code DEFAULT_SCOPE} as well
+ * as convenience method to deal with scope relationships.
+ *
+ * @author &lt;a href=&quot;oleg@codehaus.org&quot;&gt;Oleg Gusakov&lt;/a&gt;
+ *
+ */
+
+<span class="nc" id="L30">public enum ArtifactScopeEnum</span>
+{
+<span class="nc" id="L32">    compile( 1 ), test( 2 ), runtime( 3 ), provided( 4 ), system( 5 ), runtime_plus_system( 6 );</span>
+
+<span class="nc" id="L34">    public static final ArtifactScopeEnum DEFAULT_SCOPE = compile;</span>
+
+    private int id;
+
+    // Constructor
+    ArtifactScopeEnum( int id )
+<span class="nc" id="L40">    {</span>
+<span class="nc" id="L41">        this.id = id;</span>
+<span class="nc" id="L42">    }</span>
+
+    int getId()
+    {
+<span class="nc" id="L46">        return id;</span>
+    }
+
+
+    /**
+     * Helper method to simplify null processing
+     */
+    public static final ArtifactScopeEnum checkScope( ArtifactScopeEnum scope )
+    {
+<span class="nc bnc" id="L55" title="All 2 branches missed.">        return scope == null ? DEFAULT_SCOPE : scope;</span>
+    }
+
+    /**
+     *
+     * @return unsafe String representation of this scope.
+     */
+    public String getScope()
+    {
+<span class="nc bnc" id="L64" title="All 2 branches missed.">        if ( id == 1 )</span>
+        {
+<span class="nc" id="L66">            return Artifact.SCOPE_COMPILE;</span>
+        }
+<span class="nc bnc" id="L68" title="All 2 branches missed.">        else if ( id == 2 )</span>
+        {
+<span class="nc" id="L70">            return Artifact.SCOPE_TEST;</span>
+
+        }
+<span class="nc bnc" id="L73" title="All 2 branches missed.">        else if ( id == 3 )</span>
+        {
+<span class="nc" id="L75">            return Artifact.SCOPE_RUNTIME;</span>
+
+        }
+<span class="nc bnc" id="L78" title="All 2 branches missed.">        else if ( id == 4 )</span>
+        {
+<span class="nc" id="L80">            return Artifact.SCOPE_PROVIDED;</span>
+        }
+<span class="nc bnc" id="L82" title="All 2 branches missed.">        else if ( id == 5 )</span>
+        {
+<span class="nc" id="L84">            return Artifact.SCOPE_SYSTEM;</span>
+        }
+        else
+        {
+<span class="nc" id="L88">            return Artifact.SCOPE_RUNTIME_PLUS_SYSTEM;</span>
+        }
+    }
+
+<span class="nc" id="L92">    private static final ArtifactScopeEnum [][][] COMPLIANCY_SETS = {</span>
+          { { compile  }, { compile,                provided, system } }
+        , { { test     }, { compile, test,          provided, system } }
+        , { { runtime  }, { compile,       runtime,           system } }
+        , { { provided }, { compile, test,          provided         } }
+    };
+
+    /**
+     * scope relationship function. Used by the graph conflict resolution policies
+     *
+     * @param scope
+     * @return true is supplied scope is an inclusive sub-scope of current one.
+     */
+    public boolean encloses( ArtifactScopeEnum scope )
+    {
+<span class="nc" id="L107">        final ArtifactScopeEnum s = checkScope( scope );</span>
+
+        // system scope is historic only - and simple
+<span class="nc bnc" id="L110" title="All 2 branches missed.">        if ( id == system.id )</span>
+        {
+<span class="nc bnc" id="L112" title="All 2 branches missed.">            return scope.id == system.id;</span>
+        }
+
+<span class="nc bnc" id="L115" title="All 2 branches missed.">        for ( ArtifactScopeEnum[][] set : COMPLIANCY_SETS )</span>
+        {
+<span class="nc bnc" id="L117" title="All 2 branches missed.">            if ( id == set[0][0].id )</span>
+            {
+<span class="nc bnc" id="L119" title="All 2 branches missed.">                for ( ArtifactScopeEnum ase : set[1] )</span>
+                {
+<span class="nc bnc" id="L121" title="All 2 branches missed.">                    if ( s.id == ase.id )</span>
+                    {
+<span class="nc" id="L123">                        return true;</span>
+                    }
+                }
+<span class="nc" id="L126">                break;</span>
+            }
+        }
+<span class="nc" id="L129">        return false;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

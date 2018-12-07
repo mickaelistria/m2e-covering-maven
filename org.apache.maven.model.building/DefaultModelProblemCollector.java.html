@@ -1,0 +1,201 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultModelProblemCollector.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.model.building</a> &gt; <span class="el_source">DefaultModelProblemCollector.java</span></div><h1>DefaultModelProblemCollector.java</h1><pre class="source lang-java linenums">package org.apache.maven.model.building;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.EnumSet;
+import java.util.List;
+import java.util.Set;
+
+import org.apache.maven.model.Model;
+import org.apache.maven.model.io.ModelParseException;
+
+/**
+ * Collects problems that are encountered during model building. The primary purpose of this component is to account for
+ * the fact that the problem reporter has/should not have information about the calling context and hence cannot provide
+ * an expressive source hint for the model problem. Instead, the source hint is configured by the model builder before
+ * it delegates to other components that potentially encounter problems. Then, the problem reporter can focus on
+ * providing a simple error message, leaving the donkey work of creating a nice model problem to this component.
+ *
+ * @author Benjamin Bentmann
+ */
+class DefaultModelProblemCollector
+    implements ModelProblemCollectorExt
+{
+
+    private final ModelBuildingResult result;
+
+    private List&lt;ModelProblem&gt; problems;
+
+    private String source;
+
+    private Model sourceModel;
+
+    private Model rootModel;
+
+<span class="fc" id="L52">    private Set&lt;ModelProblem.Severity&gt; severities = EnumSet.noneOf( ModelProblem.Severity.class );</span>
+
+    DefaultModelProblemCollector( ModelBuildingResult result )
+<span class="fc" id="L55">    {</span>
+<span class="fc" id="L56">        this.result = result;</span>
+<span class="fc" id="L57">        this.problems = result.getProblems();</span>
+
+<span class="fc bfc" id="L59" title="All 2 branches covered.">        for ( ModelProblem problem : this.problems )</span>
+        {
+<span class="fc" id="L61">            severities.add( problem.getSeverity() );</span>
+<span class="fc" id="L62">        }</span>
+<span class="fc" id="L63">    }</span>
+
+    public boolean hasFatalErrors()
+    {
+<span class="fc" id="L67">        return severities.contains( ModelProblem.Severity.FATAL );</span>
+    }
+
+    public boolean hasErrors()
+    {
+<span class="pc bpc" id="L72" title="1 of 4 branches missed.">        return severities.contains( ModelProblem.Severity.ERROR ) || severities.contains( ModelProblem.Severity.FATAL );</span>
+    }
+
+    @Override
+    public List&lt;ModelProblem&gt; getProblems()
+    {
+<span class="fc" id="L78">        return problems;</span>
+    }
+
+    public void setSource( String source )
+    {
+<span class="fc" id="L83">        this.source = source;</span>
+<span class="fc" id="L84">        this.sourceModel = null;</span>
+<span class="fc" id="L85">    }</span>
+
+    public void setSource( Model source )
+    {
+<span class="fc" id="L89">        this.sourceModel = source;</span>
+<span class="fc" id="L90">        this.source = null;</span>
+
+<span class="fc bfc" id="L92" title="All 2 branches covered.">        if ( rootModel == null )</span>
+        {
+<span class="fc" id="L94">            rootModel = source;</span>
+        }
+<span class="fc" id="L96">    }</span>
+
+    private String getSource()
+    {
+<span class="pc bpc" id="L100" title="1 of 4 branches missed.">        if ( source == null &amp;&amp; sourceModel != null )</span>
+        {
+<span class="fc" id="L102">            source = ModelProblemUtils.toPath( sourceModel );</span>
+        }
+<span class="fc" id="L104">        return source;</span>
+    }
+
+    private String getModelId()
+    {
+<span class="fc" id="L109">        return ModelProblemUtils.toId( sourceModel );</span>
+    }
+
+    public void setRootModel( Model rootModel )
+    {
+<span class="fc" id="L114">        this.rootModel = rootModel;</span>
+<span class="fc" id="L115">    }</span>
+
+    public Model getRootModel()
+    {
+<span class="fc" id="L119">        return rootModel;</span>
+    }
+
+    public String getRootModelId()
+    {
+<span class="fc" id="L124">        return ModelProblemUtils.toId( rootModel );</span>
+    }
+
+    public void add( ModelProblem problem )
+    {
+<span class="fc" id="L129">        problems.add( problem );</span>
+
+<span class="fc" id="L131">        severities.add( problem.getSeverity() );</span>
+<span class="fc" id="L132">    }</span>
+
+    public void addAll( List&lt;ModelProblem&gt; problems )
+    {
+<span class="fc" id="L136">        this.problems.addAll( problems );</span>
+
+<span class="pc bpc" id="L138" title="1 of 2 branches missed.">        for ( ModelProblem problem : problems )</span>
+        {
+<span class="nc" id="L140">            severities.add( problem.getSeverity() );</span>
+<span class="nc" id="L141">        }</span>
+<span class="fc" id="L142">    }</span>
+
+    @Override
+    public void add( ModelProblemCollectorRequest req )
+    {
+<span class="fc" id="L147">        int line = -1;</span>
+<span class="fc" id="L148">        int column = -1;</span>
+<span class="fc" id="L149">        String source = null;</span>
+<span class="fc" id="L150">        String modelId = null;</span>
+
+<span class="fc bfc" id="L152" title="All 2 branches covered.">        if ( req.getLocation() != null )</span>
+        {
+<span class="fc" id="L154">            line = req.getLocation().getLineNumber();</span>
+<span class="fc" id="L155">            column = req.getLocation().getColumnNumber();</span>
+<span class="pc bpc" id="L156" title="1 of 2 branches missed.">            if ( req.getLocation().getSource() != null )</span>
+            {
+<span class="fc" id="L158">                modelId = req.getLocation().getSource().getModelId();</span>
+<span class="fc" id="L159">                source = req.getLocation().getSource().getLocation();</span>
+            }
+        }
+
+<span class="fc bfc" id="L163" title="All 2 branches covered.">        if ( modelId == null )</span>
+        {
+<span class="fc" id="L165">            modelId = getModelId();</span>
+<span class="fc" id="L166">            source = getSource();</span>
+        }
+
+<span class="pc bpc" id="L169" title="1 of 6 branches missed.">        if ( line &lt;= 0 &amp;&amp; column &lt;= 0 &amp;&amp; req.getException() instanceof ModelParseException )</span>
+        {
+<span class="fc" id="L171">            ModelParseException e = (ModelParseException) req.getException();</span>
+<span class="fc" id="L172">            line = e.getLineNumber();</span>
+<span class="fc" id="L173">            column = e.getColumnNumber();</span>
+        }
+
+<span class="fc" id="L176">        ModelProblem problem =</span>
+            new DefaultModelProblem( req.getMessage(), req.getSeverity(), req.getVersion(), source, line, column,
+                                     modelId, req.getException() );
+
+<span class="fc" id="L180">        add( problem );</span>
+<span class="fc" id="L181">    }</span>
+
+    public ModelBuildingException newModelBuildingException()
+    {
+<span class="fc" id="L185">        ModelBuildingResult result = this.result;</span>
+<span class="fc bfc" id="L186" title="All 2 branches covered.">        if ( result.getModelIds().isEmpty() )</span>
+        {
+<span class="fc" id="L188">            DefaultModelBuildingResult tmp = new DefaultModelBuildingResult();</span>
+<span class="fc" id="L189">            tmp.setEffectiveModel( result.getEffectiveModel() );</span>
+<span class="fc" id="L190">            tmp.setProblems( getProblems() );</span>
+<span class="fc" id="L191">            tmp.setActiveExternalProfiles( result.getActiveExternalProfiles() );</span>
+<span class="fc" id="L192">            String id = getRootModelId();</span>
+<span class="fc" id="L193">            tmp.addModelId( id );</span>
+<span class="fc" id="L194">            tmp.setRawModel( id, getRootModel() );</span>
+<span class="fc" id="L195">            result = tmp;</span>
+        }
+<span class="fc" id="L197">        return new ModelBuildingException( result );</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

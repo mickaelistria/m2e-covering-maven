@@ -1,0 +1,119 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultModelReader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.model.io</a> &gt; <span class="el_source">DefaultModelReader.java</span></div><h1>DefaultModelReader.java</h1><pre class="source lang-java linenums">package org.apache.maven.model.io;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Reader;
+import java.util.Map;
+
+import org.apache.commons.lang3.Validate;
+import org.apache.maven.model.InputSource;
+import org.apache.maven.model.Model;
+import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
+import org.apache.maven.model.io.xpp3.MavenXpp3ReaderEx;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.util.ReaderFactory;
+import org.codehaus.plexus.util.xml.XmlStreamReader;
+import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
+
+/**
+ * Handles deserialization of a model from some kind of textual format like XML.
+ *
+ * @author Benjamin Bentmann
+ */
+@Component( role = ModelReader.class )
+<span class="fc" id="L45">public class DefaultModelReader</span>
+    implements ModelReader
+{
+
+    @Override
+    public Model read( File input, Map&lt;String, ?&gt; options )
+        throws IOException
+    {
+<span class="nc" id="L53">        Validate.notNull( input, &quot;input cannot be null&quot; );</span>
+
+<span class="nc" id="L55">        Model model = read( new FileInputStream( input ), options );</span>
+
+<span class="nc" id="L57">        model.setPomFile( input );</span>
+
+<span class="nc" id="L59">        return model;</span>
+    }
+
+    @Override
+    public Model read( Reader input, Map&lt;String, ?&gt; options )
+        throws IOException
+    {
+<span class="nc" id="L66">        Validate.notNull( input, &quot;input cannot be null&quot; );</span>
+
+<span class="nc" id="L68">        try ( final Reader in = input )</span>
+        {
+<span class="nc" id="L70">            return read( in, isStrict( options ), getSource( options ) );</span>
+<span class="nc" id="L71">        }</span>
+    }
+
+    @Override
+    public Model read( InputStream input, Map&lt;String, ?&gt; options )
+        throws IOException
+    {
+<span class="fc" id="L78">        Validate.notNull( input, &quot;input cannot be null&quot; );</span>
+
+<span class="fc" id="L80">        try ( final XmlStreamReader in = ReaderFactory.newXmlReader( input ) )</span>
+        {
+<span class="fc" id="L82">            return read( in, isStrict( options ), getSource( options ) );</span>
+<span class="fc" id="L83">        }</span>
+    }
+
+    private boolean isStrict( Map&lt;String, ?&gt; options )
+    {
+<span class="fc bfc" id="L88" title="All 2 branches covered.">        Object value = ( options != null ) ? options.get( IS_STRICT ) : null;</span>
+<span class="fc bfc" id="L89" title="All 4 branches covered.">        return value == null || Boolean.parseBoolean( value.toString() );</span>
+    }
+
+    private InputSource getSource( Map&lt;String, ?&gt; options )
+    {
+<span class="fc bfc" id="L94" title="All 2 branches covered.">        Object value = ( options != null ) ? options.get( INPUT_SOURCE ) : null;</span>
+<span class="fc" id="L95">        return (InputSource) value;</span>
+    }
+
+    private Model read( Reader reader, boolean strict, InputSource source )
+        throws IOException
+    {
+        try
+        {
+<span class="fc bfc" id="L103" title="All 2 branches covered.">            if ( source != null )</span>
+            {
+<span class="fc" id="L105">                return new MavenXpp3ReaderEx().read( reader, strict, source );</span>
+            }
+            else
+            {
+<span class="fc" id="L109">                return new MavenXpp3Reader().read( reader, strict );</span>
+            }
+        }
+<span class="fc" id="L112">        catch ( XmlPullParserException e )</span>
+        {
+<span class="fc" id="L114">            throw new ModelParseException( e.getMessage(), e.getLineNumber(), e.getColumnNumber(), e );</span>
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

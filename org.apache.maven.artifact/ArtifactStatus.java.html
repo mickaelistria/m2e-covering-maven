@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ArtifactStatus.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.artifact</a> &gt; <span class="el_source">ArtifactStatus.java</span></div><h1>ArtifactStatus.java</h1><pre class="source lang-java linenums">package org.apache.maven.artifact;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.HashMap;
+import java.util.Map;
+
+/**
+ * Type safe enumeration for the artifact status field.
+ *
+ * @author &lt;a href=&quot;mailto:brett@apache.org&quot;&gt;Brett Porter&lt;/a&gt;
+ */
+public final class ArtifactStatus
+    implements Comparable&lt;ArtifactStatus&gt;
+{
+    /**
+     * No trust - no information about status.
+     */
+<span class="nc" id="L36">    public static final ArtifactStatus NONE = new ArtifactStatus( &quot;none&quot;, 0 );</span>
+
+    /**
+     * No trust - information was generated with defaults.
+     */
+<span class="nc" id="L41">    public static final ArtifactStatus GENERATED = new ArtifactStatus( &quot;generated&quot;, 1 );</span>
+
+    /**
+     * Low trust - was converted from the Maven 1.x repository.
+     */
+<span class="nc" id="L46">    public static final ArtifactStatus CONVERTED = new ArtifactStatus( &quot;converted&quot;, 2 );</span>
+
+    /**
+     * Moderate trust - it was deployed directly from a partner.
+     */
+<span class="nc" id="L51">    public static final ArtifactStatus PARTNER = new ArtifactStatus( &quot;partner&quot;, 3 );</span>
+
+    /**
+     * Moderate trust - it was deployed directly by a user.
+     */
+<span class="nc" id="L56">    public static final ArtifactStatus DEPLOYED = new ArtifactStatus( &quot;deployed&quot;, 4 );</span>
+
+    /**
+     * Trusted, as it has had its data verified by hand.
+     */
+<span class="nc" id="L61">    public static final ArtifactStatus VERIFIED = new ArtifactStatus( &quot;verified&quot;, 5 );</span>
+
+    private final int rank;
+
+    private final String key;
+
+    private static Map&lt;String, ArtifactStatus&gt; map;
+
+    private ArtifactStatus( String key, int rank )
+<span class="nc" id="L70">    {</span>
+<span class="nc" id="L71">        this.rank = rank;</span>
+<span class="nc" id="L72">        this.key = key;</span>
+
+<span class="nc bnc" id="L74" title="All 2 branches missed.">        if ( map == null )</span>
+        {
+<span class="nc" id="L76">            map = new HashMap&lt;&gt;();</span>
+        }
+<span class="nc" id="L78">        map.put( key, this );</span>
+<span class="nc" id="L79">    }</span>
+
+    public static ArtifactStatus valueOf( String status )
+    {
+<span class="nc" id="L83">        ArtifactStatus retVal = null;</span>
+
+<span class="nc bnc" id="L85" title="All 2 branches missed.">        if ( status != null )</span>
+        {
+<span class="nc" id="L87">            retVal = map.get( status );</span>
+        }
+
+<span class="nc bnc" id="L90" title="All 2 branches missed.">        return retVal != null ? retVal : NONE;</span>
+    }
+
+    public boolean equals( Object o )
+    {
+<span class="nc bnc" id="L95" title="All 2 branches missed.">        if ( this == o )</span>
+        {
+<span class="nc" id="L97">            return true;</span>
+        }
+<span class="nc bnc" id="L99" title="All 4 branches missed.">        if ( o == null || getClass() != o.getClass() )</span>
+        {
+<span class="nc" id="L101">            return false;</span>
+        }
+
+<span class="nc" id="L104">        final ArtifactStatus that = (ArtifactStatus) o;</span>
+
+<span class="nc bnc" id="L106" title="All 2 branches missed.">        return rank == that.rank;</span>
+
+    }
+
+    public int hashCode()
+    {
+<span class="nc" id="L112">        return rank;</span>
+    }
+
+    public String toString()
+    {
+<span class="nc" id="L117">        return key;</span>
+    }
+
+    public int compareTo( ArtifactStatus s )
+    {
+<span class="nc" id="L122">        return rank - s.rank;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

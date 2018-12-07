@@ -1,0 +1,754 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultModelInheritanceAssembler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.project.inheritance</a> &gt; <span class="el_source">DefaultModelInheritanceAssembler.java</span></div><h1>DefaultModelInheritanceAssembler.java</h1><pre class="source lang-java linenums">package org.apache.maven.project.inheritance;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import java.util.StringTokenizer;
+import java.util.TreeMap;
+
+import org.apache.maven.model.Build;
+import org.apache.maven.model.Dependency;
+import org.apache.maven.model.DependencyManagement;
+import org.apache.maven.model.DeploymentRepository;
+import org.apache.maven.model.DistributionManagement;
+import org.apache.maven.model.Extension;
+import org.apache.maven.model.Model;
+import org.apache.maven.model.PluginManagement;
+import org.apache.maven.model.ReportPlugin;
+import org.apache.maven.model.ReportSet;
+import org.apache.maven.model.Reporting;
+import org.apache.maven.model.Resource;
+import org.apache.maven.model.Scm;
+import org.apache.maven.model.Site;
+import org.apache.maven.project.ModelUtils;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.util.StringUtils;
+import org.codehaus.plexus.util.xml.Xpp3Dom;
+
+/**
+ * DefaultModelInheritanceAssembler
+ */
+@Component( role = ModelInheritanceAssembler.class )
+<span class="nc" id="L54">public class DefaultModelInheritanceAssembler</span>
+    implements ModelInheritanceAssembler
+{
+    // TODO Remove this!
+    @SuppressWarnings( &quot;unchecked&quot; )
+    public void assembleBuildInheritance( Build childBuild, Build parentBuild, boolean handleAsInheritance )
+    {
+        // The build has been set but we want to step in here and fill in
+        // values that have not been set by the child.
+
+<span class="nc bnc" id="L64" title="All 2 branches missed.">        if ( childBuild.getSourceDirectory() == null )</span>
+        {
+<span class="nc" id="L66">            childBuild.setSourceDirectory( parentBuild.getSourceDirectory() );</span>
+        }
+
+<span class="nc bnc" id="L69" title="All 2 branches missed.">        if ( childBuild.getScriptSourceDirectory() == null )</span>
+        {
+<span class="nc" id="L71">            childBuild.setScriptSourceDirectory( parentBuild.getScriptSourceDirectory() );</span>
+        }
+
+<span class="nc bnc" id="L74" title="All 2 branches missed.">        if ( childBuild.getTestSourceDirectory() == null )</span>
+        {
+<span class="nc" id="L76">            childBuild.setTestSourceDirectory( parentBuild.getTestSourceDirectory() );</span>
+        }
+
+<span class="nc bnc" id="L79" title="All 2 branches missed.">        if ( childBuild.getOutputDirectory() == null )</span>
+        {
+<span class="nc" id="L81">            childBuild.setOutputDirectory( parentBuild.getOutputDirectory() );</span>
+        }
+
+<span class="nc bnc" id="L84" title="All 2 branches missed.">        if ( childBuild.getTestOutputDirectory() == null )</span>
+        {
+<span class="nc" id="L86">            childBuild.setTestOutputDirectory( parentBuild.getTestOutputDirectory() );</span>
+        }
+
+        // Extensions are accumulated
+<span class="nc" id="L90">        mergeExtensionLists( childBuild, parentBuild );</span>
+
+<span class="nc bnc" id="L92" title="All 2 branches missed.">        if ( childBuild.getDirectory() == null )</span>
+        {
+<span class="nc" id="L94">            childBuild.setDirectory( parentBuild.getDirectory() );</span>
+        }
+
+<span class="nc bnc" id="L97" title="All 2 branches missed.">        if ( childBuild.getDefaultGoal() == null )</span>
+        {
+<span class="nc" id="L99">            childBuild.setDefaultGoal( parentBuild.getDefaultGoal() );</span>
+        }
+
+<span class="nc bnc" id="L102" title="All 2 branches missed.">        if ( childBuild.getFinalName() == null )</span>
+        {
+<span class="nc" id="L104">            childBuild.setFinalName( parentBuild.getFinalName() );</span>
+        }
+
+<span class="nc" id="L107">        ModelUtils.mergeFilterLists( childBuild.getFilters(), parentBuild.getFilters() );</span>
+
+<span class="nc" id="L109">        List&lt;Resource&gt; resources = childBuild.getResources();</span>
+<span class="nc bnc" id="L110" title="All 4 branches missed.">        if ( ( resources == null ) || resources.isEmpty() )</span>
+        {
+<span class="nc" id="L112">            childBuild.setResources( parentBuild.getResources() );</span>
+        }
+
+<span class="nc" id="L115">        resources = childBuild.getTestResources();</span>
+<span class="nc bnc" id="L116" title="All 4 branches missed.">        if ( ( resources == null ) || resources.isEmpty() )</span>
+        {
+<span class="nc" id="L118">            childBuild.setTestResources( parentBuild.getTestResources() );</span>
+        }
+
+        // Plugins are aggregated if Plugin.inherit != false
+<span class="nc" id="L122">        ModelUtils.mergePluginLists( childBuild, parentBuild, handleAsInheritance );</span>
+
+        // Plugin management :: aggregate
+<span class="nc" id="L125">        PluginManagement dominantPM = childBuild.getPluginManagement();</span>
+<span class="nc" id="L126">        PluginManagement recessivePM = parentBuild.getPluginManagement();</span>
+
+<span class="nc bnc" id="L128" title="All 4 branches missed.">        if ( ( dominantPM == null ) &amp;&amp; ( recessivePM != null ) )</span>
+        {
+            // FIXME: Filter out the inherited == false stuff!
+<span class="nc" id="L131">            childBuild.setPluginManagement( recessivePM );</span>
+        }
+        else
+        {
+<span class="nc" id="L135">            ModelUtils.mergePluginLists( childBuild.getPluginManagement(), parentBuild.getPluginManagement(), false );</span>
+        }
+<span class="nc" id="L137">    }</span>
+
+    private void assembleScmInheritance( Model child, Model parent, String childPathAdjustment, boolean appendPaths )
+    {
+<span class="nc bnc" id="L141" title="All 2 branches missed.">        if ( parent.getScm() != null )</span>
+        {
+<span class="nc" id="L143">            Scm parentScm = parent.getScm();</span>
+
+<span class="nc" id="L145">            Scm childScm = child.getScm();</span>
+
+<span class="nc bnc" id="L147" title="All 2 branches missed.">            if ( childScm == null )</span>
+            {
+<span class="nc" id="L149">                childScm = new Scm();</span>
+
+<span class="nc" id="L151">                child.setScm( childScm );</span>
+            }
+
+<span class="nc bnc" id="L154" title="All 4 branches missed.">            if ( StringUtils.isEmpty( childScm.getConnection() ) &amp;&amp; !StringUtils.isEmpty( parentScm.getConnection() ) )</span>
+            {
+<span class="nc" id="L156">                childScm.setConnection(</span>
+                    appendPath( parentScm.getConnection(), child.getArtifactId(), childPathAdjustment, appendPaths ) );
+            }
+
+<span class="nc bnc" id="L160" title="All 4 branches missed.">            if ( StringUtils.isEmpty( childScm.getDeveloperConnection() )</span>
+                &amp;&amp; !StringUtils.isEmpty( parentScm.getDeveloperConnection() ) )
+            {
+<span class="nc" id="L163">                childScm</span>
+                    .setDeveloperConnection( appendPath( parentScm.getDeveloperConnection(), child.getArtifactId(),
+                                                         childPathAdjustment, appendPaths ) );
+            }
+
+<span class="nc bnc" id="L168" title="All 4 branches missed.">            if ( StringUtils.isEmpty( childScm.getUrl() ) &amp;&amp; !StringUtils.isEmpty( parentScm.getUrl() ) )</span>
+            {
+<span class="nc" id="L170">                childScm.setUrl(</span>
+                    appendPath( parentScm.getUrl(), child.getArtifactId(), childPathAdjustment, appendPaths ) );
+            }
+        }
+<span class="nc" id="L174">    }</span>
+
+    public void copyModel( Model dest, Model source )
+    {
+<span class="nc" id="L178">        assembleModelInheritance( dest, source, null, false );</span>
+<span class="nc" id="L179">    }</span>
+
+    public void assembleModelInheritance( Model child, Model parent, String childPathAdjustment )
+    {
+<span class="nc" id="L183">        assembleModelInheritance( child, parent, childPathAdjustment, true );</span>
+<span class="nc" id="L184">    }</span>
+
+    public void assembleModelInheritance( Model child, Model parent )
+    {
+<span class="nc" id="L188">        assembleModelInheritance( child, parent, null, true );</span>
+<span class="nc" id="L189">    }</span>
+
+    private void assembleModelInheritance( Model child, Model parent, String childPathAdjustment, boolean appendPaths )
+    {
+        // cannot inherit from null parent.
+<span class="nc bnc" id="L194" title="All 2 branches missed.">        if ( parent == null )</span>
+        {
+<span class="nc" id="L196">            return;</span>
+        }
+
+        // Group id
+<span class="nc bnc" id="L200" title="All 2 branches missed.">        if ( child.getGroupId() == null )</span>
+        {
+<span class="nc" id="L202">            child.setGroupId( parent.getGroupId() );</span>
+        }
+
+        // version
+<span class="nc bnc" id="L206" title="All 2 branches missed.">        if ( child.getVersion() == null )</span>
+        {
+            // The parent version may have resolved to something different, so we take what we asked for...
+            // instead of - child.setVersion( parent.getVersion() );
+
+<span class="nc bnc" id="L211" title="All 2 branches missed.">            if ( child.getParent() != null )</span>
+            {
+<span class="nc" id="L213">                child.setVersion( child.getParent().getVersion() );</span>
+            }
+        }
+
+        // inceptionYear
+<span class="nc bnc" id="L218" title="All 2 branches missed.">        if ( child.getInceptionYear() == null )</span>
+        {
+<span class="nc" id="L220">            child.setInceptionYear( parent.getInceptionYear() );</span>
+        }
+
+        // url
+<span class="nc bnc" id="L224" title="All 2 branches missed.">        if ( child.getUrl() == null )</span>
+        {
+<span class="nc bnc" id="L226" title="All 2 branches missed.">            if ( parent.getUrl() != null )</span>
+            {
+<span class="nc" id="L228">                child.setUrl( appendPath( parent.getUrl(), child.getArtifactId(), childPathAdjustment, appendPaths ) );</span>
+            }
+            else
+            {
+<span class="nc" id="L232">                child.setUrl( parent.getUrl() );</span>
+            }
+        }
+
+<span class="nc" id="L236">        assembleDistributionInheritance( child, parent, childPathAdjustment, appendPaths );</span>
+
+        // issueManagement
+<span class="nc bnc" id="L239" title="All 2 branches missed.">        if ( child.getIssueManagement() == null )</span>
+        {
+<span class="nc" id="L241">            child.setIssueManagement( parent.getIssueManagement() );</span>
+        }
+
+        // description
+<span class="nc bnc" id="L245" title="All 2 branches missed.">        if ( child.getDescription() == null )</span>
+        {
+<span class="nc" id="L247">            child.setDescription( parent.getDescription() );</span>
+        }
+
+        // Organization
+<span class="nc bnc" id="L251" title="All 2 branches missed.">        if ( child.getOrganization() == null )</span>
+        {
+<span class="nc" id="L253">            child.setOrganization( parent.getOrganization() );</span>
+        }
+
+        // Scm
+<span class="nc" id="L257">        assembleScmInheritance( child, parent, childPathAdjustment, appendPaths );</span>
+
+        // ciManagement
+<span class="nc bnc" id="L260" title="All 2 branches missed.">        if ( child.getCiManagement() == null )</span>
+        {
+<span class="nc" id="L262">            child.setCiManagement( parent.getCiManagement() );</span>
+        }
+
+        // developers
+<span class="nc bnc" id="L266" title="All 2 branches missed.">        if ( child.getDevelopers().size() == 0 )</span>
+        {
+<span class="nc" id="L268">            child.setDevelopers( parent.getDevelopers() );</span>
+        }
+
+        // licenses
+<span class="nc bnc" id="L272" title="All 2 branches missed.">        if ( child.getLicenses().size() == 0 )</span>
+        {
+<span class="nc" id="L274">            child.setLicenses( parent.getLicenses() );</span>
+        }
+
+        // developers
+<span class="nc bnc" id="L278" title="All 2 branches missed.">        if ( child.getContributors().size() == 0 )</span>
+        {
+<span class="nc" id="L280">            child.setContributors( parent.getContributors() );</span>
+        }
+
+        // mailingLists
+<span class="nc bnc" id="L284" title="All 2 branches missed.">        if ( child.getMailingLists().size() == 0 )</span>
+        {
+<span class="nc" id="L286">            child.setMailingLists( parent.getMailingLists() );</span>
+        }
+
+        // Build
+<span class="nc" id="L290">        assembleBuildInheritance( child, parent );</span>
+
+<span class="nc" id="L292">        assembleDependencyInheritance( child, parent );</span>
+
+<span class="nc" id="L294">        child.setRepositories( ModelUtils.mergeRepositoryLists( child.getRepositories(), parent.getRepositories() ) );</span>
+//        child.setPluginRepositories(
+//            ModelUtils.mergeRepositoryLists( child.getPluginRepositories(), parent.getPluginRepositories() ) );
+
+<span class="nc" id="L298">        assembleReportingInheritance( child, parent );</span>
+
+<span class="nc" id="L300">        assembleDependencyManagementInheritance( child, parent );</span>
+
+<span class="nc" id="L302">        Properties props = new Properties();</span>
+<span class="nc" id="L303">        props.putAll( parent.getProperties() );</span>
+<span class="nc" id="L304">        props.putAll( child.getProperties() );</span>
+
+<span class="nc" id="L306">        child.setProperties( props );</span>
+<span class="nc" id="L307">    }</span>
+
+    // TODO Remove this!
+    @SuppressWarnings( &quot;unchecked&quot; )
+    private void assembleDependencyManagementInheritance( Model child, Model parent )
+    {
+<span class="nc" id="L313">        DependencyManagement parentDepMgmt = parent.getDependencyManagement();</span>
+
+<span class="nc" id="L315">        DependencyManagement childDepMgmt = child.getDependencyManagement();</span>
+
+<span class="nc bnc" id="L317" title="All 2 branches missed.">        if ( parentDepMgmt != null )</span>
+        {
+<span class="nc bnc" id="L319" title="All 2 branches missed.">            if ( childDepMgmt == null )</span>
+            {
+<span class="nc" id="L321">                child.setDependencyManagement( parentDepMgmt );</span>
+            }
+            else
+            {
+<span class="nc" id="L325">                List&lt;Dependency&gt; childDeps = childDepMgmt.getDependencies();</span>
+
+<span class="nc" id="L327">                Map&lt;String, Dependency&gt; mappedChildDeps = new TreeMap&lt;&gt;();</span>
+<span class="nc bnc" id="L328" title="All 2 branches missed.">                for ( Dependency dep : childDeps )</span>
+                {
+<span class="nc" id="L330">                    mappedChildDeps.put( dep.getManagementKey(), dep );</span>
+<span class="nc" id="L331">                }</span>
+
+<span class="nc bnc" id="L333" title="All 2 branches missed.">                for ( Dependency dep : parentDepMgmt.getDependencies() )</span>
+                {
+<span class="nc bnc" id="L335" title="All 2 branches missed.">                    if ( !mappedChildDeps.containsKey( dep.getManagementKey() ) )</span>
+                    {
+<span class="nc" id="L337">                        childDepMgmt.addDependency( dep );</span>
+                    }
+<span class="nc" id="L339">                }</span>
+            }
+        }
+<span class="nc" id="L342">    }</span>
+
+    private void assembleReportingInheritance( Model child, Model parent )
+    {
+        // Reports :: aggregate
+<span class="nc" id="L347">        Reporting childReporting = child.getReporting();</span>
+<span class="nc" id="L348">        Reporting parentReporting = parent.getReporting();</span>
+
+<span class="nc bnc" id="L350" title="All 2 branches missed.">        if ( parentReporting != null )</span>
+        {
+<span class="nc bnc" id="L352" title="All 2 branches missed.">            if ( childReporting == null )</span>
+            {
+<span class="nc" id="L354">                childReporting = new Reporting();</span>
+<span class="nc" id="L355">                child.setReporting( childReporting );</span>
+            }
+
+<span class="nc" id="L358">            childReporting.setExcludeDefaults( parentReporting.isExcludeDefaults() );</span>
+
+<span class="nc bnc" id="L360" title="All 2 branches missed.">            if ( StringUtils.isEmpty( childReporting.getOutputDirectory() ) )</span>
+            {
+<span class="nc" id="L362">                childReporting.setOutputDirectory( parentReporting.getOutputDirectory() );</span>
+            }
+
+<span class="nc" id="L365">            mergeReportPluginLists( childReporting, parentReporting, true );</span>
+        }
+<span class="nc" id="L367">    }</span>
+
+    private static void mergeReportPluginLists( Reporting child, Reporting parent, boolean handleAsInheritance )
+    {
+<span class="nc bnc" id="L371" title="All 4 branches missed.">        if ( ( child == null ) || ( parent == null ) )</span>
+        {
+            // nothing to do.
+<span class="nc" id="L374">            return;</span>
+        }
+
+<span class="nc" id="L377">        List&lt;ReportPlugin&gt; parentPlugins = parent.getPlugins();</span>
+
+<span class="nc bnc" id="L379" title="All 4 branches missed.">        if ( ( parentPlugins != null ) &amp;&amp; !parentPlugins.isEmpty() )</span>
+        {
+<span class="nc" id="L381">            Map&lt;String, ReportPlugin&gt; assembledPlugins = new TreeMap&lt;&gt;();</span>
+
+<span class="nc" id="L383">            Map&lt;String, ReportPlugin&gt; childPlugins = child.getReportPluginsAsMap();</span>
+
+<span class="nc bnc" id="L385" title="All 2 branches missed.">            for ( ReportPlugin parentPlugin : parentPlugins )</span>
+            {
+<span class="nc" id="L387">                String parentInherited = parentPlugin.getInherited();</span>
+
+<span class="nc bnc" id="L389" title="All 6 branches missed.">                if ( !handleAsInheritance || ( parentInherited == null ) || Boolean.valueOf( parentInherited ) )</span>
+                {
+
+<span class="nc" id="L392">                    ReportPlugin assembledPlugin = parentPlugin;</span>
+
+<span class="nc" id="L394">                    ReportPlugin childPlugin = childPlugins.get( parentPlugin.getKey() );</span>
+
+<span class="nc bnc" id="L396" title="All 2 branches missed.">                    if ( childPlugin != null )</span>
+                    {
+<span class="nc" id="L398">                        assembledPlugin = childPlugin;</span>
+
+<span class="nc" id="L400">                        mergeReportPluginDefinitions( childPlugin, parentPlugin, handleAsInheritance );</span>
+                    }
+
+<span class="nc bnc" id="L403" title="All 4 branches missed.">                    if ( handleAsInheritance &amp;&amp; ( parentInherited == null ) )</span>
+                    {
+<span class="nc" id="L405">                        assembledPlugin.unsetInheritanceApplied();</span>
+                    }
+
+<span class="nc" id="L408">                    assembledPlugins.put( assembledPlugin.getKey(), assembledPlugin );</span>
+                }
+<span class="nc" id="L410">            }</span>
+
+<span class="nc bnc" id="L412" title="All 2 branches missed.">            for ( ReportPlugin childPlugin : childPlugins.values() )</span>
+            {
+<span class="nc bnc" id="L414" title="All 2 branches missed.">                if ( !assembledPlugins.containsKey( childPlugin.getKey() ) )</span>
+                {
+<span class="nc" id="L416">                    assembledPlugins.put( childPlugin.getKey(), childPlugin );</span>
+                }
+<span class="nc" id="L418">            }</span>
+
+<span class="nc" id="L420">            child.setPlugins( new ArrayList&lt;&gt;( assembledPlugins.values() ) );</span>
+
+<span class="nc" id="L422">            child.flushReportPluginMap();</span>
+        }
+<span class="nc" id="L424">    }</span>
+
+    private static void mergeReportSetDefinitions( ReportSet child, ReportSet parent )
+    {
+<span class="nc" id="L428">        List&lt;String&gt; parentReports = parent.getReports();</span>
+<span class="nc" id="L429">        List&lt;String&gt; childReports = child.getReports();</span>
+
+<span class="nc" id="L431">        List&lt;String&gt; reports = new ArrayList&lt;&gt;();</span>
+
+<span class="nc bnc" id="L433" title="All 4 branches missed.">        if ( ( childReports != null ) &amp;&amp; !childReports.isEmpty() )</span>
+        {
+<span class="nc" id="L435">            reports.addAll( childReports );</span>
+        }
+
+<span class="nc bnc" id="L438" title="All 2 branches missed.">        if ( parentReports != null )</span>
+        {
+<span class="nc bnc" id="L440" title="All 2 branches missed.">            for ( String report : parentReports )</span>
+            {
+<span class="nc bnc" id="L442" title="All 2 branches missed.">                if ( !reports.contains( report ) )</span>
+                {
+<span class="nc" id="L444">                    reports.add( report );</span>
+                }
+<span class="nc" id="L446">            }</span>
+        }
+
+<span class="nc" id="L449">        child.setReports( reports );</span>
+
+<span class="nc" id="L451">        Xpp3Dom childConfiguration = (Xpp3Dom) child.getConfiguration();</span>
+<span class="nc" id="L452">        Xpp3Dom parentConfiguration = (Xpp3Dom) parent.getConfiguration();</span>
+
+<span class="nc" id="L454">        childConfiguration = Xpp3Dom.mergeXpp3Dom( childConfiguration, parentConfiguration );</span>
+
+<span class="nc" id="L456">        child.setConfiguration( childConfiguration );</span>
+<span class="nc" id="L457">    }</span>
+
+
+    public static void mergeReportPluginDefinitions( ReportPlugin child, ReportPlugin parent,
+                                                     boolean handleAsInheritance )
+    {
+<span class="nc bnc" id="L463" title="All 4 branches missed.">        if ( ( child == null ) || ( parent == null ) )</span>
+        {
+            // nothing to do.
+<span class="nc" id="L466">            return;</span>
+        }
+
+<span class="nc bnc" id="L469" title="All 4 branches missed.">        if ( ( child.getVersion() == null ) &amp;&amp; ( parent.getVersion() != null ) )</span>
+        {
+<span class="nc" id="L471">            child.setVersion( parent.getVersion() );</span>
+        }
+
+        // from here to the end of the method is dealing with merging of the &lt;executions/&gt; section.
+<span class="nc" id="L475">        String parentInherited = parent.getInherited();</span>
+
+<span class="nc bnc" id="L477" title="All 4 branches missed.">        boolean parentIsInherited = ( parentInherited == null ) || Boolean.valueOf( parentInherited );</span>
+
+<span class="nc" id="L479">        List&lt;ReportSet&gt; parentReportSets = parent.getReportSets();</span>
+
+<span class="nc bnc" id="L481" title="All 4 branches missed.">        if ( ( parentReportSets != null ) &amp;&amp; !parentReportSets.isEmpty() )</span>
+        {
+<span class="nc" id="L483">            Map&lt;String, ReportSet&gt; assembledReportSets = new TreeMap&lt;&gt;();</span>
+
+<span class="nc" id="L485">            Map&lt;String, ReportSet&gt; childReportSets = child.getReportSetsAsMap();</span>
+
+<span class="nc bnc" id="L487" title="All 2 branches missed.">            for ( Object parentReportSet1 : parentReportSets )</span>
+            {
+<span class="nc" id="L489">                ReportSet parentReportSet = (ReportSet) parentReportSet1;</span>
+
+<span class="nc bnc" id="L491" title="All 4 branches missed.">                if ( !handleAsInheritance || parentIsInherited )</span>
+                {
+<span class="nc" id="L493">                    ReportSet assembledReportSet = parentReportSet;</span>
+
+<span class="nc" id="L495">                    ReportSet childReportSet = childReportSets.get( parentReportSet.getId() );</span>
+
+<span class="nc bnc" id="L497" title="All 2 branches missed.">                    if ( childReportSet != null )</span>
+                    {
+<span class="nc" id="L499">                        mergeReportSetDefinitions( childReportSet, parentReportSet );</span>
+
+<span class="nc" id="L501">                        assembledReportSet = childReportSet;</span>
+                    }
+<span class="nc bnc" id="L503" title="All 4 branches missed.">                    else if ( handleAsInheritance &amp;&amp; ( parentInherited == null ) )</span>
+                    {
+<span class="nc" id="L505">                        parentReportSet.unsetInheritanceApplied();</span>
+                    }
+
+<span class="nc" id="L508">                    assembledReportSets.put( assembledReportSet.getId(), assembledReportSet );</span>
+                }
+<span class="nc" id="L510">            }</span>
+
+<span class="nc bnc" id="L512" title="All 2 branches missed.">            for ( Map.Entry&lt;String, ReportSet&gt; entry : childReportSets.entrySet() )</span>
+            {
+<span class="nc" id="L514">                String id = entry.getKey();</span>
+
+<span class="nc bnc" id="L516" title="All 2 branches missed.">                if ( !assembledReportSets.containsKey( id ) )</span>
+                {
+<span class="nc" id="L518">                    assembledReportSets.put( id, entry.getValue() );</span>
+                }
+<span class="nc" id="L520">            }</span>
+
+<span class="nc" id="L522">            child.setReportSets( new ArrayList&lt;&gt;( assembledReportSets.values() ) );</span>
+
+<span class="nc" id="L524">            child.flushReportSetMap();</span>
+        }
+
+<span class="nc" id="L527">    }</span>
+
+    // TODO Remove this!
+    @SuppressWarnings( &quot;unchecked&quot; )
+    private void assembleDependencyInheritance( Model child, Model parent )
+    {
+<span class="nc" id="L533">        Map&lt;String, Dependency&gt; depsMap = new LinkedHashMap&lt;&gt;();</span>
+
+<span class="nc" id="L535">        List&lt;Dependency&gt; deps = parent.getDependencies();</span>
+
+<span class="nc bnc" id="L537" title="All 2 branches missed.">        if ( deps != null )</span>
+        {
+<span class="nc bnc" id="L539" title="All 2 branches missed.">            for ( Dependency dependency : deps )</span>
+            {
+<span class="nc" id="L541">                depsMap.put( dependency.getManagementKey(), dependency );</span>
+<span class="nc" id="L542">            }</span>
+        }
+
+<span class="nc" id="L545">        deps = child.getDependencies();</span>
+
+<span class="nc bnc" id="L547" title="All 2 branches missed.">        if ( deps != null )</span>
+        {
+<span class="nc bnc" id="L549" title="All 2 branches missed.">            for ( Dependency dependency : deps )</span>
+            {
+<span class="nc" id="L551">                depsMap.put( dependency.getManagementKey(), dependency );</span>
+<span class="nc" id="L552">            }</span>
+        }
+
+<span class="nc" id="L555">        child.setDependencies( new ArrayList&lt;&gt;( depsMap.values() ) );</span>
+<span class="nc" id="L556">    }</span>
+
+    private void assembleBuildInheritance( Model child, Model parent )
+    {
+<span class="nc" id="L560">        Build childBuild = child.getBuild();</span>
+<span class="nc" id="L561">        Build parentBuild = parent.getBuild();</span>
+
+<span class="nc bnc" id="L563" title="All 2 branches missed.">        if ( parentBuild != null )</span>
+        {
+<span class="nc bnc" id="L565" title="All 2 branches missed.">            if ( childBuild == null )</span>
+            {
+<span class="nc" id="L567">                childBuild = new Build();</span>
+<span class="nc" id="L568">                child.setBuild( childBuild );</span>
+            }
+
+<span class="nc" id="L571">            assembleBuildInheritance( childBuild, parentBuild, true );</span>
+        }
+<span class="nc" id="L573">    }</span>
+
+    private void assembleDistributionInheritance( Model child, Model parent, String childPathAdjustment,
+                                                  boolean appendPaths )
+    {
+<span class="nc bnc" id="L578" title="All 2 branches missed.">        if ( parent.getDistributionManagement() != null )</span>
+        {
+<span class="nc" id="L580">            DistributionManagement parentDistMgmt = parent.getDistributionManagement();</span>
+
+<span class="nc" id="L582">            DistributionManagement childDistMgmt = child.getDistributionManagement();</span>
+
+<span class="nc bnc" id="L584" title="All 2 branches missed.">            if ( childDistMgmt == null )</span>
+            {
+<span class="nc" id="L586">                childDistMgmt = new DistributionManagement();</span>
+
+<span class="nc" id="L588">                child.setDistributionManagement( childDistMgmt );</span>
+            }
+
+<span class="nc bnc" id="L591" title="All 2 branches missed.">            if ( childDistMgmt.getSite() == null )</span>
+            {
+<span class="nc bnc" id="L593" title="All 2 branches missed.">                if ( parentDistMgmt.getSite() != null )</span>
+                {
+<span class="nc" id="L595">                    Site site = new Site();</span>
+
+<span class="nc" id="L597">                    childDistMgmt.setSite( site );</span>
+
+<span class="nc" id="L599">                    site.setId( parentDistMgmt.getSite().getId() );</span>
+
+<span class="nc" id="L601">                    site.setName( parentDistMgmt.getSite().getName() );</span>
+
+<span class="nc" id="L603">                    site.setUrl( parentDistMgmt.getSite().getUrl() );</span>
+
+<span class="nc bnc" id="L605" title="All 2 branches missed.">                    if ( site.getUrl() != null )</span>
+                    {
+<span class="nc" id="L607">                        site.setUrl(</span>
+                            appendPath( site.getUrl(), child.getArtifactId(), childPathAdjustment, appendPaths ) );
+                    }
+                }
+            }
+
+<span class="nc bnc" id="L613" title="All 2 branches missed.">            if ( childDistMgmt.getRepository() == null )</span>
+            {
+<span class="nc bnc" id="L615" title="All 2 branches missed.">                if ( parentDistMgmt.getRepository() != null )</span>
+                {
+<span class="nc" id="L617">                    DeploymentRepository repository = copyDistributionRepository( parentDistMgmt.getRepository() );</span>
+<span class="nc" id="L618">                    childDistMgmt.setRepository( repository );</span>
+                }
+            }
+
+<span class="nc bnc" id="L622" title="All 2 branches missed.">            if ( childDistMgmt.getSnapshotRepository() == null )</span>
+            {
+<span class="nc bnc" id="L624" title="All 2 branches missed.">                if ( parentDistMgmt.getSnapshotRepository() != null )</span>
+                {
+<span class="nc" id="L626">                    DeploymentRepository repository =</span>
+                        copyDistributionRepository( parentDistMgmt.getSnapshotRepository() );
+<span class="nc" id="L628">                    childDistMgmt.setSnapshotRepository( repository );</span>
+                }
+            }
+
+<span class="nc bnc" id="L632" title="All 2 branches missed.">            if ( StringUtils.isEmpty( childDistMgmt.getDownloadUrl() ) )</span>
+            {
+<span class="nc" id="L634">                childDistMgmt.setDownloadUrl( parentDistMgmt.getDownloadUrl() );</span>
+            }
+
+            // NOTE: We SHOULD NOT be inheriting status, since this is an assessment of the POM quality.
+            // NOTE: We SHOULD NOT be inheriting relocation, since this relates to a single POM
+        }
+<span class="nc" id="L640">    }</span>
+
+    private static DeploymentRepository copyDistributionRepository( DeploymentRepository parentRepository )
+    {
+<span class="nc" id="L644">        DeploymentRepository repository = new DeploymentRepository();</span>
+
+<span class="nc" id="L646">        repository.setId( parentRepository.getId() );</span>
+
+<span class="nc" id="L648">        repository.setName( parentRepository.getName() );</span>
+
+<span class="nc" id="L650">        repository.setUrl( parentRepository.getUrl() );</span>
+
+<span class="nc" id="L652">        repository.setLayout( parentRepository.getLayout() );</span>
+
+<span class="nc" id="L654">        repository.setUniqueVersion( parentRepository.isUniqueVersion() );</span>
+
+<span class="nc" id="L656">        return repository;</span>
+    }
+
+    // TODO This should eventually be migrated to DefaultPathTranslator.
+    protected String appendPath( String parentPath, String childPath, String pathAdjustment, boolean appendPaths )
+    {
+<span class="nc" id="L662">        String uncleanPath = parentPath;</span>
+
+<span class="nc bnc" id="L664" title="All 2 branches missed.">        if ( appendPaths )</span>
+        {
+<span class="nc bnc" id="L666" title="All 2 branches missed.">            if ( pathAdjustment != null )</span>
+            {
+<span class="nc" id="L668">                uncleanPath += &quot;/&quot; + pathAdjustment;</span>
+            }
+
+<span class="nc bnc" id="L671" title="All 2 branches missed.">            if ( childPath != null )</span>
+            {
+<span class="nc" id="L673">                uncleanPath += &quot;/&quot; + childPath;</span>
+            }
+        }
+
+<span class="nc" id="L677">        String cleanedPath = &quot;&quot;;</span>
+
+<span class="nc" id="L679">        int protocolIdx = uncleanPath.indexOf( &quot;://&quot; );</span>
+
+<span class="nc bnc" id="L681" title="All 2 branches missed.">        if ( protocolIdx &gt; -1 )</span>
+        {
+<span class="nc" id="L683">            cleanedPath = uncleanPath.substring( 0, protocolIdx + 3 );</span>
+<span class="nc" id="L684">            uncleanPath = uncleanPath.substring( protocolIdx + 3 );</span>
+        }
+
+<span class="nc bnc" id="L687" title="All 2 branches missed.">        if ( uncleanPath.startsWith( &quot;/&quot; ) )</span>
+        {
+<span class="nc" id="L689">            cleanedPath += &quot;/&quot;;</span>
+        }
+
+<span class="nc" id="L692">        return cleanedPath + resolvePath( uncleanPath );</span>
+    }
+
+    // TODO Move this to plexus-utils' PathTool.
+    private static String resolvePath( String uncleanPath )
+    {
+<span class="nc" id="L698">        LinkedList&lt;String&gt; pathElements = new LinkedList&lt;&gt;();</span>
+
+<span class="nc" id="L700">        StringTokenizer tokenizer = new StringTokenizer( uncleanPath, &quot;/&quot; );</span>
+
+<span class="nc bnc" id="L702" title="All 2 branches missed.">        while ( tokenizer.hasMoreTokens() )</span>
+        {
+<span class="nc" id="L704">            String token = tokenizer.nextToken();</span>
+
+<span class="nc bnc" id="L706" title="All 3 branches missed.">            switch ( token )</span>
+            {
+                case &quot;&quot;:
+                    // Empty path entry (&quot;...//..&quot;), remove.
+<span class="nc" id="L710">                    break;</span>
+                case &quot;..&quot;:
+<span class="nc bnc" id="L712" title="All 2 branches missed.">                    if ( pathElements.isEmpty() )</span>
+                    {
+                        // FIXME: somehow report to the user
+                        // that there are too many '..' elements.
+                        // For now, ignore the extra '..'.
+                    }
+                    else
+                    {
+<span class="nc" id="L720">                        pathElements.removeLast();</span>
+                    }
+<span class="nc" id="L722">                    break;</span>
+                default:
+<span class="nc" id="L724">                    pathElements.addLast( token );</span>
+                    break;
+            }
+<span class="nc" id="L727">        }</span>
+
+<span class="nc" id="L729">        StringBuilder cleanedPath = new StringBuilder();</span>
+
+<span class="nc bnc" id="L731" title="All 2 branches missed.">        while ( !pathElements.isEmpty() )</span>
+        {
+<span class="nc" id="L733">            cleanedPath.append( pathElements.removeFirst() );</span>
+<span class="nc bnc" id="L734" title="All 2 branches missed.">            if ( !pathElements.isEmpty() )</span>
+            {
+<span class="nc" id="L736">                cleanedPath.append( '/' );</span>
+            }
+        }
+
+<span class="nc" id="L740">        return cleanedPath.toString();</span>
+    }
+
+    private static void mergeExtensionLists( Build childBuild, Build parentBuild )
+    {
+<span class="nc bnc" id="L745" title="All 2 branches missed.">        for ( Extension e : parentBuild.getExtensions() )</span>
+        {
+<span class="nc bnc" id="L747" title="All 2 branches missed.">            if ( !childBuild.getExtensions().contains( e ) )</span>
+            {
+<span class="nc" id="L749">                childBuild.addExtension( e );</span>
+            }
+<span class="nc" id="L751">        }</span>
+<span class="nc" id="L752">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

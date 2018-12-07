@@ -1,0 +1,960 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultProjectBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.project</a> &gt; <span class="el_source">DefaultProjectBuilder.java</span></div><h1>DefaultProjectBuilder.java</h1><pre class="source lang-java linenums">package org.apache.maven.project;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.apache.maven.RepositoryUtils;
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.InvalidRepositoryException;
+import org.apache.maven.artifact.repository.ArtifactRepository;
+import org.apache.maven.artifact.repository.LegacyLocalRepositoryManager;
+import org.apache.maven.bridge.MavenRepositorySystem;
+import org.apache.maven.model.Build;
+import org.apache.maven.model.Dependency;
+import org.apache.maven.model.DependencyManagement;
+import org.apache.maven.model.DeploymentRepository;
+import org.apache.maven.model.Extension;
+import org.apache.maven.model.Model;
+import org.apache.maven.model.Plugin;
+import org.apache.maven.model.Profile;
+import org.apache.maven.model.ReportPlugin;
+import org.apache.maven.model.building.DefaultModelBuildingRequest;
+import org.apache.maven.model.building.DefaultModelProblem;
+import org.apache.maven.model.building.FileModelSource;
+import org.apache.maven.model.building.ModelBuilder;
+import org.apache.maven.model.building.ModelBuildingException;
+import org.apache.maven.model.building.ModelBuildingRequest;
+import org.apache.maven.model.building.ModelBuildingResult;
+import org.apache.maven.model.building.ModelProblem;
+import org.apache.maven.model.building.ModelProcessor;
+import org.apache.maven.model.building.ModelSource;
+import org.apache.maven.model.building.StringModelSource;
+import org.apache.maven.model.resolution.ModelResolver;
+import org.apache.maven.repository.internal.ArtifactDescriptorUtils;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
+import org.codehaus.plexus.logging.Logger;
+import org.codehaus.plexus.util.Os;
+import org.codehaus.plexus.util.StringUtils;
+import org.eclipse.aether.RepositorySystemSession;
+import org.eclipse.aether.RequestTrace;
+import org.eclipse.aether.impl.RemoteRepositoryManager;
+import org.eclipse.aether.repository.LocalRepositoryManager;
+import org.eclipse.aether.repository.RemoteRepository;
+import org.eclipse.aether.repository.WorkspaceRepository;
+import org.eclipse.aether.resolution.ArtifactRequest;
+import org.eclipse.aether.resolution.ArtifactResult;
+
+/**
+ * DefaultProjectBuilder
+ */
+@Component( role = ProjectBuilder.class )
+<span class="fc" id="L80">public class DefaultProjectBuilder</span>
+    implements ProjectBuilder
+{
+
+    @Requirement
+    private Logger logger;
+
+    @Requirement
+    private ModelBuilder modelBuilder;
+
+    @Requirement
+    private ModelProcessor modelProcessor;
+
+    @Requirement
+    private ProjectBuildingHelper projectBuildingHelper;
+
+    @Requirement
+    private MavenRepositorySystem repositorySystem;
+
+    @Requirement
+    private org.eclipse.aether.RepositorySystem repoSystem;
+
+    @Requirement
+    private RemoteRepositoryManager repositoryManager;
+
+    @Requirement
+    private ProjectDependenciesResolver dependencyResolver;
+
+    // ----------------------------------------------------------------------
+    // MavenProjectBuilder Implementation
+    // ----------------------------------------------------------------------
+
+    @Override
+    public ProjectBuildingResult build( File pomFile, ProjectBuildingRequest request )
+        throws ProjectBuildingException
+    {
+<span class="fc" id="L116">        return build( pomFile, new FileModelSource( pomFile ), new InternalConfig( request, null, null ) );</span>
+    }
+
+    @Override
+    public ProjectBuildingResult build( ModelSource modelSource, ProjectBuildingRequest request )
+        throws ProjectBuildingException
+    {
+<span class="fc" id="L123">        return build( null, modelSource, new InternalConfig( request, null, null ) );</span>
+    }
+
+    private ProjectBuildingResult build( File pomFile, ModelSource modelSource, InternalConfig config )
+        throws ProjectBuildingException
+    {
+<span class="fc" id="L129">        ClassLoader oldContextClassLoader = Thread.currentThread().getContextClassLoader();</span>
+
+        try
+        {
+<span class="fc" id="L133">            ProjectBuildingRequest projectBuildingRequest = config.request;</span>
+
+<span class="fc" id="L135">            MavenProject project = projectBuildingRequest.getProject();</span>
+
+<span class="fc" id="L137">            List&lt;ModelProblem&gt; modelProblems = null;</span>
+<span class="fc" id="L138">            Throwable error = null;</span>
+
+<span class="fc bfc" id="L140" title="All 2 branches covered.">            if ( project == null )</span>
+            {
+<span class="fc" id="L142">                ModelBuildingRequest request = getModelBuildingRequest( config );</span>
+
+<span class="fc" id="L144">                project = new MavenProject();</span>
+<span class="fc" id="L145">                project.setFile( pomFile );</span>
+
+<span class="fc" id="L147">                DefaultModelBuildingListener listener =</span>
+                    new DefaultModelBuildingListener( project, projectBuildingHelper, projectBuildingRequest );
+<span class="fc" id="L149">                request.setModelBuildingListener( listener );</span>
+
+<span class="fc" id="L151">                request.setPomFile( pomFile );</span>
+<span class="fc" id="L152">                request.setModelSource( modelSource );</span>
+<span class="fc" id="L153">                request.setLocationTracking( true );</span>
+
+                ModelBuildingResult result;
+                try
+                {
+<span class="fc" id="L158">                    result = modelBuilder.build( request );</span>
+                }
+<span class="fc" id="L160">                catch ( ModelBuildingException e )</span>
+                {
+<span class="fc" id="L162">                    result = e.getResult();</span>
+<span class="pc bpc" id="L163" title="1 of 4 branches missed.">                    if ( result == null || result.getEffectiveModel() == null )</span>
+                    {
+<span class="fc" id="L165">                        throw new ProjectBuildingException( e.getModelId(), e.getMessage(), pomFile, e );</span>
+                    }
+                    // validation error, continue project building and delay failing to help IDEs
+<span class="fc" id="L168">                    error = e;</span>
+<span class="fc" id="L169">                }</span>
+
+<span class="fc" id="L171">                modelProblems = result.getProblems();</span>
+
+<span class="fc" id="L173">                initProject( project, Collections.&lt;String, MavenProject&gt;emptyMap(), result,</span>
+                             new HashMap&lt;File, Boolean&gt;(), projectBuildingRequest );
+<span class="fc" id="L175">            }</span>
+<span class="pc bpc" id="L176" title="1 of 2 branches missed.">            else if ( projectBuildingRequest.isResolveDependencies() )</span>
+            {
+<span class="fc" id="L178">                projectBuildingHelper.selectProjectRealm( project );</span>
+            }
+
+<span class="fc" id="L181">            DependencyResolutionResult resolutionResult = null;</span>
+
+<span class="fc bfc" id="L183" title="All 2 branches covered.">            if ( projectBuildingRequest.isResolveDependencies() )</span>
+            {
+<span class="fc" id="L185">                resolutionResult = resolveDependencies( project, config.session );</span>
+            }
+
+<span class="fc" id="L188">            ProjectBuildingResult result = new DefaultProjectBuildingResult( project, modelProblems, resolutionResult );</span>
+
+<span class="fc bfc" id="L190" title="All 2 branches covered.">            if ( error != null )</span>
+            {
+<span class="fc" id="L192">                ProjectBuildingException e = new ProjectBuildingException( Arrays.asList( result ) );</span>
+<span class="fc" id="L193">                e.initCause( error );</span>
+<span class="fc" id="L194">                throw e;</span>
+            }
+
+<span class="fc" id="L197">            return result;</span>
+        }
+        finally
+        {
+<span class="fc" id="L201">            Thread.currentThread().setContextClassLoader( oldContextClassLoader );</span>
+        }
+    }
+
+    private DependencyResolutionResult resolveDependencies( MavenProject project, RepositorySystemSession session )
+    {
+        DependencyResolutionResult resolutionResult;
+
+        try
+        {
+<span class="fc" id="L211">            DefaultDependencyResolutionRequest resolution = new DefaultDependencyResolutionRequest( project, session );</span>
+<span class="fc" id="L212">            resolutionResult = dependencyResolver.resolve( resolution );</span>
+        }
+<span class="fc" id="L214">        catch ( DependencyResolutionException e )</span>
+        {
+<span class="fc" id="L216">            resolutionResult = e.getResult();</span>
+<span class="fc" id="L217">        }</span>
+
+<span class="fc" id="L219">        Set&lt;Artifact&gt; artifacts = new LinkedHashSet&lt;&gt;();</span>
+<span class="pc bpc" id="L220" title="1 of 2 branches missed.">        if ( resolutionResult.getDependencyGraph() != null )</span>
+        {
+<span class="fc" id="L222">            RepositoryUtils.toArtifacts( artifacts, resolutionResult.getDependencyGraph().getChildren(),</span>
+                                         Collections.singletonList( project.getArtifact().getId() ), null );
+
+            // Maven 2.x quirk: an artifact always points at the local repo, regardless whether resolved or not
+<span class="fc" id="L226">            LocalRepositoryManager lrm = session.getLocalRepositoryManager();</span>
+<span class="fc bfc" id="L227" title="All 2 branches covered.">            for ( Artifact artifact : artifacts )</span>
+            {
+<span class="fc bfc" id="L229" title="All 2 branches covered.">                if ( !artifact.isResolved() )</span>
+                {
+<span class="fc" id="L231">                    String path = lrm.getPathForLocalArtifact( RepositoryUtils.toArtifact( artifact ) );</span>
+<span class="fc" id="L232">                    artifact.setFile( new File( lrm.getRepository().getBasedir(), path ) );</span>
+                }
+<span class="fc" id="L234">            }</span>
+        }
+<span class="fc" id="L236">        project.setResolvedArtifacts( artifacts );</span>
+<span class="fc" id="L237">        project.setArtifacts( artifacts );</span>
+
+<span class="fc" id="L239">        return resolutionResult;</span>
+    }
+
+    private List&lt;String&gt; getProfileIds( List&lt;Profile&gt; profiles )
+    {
+<span class="fc" id="L244">        List&lt;String&gt; ids = new ArrayList&lt;&gt;( profiles.size() );</span>
+
+<span class="fc bfc" id="L246" title="All 2 branches covered.">        for ( Profile profile : profiles )</span>
+        {
+<span class="fc" id="L248">            ids.add( profile.getId() );</span>
+<span class="fc" id="L249">        }</span>
+
+<span class="fc" id="L251">        return ids;</span>
+    }
+
+    private ModelBuildingRequest getModelBuildingRequest( InternalConfig config )
+    {
+<span class="fc" id="L256">        ProjectBuildingRequest configuration = config.request;</span>
+
+<span class="fc" id="L258">        ModelBuildingRequest request = new DefaultModelBuildingRequest();</span>
+
+<span class="fc" id="L260">        RequestTrace trace = RequestTrace.newChild( null, configuration ).newChild( request );</span>
+
+<span class="fc" id="L262">        ModelResolver resolver =</span>
+            new ProjectModelResolver( config.session, trace, repoSystem, repositoryManager, config.repositories,
+                                      configuration.getRepositoryMerging(), config.modelPool );
+
+<span class="fc" id="L266">        request.setValidationLevel( configuration.getValidationLevel() );</span>
+<span class="fc" id="L267">        request.setProcessPlugins( configuration.isProcessPlugins() );</span>
+<span class="fc" id="L268">        request.setProfiles( configuration.getProfiles() );</span>
+<span class="fc" id="L269">        request.setActiveProfileIds( configuration.getActiveProfileIds() );</span>
+<span class="fc" id="L270">        request.setInactiveProfileIds( configuration.getInactiveProfileIds() );</span>
+<span class="fc" id="L271">        request.setSystemProperties( configuration.getSystemProperties() );</span>
+<span class="fc" id="L272">        request.setUserProperties( configuration.getUserProperties() );</span>
+<span class="fc" id="L273">        request.setBuildStartTime( configuration.getBuildStartTime() );</span>
+<span class="fc" id="L274">        request.setModelResolver( resolver );</span>
+<span class="fc" id="L275">        request.setModelCache( config.modelCache );</span>
+
+<span class="fc" id="L277">        return request;</span>
+    }
+
+    @Override
+    public ProjectBuildingResult build( Artifact artifact, ProjectBuildingRequest request )
+        throws ProjectBuildingException
+    {
+<span class="fc" id="L284">        return build( artifact, false, request );</span>
+    }
+
+    @Override
+    public ProjectBuildingResult build( Artifact artifact, boolean allowStubModel, ProjectBuildingRequest request )
+        throws ProjectBuildingException
+    {
+<span class="fc" id="L291">        org.eclipse.aether.artifact.Artifact pomArtifact = RepositoryUtils.toArtifact( artifact );</span>
+<span class="fc" id="L292">        pomArtifact = ArtifactDescriptorUtils.toPomArtifact( pomArtifact );</span>
+
+<span class="fc" id="L294">        InternalConfig config = new InternalConfig( request, null, null );</span>
+
+        boolean localProject;
+
+        try
+        {
+<span class="fc" id="L300">            ArtifactRequest pomRequest = new ArtifactRequest();</span>
+<span class="fc" id="L301">            pomRequest.setArtifact( pomArtifact );</span>
+<span class="fc" id="L302">            pomRequest.setRepositories( config.repositories );</span>
+<span class="fc" id="L303">            ArtifactResult pomResult = repoSystem.resolveArtifact( config.session, pomRequest );</span>
+
+<span class="fc" id="L305">            pomArtifact = pomResult.getArtifact();</span>
+<span class="fc" id="L306">            localProject = pomResult.getRepository() instanceof WorkspaceRepository;</span>
+        }
+<span class="nc" id="L308">        catch ( org.eclipse.aether.resolution.ArtifactResolutionException e )</span>
+        {
+<span class="nc bnc" id="L310" title="All 4 branches missed.">            if ( e.getResults().get( 0 ).isMissing() &amp;&amp; allowStubModel )</span>
+            {
+<span class="nc" id="L312">                return build( null, createStubModelSource( artifact ), config );</span>
+            }
+<span class="nc" id="L314">            throw new ProjectBuildingException( artifact.getId(),</span>
+                                                &quot;Error resolving project artifact: &quot; + e.getMessage(), e );
+<span class="fc" id="L316">        }</span>
+
+<span class="fc" id="L318">        File pomFile = pomArtifact.getFile();</span>
+
+<span class="pc bpc" id="L320" title="1 of 2 branches missed.">        if ( &quot;pom&quot;.equals( artifact.getType() ) )</span>
+        {
+<span class="fc" id="L322">            artifact.selectVersion( pomArtifact.getVersion() );</span>
+<span class="fc" id="L323">            artifact.setFile( pomFile );</span>
+<span class="fc" id="L324">            artifact.setResolved( true );</span>
+        }
+
+<span class="fc bfc" id="L327" title="All 2 branches covered.">        return build( localProject ? pomFile : null, new FileModelSource( pomFile ), config );</span>
+    }
+
+    private ModelSource createStubModelSource( Artifact artifact )
+    {
+<span class="nc" id="L332">        StringBuilder buffer = new StringBuilder( 1024 );</span>
+
+<span class="nc" id="L334">        buffer.append( &quot;&lt;?xml version='1.0'?&gt;&quot; );</span>
+<span class="nc" id="L335">        buffer.append( &quot;&lt;project&gt;&quot; );</span>
+<span class="nc" id="L336">        buffer.append( &quot;&lt;modelVersion&gt;4.0.0&lt;/modelVersion&gt;&quot; );</span>
+<span class="nc" id="L337">        buffer.append( &quot;&lt;groupId&gt;&quot; ).append( artifact.getGroupId() ).append( &quot;&lt;/groupId&gt;&quot; );</span>
+<span class="nc" id="L338">        buffer.append( &quot;&lt;artifactId&gt;&quot; ).append( artifact.getArtifactId() ).append( &quot;&lt;/artifactId&gt;&quot; );</span>
+<span class="nc" id="L339">        buffer.append( &quot;&lt;version&gt;&quot; ).append( artifact.getBaseVersion() ).append( &quot;&lt;/version&gt;&quot; );</span>
+<span class="nc" id="L340">        buffer.append( &quot;&lt;packaging&gt;&quot; ).append( artifact.getType() ).append( &quot;&lt;/packaging&gt;&quot; );</span>
+<span class="nc" id="L341">        buffer.append( &quot;&lt;/project&gt;&quot; );</span>
+
+<span class="nc" id="L343">        return new StringModelSource( buffer, artifact.getId() );</span>
+    }
+
+    @Override
+    public List&lt;ProjectBuildingResult&gt; build( List&lt;File&gt; pomFiles, boolean recursive, ProjectBuildingRequest request )
+        throws ProjectBuildingException
+    {
+<span class="nc" id="L350">        List&lt;ProjectBuildingResult&gt; results = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L352">        List&lt;InterimResult&gt; interimResults = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L354">        ReactorModelPool modelPool = new ReactorModelPool();</span>
+
+<span class="nc" id="L356">        ReactorModelCache modelCache = new ReactorModelCache();</span>
+
+<span class="nc" id="L358">        InternalConfig config = new InternalConfig( request, modelPool, modelCache );</span>
+
+<span class="nc" id="L360">        Map&lt;String, MavenProject&gt; projectIndex = new HashMap&lt;&gt;( 256 );</span>
+
+<span class="nc" id="L362">        boolean noErrors =</span>
+            build( results, interimResults, projectIndex, pomFiles, new LinkedHashSet&lt;File&gt;(), true, recursive,
+                   config );
+
+<span class="nc" id="L366">        populateReactorModelPool( modelPool, interimResults );</span>
+
+<span class="nc" id="L368">        ClassLoader oldContextClassLoader = Thread.currentThread().getContextClassLoader();</span>
+
+        try
+        {
+<span class="nc bnc" id="L372" title="All 4 branches missed.">            noErrors =</span>
+                build( results, new ArrayList&lt;MavenProject&gt;(), projectIndex, interimResults, request,
+                       new HashMap&lt;File, Boolean&gt;() ) &amp;&amp; noErrors;
+        }
+        finally
+        {
+<span class="nc" id="L378">            Thread.currentThread().setContextClassLoader( oldContextClassLoader );</span>
+        }
+
+<span class="nc bnc" id="L381" title="All 2 branches missed.">        if ( !noErrors )</span>
+        {
+<span class="nc" id="L383">            throw new ProjectBuildingException( results );</span>
+        }
+
+<span class="nc" id="L386">        return results;</span>
+    }
+
+    @SuppressWarnings( &quot;checkstyle:parameternumber&quot; )
+    private boolean build( List&lt;ProjectBuildingResult&gt; results, List&lt;InterimResult&gt; interimResults,
+                           Map&lt;String, MavenProject&gt; projectIndex, List&lt;File&gt; pomFiles, Set&lt;File&gt; aggregatorFiles,
+                           boolean isRoot, boolean recursive, InternalConfig config )
+    {
+<span class="nc" id="L394">        boolean noErrors = true;</span>
+
+<span class="nc bnc" id="L396" title="All 2 branches missed.">        for ( File pomFile : pomFiles )</span>
+        {
+<span class="nc" id="L398">            aggregatorFiles.add( pomFile );</span>
+
+<span class="nc bnc" id="L400" title="All 2 branches missed.">            if ( !build( results, interimResults, projectIndex, pomFile, aggregatorFiles, isRoot, recursive, config ) )</span>
+            {
+<span class="nc" id="L402">                noErrors = false;</span>
+            }
+
+<span class="nc" id="L405">            aggregatorFiles.remove( pomFile );</span>
+<span class="nc" id="L406">        }</span>
+
+<span class="nc" id="L408">        return noErrors;</span>
+    }
+
+    @SuppressWarnings( &quot;checkstyle:parameternumber&quot; )
+    private boolean build( List&lt;ProjectBuildingResult&gt; results, List&lt;InterimResult&gt; interimResults,
+                           Map&lt;String, MavenProject&gt; projectIndex, File pomFile, Set&lt;File&gt; aggregatorFiles,
+                           boolean isRoot, boolean recursive, InternalConfig config )
+    {
+<span class="nc" id="L416">        boolean noErrors = true;</span>
+
+<span class="nc" id="L418">        ModelBuildingRequest request = getModelBuildingRequest( config );</span>
+
+<span class="nc" id="L420">        MavenProject project = new MavenProject();</span>
+
+<span class="nc" id="L422">        request.setPomFile( pomFile );</span>
+<span class="nc" id="L423">        request.setTwoPhaseBuilding( true );</span>
+<span class="nc" id="L424">        request.setLocationTracking( true );</span>
+
+<span class="nc" id="L426">        DefaultModelBuildingListener listener =</span>
+            new DefaultModelBuildingListener( project, projectBuildingHelper, config.request );
+<span class="nc" id="L428">        request.setModelBuildingListener( listener );</span>
+
+        try
+        {
+<span class="nc" id="L432">            ModelBuildingResult result = modelBuilder.build( request );</span>
+
+<span class="nc" id="L434">            Model model = result.getEffectiveModel();</span>
+
+<span class="nc" id="L436">            projectIndex.put( result.getModelIds().get( 0 ), project );</span>
+
+<span class="nc" id="L438">            InterimResult interimResult = new InterimResult( pomFile, request, result, listener, isRoot );</span>
+<span class="nc" id="L439">            interimResults.add( interimResult );</span>
+
+<span class="nc bnc" id="L441" title="All 4 branches missed.">            if ( recursive &amp;&amp; !model.getModules().isEmpty() )</span>
+            {
+<span class="nc" id="L443">                File basedir = pomFile.getParentFile();</span>
+
+<span class="nc" id="L445">                List&lt;File&gt; moduleFiles = new ArrayList&lt;&gt;();</span>
+
+<span class="nc bnc" id="L447" title="All 2 branches missed.">                for ( String module : model.getModules() )</span>
+                {
+<span class="nc bnc" id="L449" title="All 2 branches missed.">                    if ( StringUtils.isEmpty( module ) )</span>
+                    {
+<span class="nc" id="L451">                        continue;</span>
+                    }
+
+<span class="nc" id="L454">                    module = module.replace( '\\', File.separatorChar ).replace( '/', File.separatorChar );</span>
+
+<span class="nc" id="L456">                    File moduleFile = new File( basedir, module );</span>
+
+<span class="nc bnc" id="L458" title="All 2 branches missed.">                    if ( moduleFile.isDirectory() )</span>
+                    {
+<span class="nc" id="L460">                        moduleFile = modelProcessor.locatePom( moduleFile );</span>
+                    }
+
+<span class="nc bnc" id="L463" title="All 2 branches missed.">                    if ( !moduleFile.isFile() )</span>
+                    {
+<span class="nc" id="L465">                        ModelProblem problem =</span>
+                            new DefaultModelProblem( &quot;Child module &quot; + moduleFile + &quot; of &quot; + pomFile
+                                + &quot; does not exist&quot;, ModelProblem.Severity.ERROR, ModelProblem.Version.BASE, model, -1,
+                                                     -1, null );
+<span class="nc" id="L469">                        result.getProblems().add( problem );</span>
+
+<span class="nc" id="L471">                        noErrors = false;</span>
+
+<span class="nc" id="L473">                        continue;</span>
+                    }
+
+<span class="nc bnc" id="L476" title="All 2 branches missed.">                    if ( Os.isFamily( Os.FAMILY_WINDOWS ) )</span>
+                    {
+                        // we don't canonicalize on unix to avoid interfering with symlinks
+                        try
+                        {
+<span class="nc" id="L481">                            moduleFile = moduleFile.getCanonicalFile();</span>
+                        }
+<span class="nc" id="L483">                        catch ( IOException e )</span>
+                        {
+<span class="nc" id="L485">                            moduleFile = moduleFile.getAbsoluteFile();</span>
+<span class="nc" id="L486">                        }</span>
+                    }
+                    else
+                    {
+<span class="nc" id="L490">                        moduleFile = new File( moduleFile.toURI().normalize() );</span>
+                    }
+
+<span class="nc bnc" id="L493" title="All 2 branches missed.">                    if ( aggregatorFiles.contains( moduleFile ) )</span>
+                    {
+<span class="nc" id="L495">                        StringBuilder buffer = new StringBuilder( 256 );</span>
+<span class="nc bnc" id="L496" title="All 2 branches missed.">                        for ( File aggregatorFile : aggregatorFiles )</span>
+                        {
+<span class="nc" id="L498">                            buffer.append( aggregatorFile ).append( &quot; -&gt; &quot; );</span>
+<span class="nc" id="L499">                        }</span>
+<span class="nc" id="L500">                        buffer.append( moduleFile );</span>
+
+<span class="nc" id="L502">                        ModelProblem problem =</span>
+                            new DefaultModelProblem( &quot;Child module &quot; + moduleFile + &quot; of &quot; + pomFile
+                                + &quot; forms aggregation cycle &quot; + buffer, ModelProblem.Severity.ERROR,
+                                                     ModelProblem.Version.BASE, model, -1, -1, null );
+<span class="nc" id="L506">                        result.getProblems().add( problem );</span>
+
+<span class="nc" id="L508">                        noErrors = false;</span>
+
+<span class="nc" id="L510">                        continue;</span>
+                    }
+
+<span class="nc" id="L513">                    moduleFiles.add( moduleFile );</span>
+<span class="nc" id="L514">                }</span>
+
+<span class="nc" id="L516">                interimResult.modules = new ArrayList&lt;&gt;();</span>
+
+<span class="nc bnc" id="L518" title="All 2 branches missed.">                if ( !build( results, interimResult.modules, projectIndex, moduleFiles, aggregatorFiles, false,</span>
+                             recursive, config ) )
+                {
+<span class="nc" id="L521">                    noErrors = false;</span>
+                }
+            }
+        }
+<span class="nc" id="L525">        catch ( ModelBuildingException e )</span>
+        {
+<span class="nc" id="L527">            results.add( new DefaultProjectBuildingResult( e.getModelId(), pomFile, e.getProblems() ) );</span>
+
+<span class="nc" id="L529">            noErrors = false;</span>
+<span class="nc" id="L530">        }</span>
+
+<span class="nc" id="L532">        return noErrors;</span>
+    }
+
+    static class InterimResult
+    {
+
+        File pomFile;
+
+        ModelBuildingRequest request;
+
+        ModelBuildingResult result;
+
+        DefaultModelBuildingListener listener;
+
+        boolean root;
+
+<span class="nc" id="L548">        List&lt;InterimResult&gt; modules = Collections.emptyList();</span>
+
+        InterimResult( File pomFile, ModelBuildingRequest request, ModelBuildingResult result,
+                       DefaultModelBuildingListener listener, boolean root )
+<span class="nc" id="L552">        {</span>
+<span class="nc" id="L553">            this.pomFile = pomFile;</span>
+<span class="nc" id="L554">            this.request = request;</span>
+<span class="nc" id="L555">            this.result = result;</span>
+<span class="nc" id="L556">            this.listener = listener;</span>
+<span class="nc" id="L557">            this.root = root;</span>
+<span class="nc" id="L558">        }</span>
+
+    }
+
+    private void populateReactorModelPool( ReactorModelPool reactorModelPool, List&lt;InterimResult&gt; interimResults )
+    {
+<span class="nc bnc" id="L564" title="All 2 branches missed.">        for ( InterimResult interimResult : interimResults )</span>
+        {
+<span class="nc" id="L566">            Model model = interimResult.result.getEffectiveModel();</span>
+<span class="nc" id="L567">            reactorModelPool.put( model.getGroupId(), model.getArtifactId(), model.getVersion(), model.getPomFile() );</span>
+
+<span class="nc" id="L569">            populateReactorModelPool( reactorModelPool, interimResult.modules );</span>
+<span class="nc" id="L570">        }</span>
+<span class="nc" id="L571">    }</span>
+
+    private boolean build( List&lt;ProjectBuildingResult&gt; results, List&lt;MavenProject&gt; projects,
+                           Map&lt;String, MavenProject&gt; projectIndex, List&lt;InterimResult&gt; interimResults,
+                           ProjectBuildingRequest request, Map&lt;File, Boolean&gt; profilesXmls )
+    {
+<span class="nc" id="L577">        boolean noErrors = true;</span>
+
+<span class="nc bnc" id="L579" title="All 2 branches missed.">        for ( InterimResult interimResult : interimResults )</span>
+        {
+            try
+            {
+<span class="nc" id="L583">                ModelBuildingResult result = modelBuilder.build( interimResult.request, interimResult.result );</span>
+
+<span class="nc" id="L585">                MavenProject project = interimResult.listener.getProject();</span>
+<span class="nc" id="L586">                initProject( project, projectIndex, result, profilesXmls, request );</span>
+
+<span class="nc" id="L588">                List&lt;MavenProject&gt; modules = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L589" title="All 4 branches missed.">                noErrors =</span>
+                    build( results, modules, projectIndex, interimResult.modules, request, profilesXmls ) &amp;&amp; noErrors;
+
+<span class="nc" id="L592">                projects.addAll( modules );</span>
+<span class="nc" id="L593">                projects.add( project );</span>
+
+<span class="nc" id="L595">                project.setExecutionRoot( interimResult.root );</span>
+<span class="nc" id="L596">                project.setCollectedProjects( modules );</span>
+
+<span class="nc" id="L598">                results.add( new DefaultProjectBuildingResult( project, result.getProblems(), null ) );</span>
+            }
+<span class="nc" id="L600">            catch ( ModelBuildingException e )</span>
+            {
+<span class="nc" id="L602">                results.add( new DefaultProjectBuildingResult( e.getModelId(), interimResult.pomFile,</span>
+                                                               e.getProblems() ) );
+
+<span class="nc" id="L605">                noErrors = false;</span>
+<span class="nc" id="L606">            }</span>
+<span class="nc" id="L607">        }</span>
+
+<span class="nc" id="L609">        return noErrors;</span>
+    }
+
+    @SuppressWarnings( &quot;checkstyle:methodlength&quot; )
+    private void initProject( MavenProject project, Map&lt;String, MavenProject&gt; projects, ModelBuildingResult result,
+                              Map&lt;File, Boolean&gt; profilesXmls, ProjectBuildingRequest projectBuildingRequest )
+    {
+<span class="fc" id="L616">        Model model = result.getEffectiveModel();</span>
+
+<span class="fc" id="L618">        project.setModel( model );</span>
+<span class="fc" id="L619">        project.setOriginalModel( result.getRawModel() );</span>
+<span class="fc" id="L620">        project.setFile( model.getPomFile() );</span>
+
+<span class="pc bpc" id="L622" title="1 of 4 branches missed.">        Model parentModel = result.getModelIds().size() &gt; 1 &amp;&amp; !result.getModelIds().get( 1 ).isEmpty()</span>
+                                ? result.getRawModel( result.getModelIds().get( 1 ) )
+                                : null;
+
+<span class="fc bfc" id="L626" title="All 2 branches covered.">        if ( parentModel != null )</span>
+        {
+<span class="fc" id="L628">            final String parentGroupId = inheritedGroupId( result, 1 );</span>
+<span class="fc" id="L629">            final String parentVersion = inheritedVersion( result, 1 );</span>
+
+<span class="fc" id="L631">            project.setParentArtifact( repositorySystem.createProjectArtifact( parentGroupId,</span>
+                                                                               parentModel.getArtifactId(),
+                                                                               parentVersion ) );
+
+            // org.apache.maven.its.mng4834:parent:0.1
+<span class="fc" id="L636">            String parentModelId = result.getModelIds().get( 1 );</span>
+<span class="fc" id="L637">            File parentPomFile = result.getRawModel( parentModelId ).getPomFile();</span>
+<span class="fc" id="L638">            MavenProject parent = projects.get( parentModelId );</span>
+<span class="pc bpc" id="L639" title="1 of 2 branches missed.">            if ( parent == null )</span>
+            {
+                //
+                // At this point the DefaultModelBuildingListener has fired and it populates the
+                // remote repositories with those found in the pom.xml, along with the existing externally
+                // defined repositories.
+                //
+<span class="fc" id="L646">                projectBuildingRequest.setRemoteRepositories( project.getRemoteArtifactRepositories() );</span>
+<span class="fc bfc" id="L647" title="All 2 branches covered.">                if ( parentPomFile != null )</span>
+                {
+<span class="fc" id="L649">                    project.setParentFile( parentPomFile );</span>
+                    try
+                    {
+<span class="fc" id="L652">                        parent = build( parentPomFile, projectBuildingRequest ).getProject();</span>
+                    }
+<span class="nc" id="L654">                    catch ( ProjectBuildingException e )</span>
+                    {
+                        // MNG-4488 where let invalid parents slide on by
+<span class="nc bnc" id="L657" title="All 2 branches missed.">                        if ( logger.isDebugEnabled() )</span>
+                        {
+                            // Message below is checked for in the MNG-2199 core IT.
+<span class="nc" id="L660">                            logger.warn( &quot;Failed to build parent project for &quot; + project.getId(), e );</span>
+                        }
+                        else
+                        {
+                            // Message below is checked for in the MNG-2199 core IT.
+<span class="nc" id="L665">                            logger.warn( &quot;Failed to build parent project for &quot; + project.getId() );</span>
+                        }
+<span class="pc" id="L667">                    }</span>
+                }
+                else
+                {
+<span class="fc" id="L671">                    Artifact parentArtifact = project.getParentArtifact();</span>
+                    try
+                    {
+<span class="fc" id="L674">                        parent = build( parentArtifact, projectBuildingRequest ).getProject();</span>
+                    }
+<span class="nc" id="L676">                    catch ( ProjectBuildingException e )</span>
+                    {
+                        // MNG-4488 where let invalid parents slide on by
+<span class="nc bnc" id="L679" title="All 2 branches missed.">                        if ( logger.isDebugEnabled() )</span>
+                        {
+                            // Message below is checked for in the MNG-2199 core IT.
+<span class="nc" id="L682">                            logger.warn( &quot;Failed to build parent project for &quot; + project.getId(), e );</span>
+                        }
+                        else
+                        {
+                            // Message below is checked for in the MNG-2199 core IT.
+<span class="nc" id="L687">                            logger.warn( &quot;Failed to build parent project for &quot; + project.getId() );</span>
+                        }
+<span class="fc" id="L689">                    }</span>
+                }
+            }
+<span class="fc" id="L692">            project.setParent( parent );</span>
+        }
+
+<span class="fc" id="L695">        Artifact projectArtifact =</span>
+            repositorySystem.createArtifact( project.getGroupId(), project.getArtifactId(), project.getVersion(), null,
+                                             project.getPackaging() );
+<span class="fc" id="L698">        project.setArtifact( projectArtifact );</span>
+
+<span class="fc bfc" id="L700" title="All 2 branches covered.">        if ( project.getFile() != null )</span>
+        {
+<span class="fc" id="L702">            Build build = project.getBuild();</span>
+<span class="fc" id="L703">            project.addScriptSourceRoot( build.getScriptSourceDirectory() );</span>
+<span class="fc" id="L704">            project.addCompileSourceRoot( build.getSourceDirectory() );</span>
+<span class="fc" id="L705">            project.addTestCompileSourceRoot( build.getTestSourceDirectory() );</span>
+        }
+
+<span class="fc" id="L708">        List&lt;Profile&gt; activeProfiles = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L709">        activeProfiles.addAll( result.getActivePomProfiles( result.getModelIds().get( 0 ) ) );</span>
+<span class="fc" id="L710">        activeProfiles.addAll( result.getActiveExternalProfiles() );</span>
+<span class="fc" id="L711">        project.setActiveProfiles( activeProfiles );</span>
+
+<span class="fc" id="L713">        project.setInjectedProfileIds( &quot;external&quot;, getProfileIds( result.getActiveExternalProfiles() ) );</span>
+<span class="fc bfc" id="L714" title="All 2 branches covered.">        for ( String modelId : result.getModelIds() )</span>
+        {
+<span class="fc" id="L716">            project.setInjectedProfileIds( modelId, getProfileIds( result.getActivePomProfiles( modelId ) ) );</span>
+<span class="fc" id="L717">        }</span>
+
+<span class="fc" id="L719">        String modelId = findProfilesXml( result, profilesXmls );</span>
+<span class="pc bpc" id="L720" title="1 of 2 branches missed.">        if ( modelId != null )</span>
+        {
+<span class="nc" id="L722">            ModelProblem problem =</span>
+                new DefaultModelProblem( &quot;Detected profiles.xml alongside &quot; + modelId
+                    + &quot;, this file is no longer supported and was ignored&quot; + &quot;, please use the settings.xml instead&quot;,
+                                         ModelProblem.Severity.WARNING, ModelProblem.Version.V30, model, -1, -1, null );
+<span class="nc" id="L726">            result.getProblems().add( problem );</span>
+        }
+
+        //
+        // All the parts that were taken out of MavenProject for Maven 4.0.0
+        //
+
+<span class="fc" id="L733">        project.setProjectBuildingRequest( projectBuildingRequest );</span>
+
+        // pluginArtifacts
+<span class="fc" id="L736">        Set&lt;Artifact&gt; pluginArtifacts = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L737" title="All 2 branches covered.">        for ( Plugin plugin : project.getBuildPlugins() )</span>
+        {
+<span class="fc" id="L739">            Artifact artifact = repositorySystem.createPluginArtifact( plugin );</span>
+
+<span class="pc bpc" id="L741" title="1 of 2 branches missed.">            if ( artifact != null )</span>
+            {
+<span class="fc" id="L743">                pluginArtifacts.add( artifact );</span>
+            }
+<span class="fc" id="L745">        }</span>
+<span class="fc" id="L746">        project.setPluginArtifacts( pluginArtifacts );</span>
+
+        // reportArtifacts
+<span class="fc" id="L749">        Set&lt;Artifact&gt; reportArtifacts = new HashSet&lt;&gt;();</span>
+<span class="fc bfc" id="L750" title="All 2 branches covered.">        for ( ReportPlugin report : project.getReportPlugins() )</span>
+        {
+<span class="fc" id="L752">            Plugin pp = new Plugin();</span>
+<span class="fc" id="L753">            pp.setGroupId( report.getGroupId() );</span>
+<span class="fc" id="L754">            pp.setArtifactId( report.getArtifactId() );</span>
+<span class="fc" id="L755">            pp.setVersion( report.getVersion() );</span>
+
+<span class="fc" id="L757">            Artifact artifact = repositorySystem.createPluginArtifact( pp );</span>
+
+<span class="pc bpc" id="L759" title="1 of 2 branches missed.">            if ( artifact != null )</span>
+            {
+<span class="fc" id="L761">                reportArtifacts.add( artifact );</span>
+            }
+<span class="fc" id="L763">        }</span>
+<span class="fc" id="L764">        project.setReportArtifacts( reportArtifacts );</span>
+
+        // extensionArtifacts
+<span class="fc" id="L767">        Set&lt;Artifact&gt; extensionArtifacts = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L768">        List&lt;Extension&gt; extensions = project.getBuildExtensions();</span>
+<span class="pc bpc" id="L769" title="1 of 2 branches missed.">        if ( extensions != null )</span>
+        {
+<span class="pc bpc" id="L771" title="1 of 2 branches missed.">            for ( Extension ext : extensions )</span>
+            {
+                String version;
+<span class="nc bnc" id="L774" title="All 2 branches missed.">                if ( StringUtils.isEmpty( ext.getVersion() ) )</span>
+                {
+<span class="nc" id="L776">                    version = &quot;RELEASE&quot;;</span>
+                }
+                else
+                {
+<span class="nc" id="L780">                    version = ext.getVersion();</span>
+                }
+
+<span class="nc" id="L783">                Artifact artifact =</span>
+                    repositorySystem.createArtifact( ext.getGroupId(), ext.getArtifactId(), version, null, &quot;jar&quot; );
+
+<span class="nc bnc" id="L786" title="All 2 branches missed.">                if ( artifact != null )</span>
+                {
+<span class="nc" id="L788">                    extensionArtifacts.add( artifact );</span>
+                }
+<span class="nc" id="L790">            }</span>
+        }
+<span class="fc" id="L792">        project.setExtensionArtifacts( extensionArtifacts );</span>
+
+        // managedVersionMap
+<span class="fc" id="L795">        Map&lt;String, Artifact&gt; map = null;</span>
+<span class="pc bpc" id="L796" title="1 of 2 branches missed.">        if ( repositorySystem != null )</span>
+        {
+<span class="fc" id="L798">            DependencyManagement dependencyManagement = project.getDependencyManagement();</span>
+<span class="pc bpc" id="L799" title="1 of 6 branches missed.">            if ( ( dependencyManagement != null ) &amp;&amp; ( ( dependencyManagement.getDependencies() ) != null )</span>
+                &amp;&amp; ( dependencyManagement.getDependencies().size() &gt; 0 ) )
+            {
+<span class="fc" id="L802">                map = new HashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L803" title="All 2 branches covered.">                for ( Dependency d : dependencyManagement.getDependencies() )</span>
+                {
+<span class="fc" id="L805">                    Artifact artifact = repositorySystem.createDependencyArtifact( d );</span>
+
+<span class="pc bpc" id="L807" title="1 of 2 branches missed.">                    if ( artifact != null )</span>
+                    {
+<span class="fc" id="L809">                        map.put( d.getManagementKey(), artifact );</span>
+                    }
+<span class="fc" id="L811">                }</span>
+            }
+            else
+            {
+<span class="fc" id="L815">                map = Collections.emptyMap();</span>
+            }
+        }
+<span class="fc" id="L818">        project.setManagedVersionMap( map );</span>
+
+        // release artifact repository
+<span class="pc bpc" id="L821" title="1 of 4 branches missed.">        if ( project.getDistributionManagement() != null</span>
+                        &amp;&amp; project.getDistributionManagement().getRepository() != null )
+        {
+            try
+            {
+<span class="fc" id="L826">                DeploymentRepository r = project.getDistributionManagement().getRepository();</span>
+<span class="pc bpc" id="L827" title="2 of 4 branches missed.">                if ( !StringUtils.isEmpty( r.getId() ) &amp;&amp; !StringUtils.isEmpty( r.getUrl() ) )</span>
+                {
+<span class="fc" id="L829">                    ArtifactRepository repo = repositorySystem.buildArtifactRepository( r );</span>
+<span class="fc" id="L830">                    repositorySystem.injectProxy( projectBuildingRequest.getRepositorySession(),</span>
+                                                  Arrays.asList( repo ) );
+<span class="fc" id="L832">                    repositorySystem.injectAuthentication( projectBuildingRequest.getRepositorySession(),</span>
+                                                           Arrays.asList( repo ) );
+<span class="fc" id="L834">                    project.setReleaseArtifactRepository( repo );</span>
+                }
+            }
+<span class="nc" id="L837">            catch ( InvalidRepositoryException e )</span>
+            {
+<span class="nc" id="L839">                throw new IllegalStateException( &quot;Failed to create release distribution repository for &quot;</span>
+                    + project.getId(), e );
+<span class="fc" id="L841">            }</span>
+        }
+
+        // snapshot artifact repository
+<span class="pc bpc" id="L845" title="1 of 4 branches missed.">        if ( project.getDistributionManagement() != null</span>
+            &amp;&amp; project.getDistributionManagement().getSnapshotRepository() != null )
+        {
+            try
+            {
+<span class="fc" id="L850">                DeploymentRepository r = project.getDistributionManagement().getSnapshotRepository();</span>
+<span class="pc bpc" id="L851" title="2 of 4 branches missed.">                if ( !StringUtils.isEmpty( r.getId() ) &amp;&amp; !StringUtils.isEmpty( r.getUrl() ) )</span>
+                {
+<span class="fc" id="L853">                    ArtifactRepository repo = repositorySystem.buildArtifactRepository( r );</span>
+<span class="fc" id="L854">                    repositorySystem.injectProxy( projectBuildingRequest.getRepositorySession(),</span>
+                                                  Arrays.asList( repo ) );
+<span class="fc" id="L856">                    repositorySystem.injectAuthentication( projectBuildingRequest.getRepositorySession(),</span>
+                                                           Arrays.asList( repo ) );
+<span class="fc" id="L858">                    project.setSnapshotArtifactRepository( repo );</span>
+                }
+            }
+<span class="nc" id="L861">            catch ( InvalidRepositoryException e )</span>
+            {
+<span class="nc" id="L863">                throw new IllegalStateException( &quot;Failed to create snapshot distribution repository for &quot;</span>
+                    + project.getId(), e );
+<span class="fc" id="L865">            }</span>
+        }
+<span class="fc" id="L867">    }</span>
+
+    private static String inheritedGroupId( final ModelBuildingResult result, final int modelIndex )
+    {
+<span class="fc" id="L871">        String groupId = null;</span>
+<span class="fc" id="L872">        final String modelId = result.getModelIds().get( modelIndex );</span>
+
+<span class="pc bpc" id="L874" title="1 of 2 branches missed.">        if ( !modelId.isEmpty() )</span>
+        {
+<span class="fc" id="L876">            final Model model = result.getRawModel( modelId );</span>
+<span class="fc bfc" id="L877" title="All 2 branches covered.">            groupId = model.getGroupId() != null</span>
+                          ? model.getGroupId()
+                          : inheritedGroupId( result, modelIndex + 1 );
+
+        }
+
+<span class="fc" id="L883">        return groupId;</span>
+    }
+
+    private static String inheritedVersion( final ModelBuildingResult result, final int modelIndex )
+    {
+<span class="fc" id="L888">        String version = null;</span>
+<span class="fc" id="L889">        final String modelId = result.getModelIds().get( modelIndex );</span>
+
+<span class="pc bpc" id="L891" title="1 of 2 branches missed.">        if ( !modelId.isEmpty() )</span>
+        {
+<span class="fc" id="L893">            final Model model = result.getRawModel( modelId );</span>
+<span class="fc bfc" id="L894" title="All 2 branches covered.">            version = model.getVersion() != null</span>
+                          ? model.getVersion()
+                          : inheritedVersion( result, modelIndex + 1 );
+
+        }
+
+<span class="fc" id="L900">        return version;</span>
+    }
+
+    private String findProfilesXml( ModelBuildingResult result, Map&lt;File, Boolean&gt; profilesXmls )
+    {
+<span class="pc bpc" id="L905" title="1 of 2 branches missed.">        for ( String modelId : result.getModelIds() )</span>
+        {
+<span class="fc" id="L907">            Model model = result.getRawModel( modelId );</span>
+
+<span class="fc" id="L909">            File basedir = model.getProjectDirectory();</span>
+<span class="fc bfc" id="L910" title="All 2 branches covered.">            if ( basedir == null )</span>
+            {
+<span class="fc" id="L912">                break;</span>
+            }
+
+<span class="fc" id="L915">            Boolean profilesXml = profilesXmls.get( basedir );</span>
+<span class="pc bpc" id="L916" title="1 of 2 branches missed.">            if ( profilesXml == null )</span>
+            {
+<span class="fc" id="L918">                profilesXml = new File( basedir, &quot;profiles.xml&quot; ).exists();</span>
+<span class="fc" id="L919">                profilesXmls.put( basedir, profilesXml );</span>
+            }
+<span class="pc bpc" id="L921" title="1 of 2 branches missed.">            if ( profilesXml )</span>
+            {
+<span class="nc" id="L923">                return modelId;</span>
+            }
+<span class="fc" id="L925">        }</span>
+
+<span class="fc" id="L927">        return null;</span>
+    }
+
+    /**
+     * InternalConfig
+     */
+<span class="fc" id="L933">    class InternalConfig</span>
+    {
+
+        private final ProjectBuildingRequest request;
+
+        private final RepositorySystemSession session;
+
+        private final List&lt;RemoteRepository&gt; repositories;
+
+        private final ReactorModelPool modelPool;
+
+        private final ReactorModelCache modelCache;
+
+        InternalConfig( ProjectBuildingRequest request, ReactorModelPool modelPool, ReactorModelCache modelCache )
+<span class="fc" id="L947">        {</span>
+<span class="fc" id="L948">            this.request = request;</span>
+<span class="fc" id="L949">            this.modelPool = modelPool;</span>
+<span class="fc" id="L950">            this.modelCache = modelCache;</span>
+<span class="fc" id="L951">            session =</span>
+                LegacyLocalRepositoryManager.overlay( request.getLocalRepository(), request.getRepositorySession(),
+                                                      repoSystem );
+<span class="fc" id="L954">            repositories = RepositoryUtils.toRepos( request.getRemoteRepositories() );</span>
+<span class="fc" id="L955">        }</span>
+
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

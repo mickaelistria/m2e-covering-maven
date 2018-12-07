@@ -1,0 +1,112 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Slf4jLoggerManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.cli.logging</a> &gt; <span class="el_source">Slf4jLoggerManager.java</span></div><h1>Slf4jLoggerManager.java</h1><pre class="source lang-java linenums">package org.apache.maven.cli.logging;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.codehaus.plexus.logging.Logger;
+import org.codehaus.plexus.logging.LoggerManager;
+import org.slf4j.ILoggerFactory;
+import org.slf4j.LoggerFactory;
+
+/**
+ * Use an SLF4J {@link org.slf4j.ILoggerFactory} as a backing for a Plexus
+ * {@link org.codehaus.plexus.logging.LoggerManager},
+ * ignoring Plexus logger API parts that are not classical and probably not really used.
+ *
+ * @author Jason van Zyl
+ * @since 3.1
+ */
+public class Slf4jLoggerManager
+    implements LoggerManager
+{
+
+    private ILoggerFactory loggerFactory;
+
+    public Slf4jLoggerManager()
+<span class="nc" id="L42">    {</span>
+<span class="nc" id="L43">        loggerFactory = LoggerFactory.getILoggerFactory();</span>
+<span class="nc" id="L44">    }</span>
+
+    public Logger getLoggerForComponent( String role )
+    {
+<span class="nc" id="L48">        return new Slf4jLogger( loggerFactory.getLogger( role ) );</span>
+    }
+
+    /**
+     * The logger name for a component with a non-null hint is &lt;code&gt;role.hint&lt;/code&gt;.
+     * &lt;b&gt;Warning&lt;/b&gt;: this does not conform to logger name as class name convention.
+     * (and what about &lt;code&gt;null&lt;/code&gt; and &lt;code&gt;default&lt;/code&gt; hint equivalence?)
+     */
+    public Logger getLoggerForComponent( String role, String hint )
+    {
+<span class="nc bnc" id="L58" title="All 2 branches missed.">        return ( null == hint</span>
+            ? getLoggerForComponent( role )
+            : new Slf4jLogger( loggerFactory.getLogger( role + '.' + hint ) ) );
+    }
+
+    //
+    // Trying to give loggers back is a bad idea. Ceki said so :-)
+    // notice to self: what was this method supposed to do?
+    //
+    /**
+     * &lt;b&gt;Warning&lt;/b&gt;: ignored.
+     */
+    public void returnComponentLogger( String role )
+    {
+<span class="nc" id="L72">    }</span>
+
+    /**
+     * &lt;b&gt;Warning&lt;/b&gt;: ignored.
+     */
+    public void returnComponentLogger( String role, String hint )
+    {
+<span class="nc" id="L79">    }</span>
+
+    /**
+     * &lt;b&gt;Warning&lt;/b&gt;: ignored (always return &lt;code&gt;0&lt;/code&gt;).
+     */
+    public int getThreshold()
+    {
+<span class="nc" id="L86">        return 0;</span>
+    }
+
+    /**
+     * &lt;b&gt;Warning&lt;/b&gt;: ignored.
+     */
+    public void setThreshold( int threshold )
+    {
+<span class="nc" id="L94">    }</span>
+
+    /**
+     * &lt;b&gt;Warning&lt;/b&gt;: ignored.
+     */
+    public void setThresholds( int threshold )
+    {
+<span class="nc" id="L101">    }</span>
+
+    /**
+     * &lt;b&gt;Warning&lt;/b&gt;: ignored (always return &lt;code&gt;0&lt;/code&gt;).
+     */
+    public int getActiveLoggerCount()
+    {
+<span class="nc" id="L108">        return 0;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

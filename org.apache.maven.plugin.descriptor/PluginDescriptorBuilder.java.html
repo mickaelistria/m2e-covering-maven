@@ -1,0 +1,358 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PluginDescriptorBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.plugin.descriptor</a> &gt; <span class="el_source">PluginDescriptorBuilder.java</span></div><h1>PluginDescriptorBuilder.java</h1><pre class="source lang-java linenums">package org.apache.maven.plugin.descriptor;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.IOException;
+import java.io.Reader;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.codehaus.plexus.component.repository.ComponentDependency;
+import org.codehaus.plexus.component.repository.ComponentRequirement;
+import org.codehaus.plexus.configuration.PlexusConfiguration;
+import org.codehaus.plexus.configuration.PlexusConfigurationException;
+import org.codehaus.plexus.configuration.xml.XmlPlexusConfiguration;
+import org.codehaus.plexus.util.xml.Xpp3DomBuilder;
+import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
+
+/**
+ * @author Jason van Zyl
+ */
+<span class="fc" id="L38">public class PluginDescriptorBuilder</span>
+{
+    public PluginDescriptor build( Reader reader )
+        throws PlexusConfigurationException
+    {
+<span class="fc" id="L43">        return build( reader, null );</span>
+    }
+
+    public PluginDescriptor build( Reader reader, String source )
+        throws PlexusConfigurationException
+    {
+<span class="fc" id="L49">        PlexusConfiguration c = buildConfiguration( reader );</span>
+
+<span class="fc" id="L51">        PluginDescriptor pluginDescriptor = new PluginDescriptor();</span>
+
+<span class="fc" id="L53">        pluginDescriptor.setSource( source );</span>
+<span class="fc" id="L54">        pluginDescriptor.setGroupId( c.getChild( &quot;groupId&quot; ).getValue() );</span>
+<span class="fc" id="L55">        pluginDescriptor.setArtifactId( c.getChild( &quot;artifactId&quot; ).getValue() );</span>
+<span class="fc" id="L56">        pluginDescriptor.setVersion( c.getChild( &quot;version&quot; ).getValue() );</span>
+<span class="fc" id="L57">        pluginDescriptor.setGoalPrefix( c.getChild( &quot;goalPrefix&quot; ).getValue() );</span>
+
+<span class="fc" id="L59">        pluginDescriptor.setName( c.getChild( &quot;name&quot; ).getValue() );</span>
+<span class="fc" id="L60">        pluginDescriptor.setDescription( c.getChild( &quot;description&quot; ).getValue() );</span>
+
+<span class="fc" id="L62">        String isolatedRealm = c.getChild( &quot;isolatedRealm&quot; ).getValue();</span>
+
+<span class="pc bpc" id="L64" title="1 of 2 branches missed.">        if ( isolatedRealm != null )</span>
+        {
+<span class="fc" id="L66">            pluginDescriptor.setIsolatedRealm( Boolean.parseBoolean( isolatedRealm ) );</span>
+        }
+
+<span class="fc" id="L69">        String inheritedByDefault = c.getChild( &quot;inheritedByDefault&quot; ).getValue();</span>
+
+<span class="pc bpc" id="L71" title="1 of 2 branches missed.">        if ( inheritedByDefault != null )</span>
+        {
+<span class="fc" id="L73">            pluginDescriptor.setInheritedByDefault( Boolean.parseBoolean( inheritedByDefault ) );</span>
+        }
+
+        // ----------------------------------------------------------------------
+        // Components
+        // ----------------------------------------------------------------------
+
+<span class="fc" id="L80">        PlexusConfiguration[] mojoConfigurations = c.getChild( &quot;mojos&quot; ).getChildren( &quot;mojo&quot; );</span>
+
+<span class="fc bfc" id="L82" title="All 2 branches covered.">        for ( PlexusConfiguration component : mojoConfigurations )</span>
+        {
+<span class="fc" id="L84">            MojoDescriptor mojoDescriptor = buildComponentDescriptor( component, pluginDescriptor );</span>
+
+<span class="fc" id="L86">            pluginDescriptor.addMojo( mojoDescriptor );</span>
+        }
+
+        // ----------------------------------------------------------------------
+        // Dependencies
+        // ----------------------------------------------------------------------
+
+<span class="fc" id="L93">        PlexusConfiguration[] dependencyConfigurations = c.getChild( &quot;dependencies&quot; ).getChildren( &quot;dependency&quot; );</span>
+
+<span class="fc" id="L95">        List&lt;ComponentDependency&gt; dependencies = new ArrayList&lt;&gt;();</span>
+
+<span class="fc bfc" id="L97" title="All 2 branches covered.">        for ( PlexusConfiguration d : dependencyConfigurations )</span>
+        {
+<span class="fc" id="L99">            ComponentDependency cd = new ComponentDependency();</span>
+
+<span class="fc" id="L101">            cd.setArtifactId( d.getChild( &quot;artifactId&quot; ).getValue() );</span>
+
+<span class="fc" id="L103">            cd.setGroupId( d.getChild( &quot;groupId&quot; ).getValue() );</span>
+
+<span class="fc" id="L105">            cd.setType( d.getChild( &quot;type&quot; ).getValue() );</span>
+
+<span class="fc" id="L107">            cd.setVersion( d.getChild( &quot;version&quot; ).getValue() );</span>
+
+<span class="fc" id="L109">            dependencies.add( cd );</span>
+        }
+
+<span class="fc" id="L112">        pluginDescriptor.setDependencies( dependencies );</span>
+
+<span class="fc" id="L114">        return pluginDescriptor;</span>
+    }
+
+    @SuppressWarnings( &quot;checkstyle:methodlength&quot; )
+    public MojoDescriptor buildComponentDescriptor( PlexusConfiguration c, PluginDescriptor pluginDescriptor )
+        throws PlexusConfigurationException
+    {
+<span class="fc" id="L121">        MojoDescriptor mojo = new MojoDescriptor();</span>
+<span class="fc" id="L122">        mojo.setPluginDescriptor( pluginDescriptor );</span>
+
+<span class="fc" id="L124">        mojo.setGoal( c.getChild( &quot;goal&quot; ).getValue() );</span>
+
+<span class="fc" id="L126">        mojo.setImplementation( c.getChild( &quot;implementation&quot; ).getValue() );</span>
+
+<span class="fc" id="L128">        PlexusConfiguration langConfig = c.getChild( &quot;language&quot; );</span>
+
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">        if ( langConfig != null )</span>
+        {
+<span class="fc" id="L132">            mojo.setLanguage( langConfig.getValue() );</span>
+        }
+
+<span class="fc" id="L135">        PlexusConfiguration configuratorConfig = c.getChild( &quot;configurator&quot; );</span>
+
+<span class="pc bpc" id="L137" title="1 of 2 branches missed.">        if ( configuratorConfig != null )</span>
+        {
+<span class="fc" id="L139">            mojo.setComponentConfigurator( configuratorConfig.getValue() );</span>
+        }
+
+<span class="fc" id="L142">        PlexusConfiguration composerConfig = c.getChild( &quot;composer&quot; );</span>
+
+<span class="pc bpc" id="L144" title="1 of 2 branches missed.">        if ( composerConfig != null )</span>
+        {
+<span class="fc" id="L146">            mojo.setComponentComposer( composerConfig.getValue() );</span>
+        }
+
+<span class="fc" id="L149">        String since = c.getChild( &quot;since&quot; ).getValue();</span>
+
+<span class="fc bfc" id="L151" title="All 2 branches covered.">        if ( since != null )</span>
+        {
+<span class="fc" id="L153">            mojo.setSince( since );</span>
+        }
+
+<span class="fc" id="L156">        PlexusConfiguration deprecated = c.getChild( &quot;deprecated&quot;, false );</span>
+
+<span class="fc bfc" id="L158" title="All 2 branches covered.">        if ( deprecated != null )</span>
+        {
+<span class="fc" id="L160">            mojo.setDeprecated( deprecated.getValue() );</span>
+        }
+
+<span class="fc" id="L163">        String phase = c.getChild( &quot;phase&quot; ).getValue();</span>
+
+<span class="fc bfc" id="L165" title="All 2 branches covered.">        if ( phase != null )</span>
+        {
+<span class="fc" id="L167">            mojo.setPhase( phase );</span>
+        }
+
+<span class="fc" id="L170">        String executePhase = c.getChild( &quot;executePhase&quot; ).getValue();</span>
+
+<span class="pc bpc" id="L172" title="1 of 2 branches missed.">        if ( executePhase != null )</span>
+        {
+<span class="nc" id="L174">            mojo.setExecutePhase( executePhase );</span>
+        }
+
+<span class="fc" id="L177">        String executeMojo = c.getChild( &quot;executeGoal&quot; ).getValue();</span>
+
+<span class="pc bpc" id="L179" title="1 of 2 branches missed.">        if ( executeMojo != null )</span>
+        {
+<span class="nc" id="L181">            mojo.setExecuteGoal( executeMojo );</span>
+        }
+
+<span class="fc" id="L184">        String executeLifecycle = c.getChild( &quot;executeLifecycle&quot; ).getValue();</span>
+
+<span class="pc bpc" id="L186" title="1 of 2 branches missed.">        if ( executeLifecycle != null )</span>
+        {
+<span class="nc" id="L188">            mojo.setExecuteLifecycle( executeLifecycle );</span>
+        }
+
+<span class="fc" id="L191">        mojo.setInstantiationStrategy( c.getChild( &quot;instantiationStrategy&quot; ).getValue() );</span>
+
+<span class="fc" id="L193">        mojo.setDescription( c.getChild( &quot;description&quot; ).getValue() );</span>
+
+<span class="fc" id="L195">        PlexusConfiguration dependencyResolution = c.getChild( &quot;requiresDependencyResolution&quot;, false );</span>
+
+<span class="fc bfc" id="L197" title="All 2 branches covered.">        if ( dependencyResolution != null )</span>
+        {
+<span class="fc" id="L199">            mojo.setDependencyResolutionRequired( dependencyResolution.getValue() );</span>
+        }
+
+<span class="fc" id="L202">        PlexusConfiguration dependencyCollection = c.getChild( &quot;requiresDependencyCollection&quot;, false );</span>
+
+<span class="pc bpc" id="L204" title="1 of 2 branches missed.">        if ( dependencyCollection != null )</span>
+        {
+<span class="nc" id="L206">            mojo.setDependencyCollectionRequired( dependencyCollection.getValue() );</span>
+        }
+
+<span class="fc" id="L209">        String directInvocationOnly = c.getChild( &quot;requiresDirectInvocation&quot; ).getValue();</span>
+
+<span class="pc bpc" id="L211" title="1 of 2 branches missed.">        if ( directInvocationOnly != null )</span>
+        {
+<span class="fc" id="L213">            mojo.setDirectInvocationOnly( Boolean.parseBoolean( directInvocationOnly ) );</span>
+        }
+
+<span class="fc" id="L216">        String requiresProject = c.getChild( &quot;requiresProject&quot; ).getValue();</span>
+
+<span class="pc bpc" id="L218" title="1 of 2 branches missed.">        if ( requiresProject != null )</span>
+        {
+<span class="fc" id="L220">            mojo.setProjectRequired( Boolean.parseBoolean( requiresProject ) );</span>
+        }
+
+<span class="fc" id="L223">        String requiresReports = c.getChild( &quot;requiresReports&quot; ).getValue();</span>
+
+<span class="pc bpc" id="L225" title="1 of 2 branches missed.">        if ( requiresReports != null )</span>
+        {
+<span class="fc" id="L227">            mojo.setRequiresReports( Boolean.parseBoolean( requiresReports ) );</span>
+        }
+
+<span class="fc" id="L230">        String aggregator = c.getChild( &quot;aggregator&quot; ).getValue();</span>
+
+<span class="pc bpc" id="L232" title="1 of 2 branches missed.">        if ( aggregator != null )</span>
+        {
+<span class="fc" id="L234">            mojo.setAggregator( Boolean.parseBoolean( aggregator ) );</span>
+        }
+
+<span class="fc" id="L237">        String requiresOnline = c.getChild( &quot;requiresOnline&quot; ).getValue();</span>
+
+<span class="pc bpc" id="L239" title="1 of 2 branches missed.">        if ( requiresOnline != null )</span>
+        {
+<span class="fc" id="L241">            mojo.setOnlineRequired( Boolean.parseBoolean( requiresOnline ) );</span>
+        }
+
+<span class="fc" id="L244">        String inheritedByDefault = c.getChild( &quot;inheritedByDefault&quot; ).getValue();</span>
+
+<span class="pc bpc" id="L246" title="1 of 2 branches missed.">        if ( inheritedByDefault != null )</span>
+        {
+<span class="fc" id="L248">            mojo.setInheritedByDefault( Boolean.parseBoolean( inheritedByDefault ) );</span>
+        }
+
+<span class="fc" id="L251">        String threadSafe = c.getChild( &quot;threadSafe&quot; ).getValue();</span>
+
+<span class="fc bfc" id="L253" title="All 2 branches covered.">        if ( threadSafe != null )</span>
+        {
+<span class="fc" id="L255">            mojo.setThreadSafe( Boolean.parseBoolean( threadSafe ) );</span>
+        }
+
+        // ----------------------------------------------------------------------
+        // Configuration
+        // ----------------------------------------------------------------------
+
+<span class="fc" id="L262">        PlexusConfiguration mojoConfig = c.getChild( &quot;configuration&quot; );</span>
+<span class="fc" id="L263">        mojo.setMojoConfiguration( mojoConfig );</span>
+
+        // ----------------------------------------------------------------------
+        // Parameters
+        // ----------------------------------------------------------------------
+
+<span class="fc" id="L269">        PlexusConfiguration[] parameterConfigurations = c.getChild( &quot;parameters&quot; ).getChildren( &quot;parameter&quot; );</span>
+
+<span class="fc" id="L271">        List&lt;Parameter&gt; parameters = new ArrayList&lt;&gt;();</span>
+
+<span class="fc bfc" id="L273" title="All 2 branches covered.">        for ( PlexusConfiguration d : parameterConfigurations )</span>
+        {
+<span class="fc" id="L275">            Parameter parameter = new Parameter();</span>
+
+<span class="fc" id="L277">            parameter.setName( d.getChild( &quot;name&quot; ).getValue() );</span>
+
+<span class="fc" id="L279">            parameter.setAlias( d.getChild( &quot;alias&quot; ).getValue() );</span>
+
+<span class="fc" id="L281">            parameter.setType( d.getChild( &quot;type&quot; ).getValue() );</span>
+
+<span class="fc" id="L283">            String required = d.getChild( &quot;required&quot; ).getValue();</span>
+
+<span class="fc" id="L285">            parameter.setRequired( Boolean.parseBoolean( required ) );</span>
+
+<span class="fc" id="L287">            PlexusConfiguration editableConfig = d.getChild( &quot;editable&quot; );</span>
+
+            // we need the null check for pre-build legacy plugins...
+<span class="pc bpc" id="L290" title="1 of 2 branches missed.">            if ( editableConfig != null )</span>
+            {
+<span class="fc" id="L292">                String editable = d.getChild( &quot;editable&quot; ).getValue();</span>
+
+<span class="pc bpc" id="L294" title="1 of 4 branches missed.">                parameter.setEditable( editable == null || Boolean.parseBoolean( editable ) );</span>
+            }
+
+<span class="fc" id="L297">            parameter.setDescription( d.getChild( &quot;description&quot; ).getValue() );</span>
+
+<span class="fc" id="L299">            parameter.setDeprecated( d.getChild( &quot;deprecated&quot; ).getValue() );</span>
+
+<span class="fc" id="L301">            parameter.setImplementation( d.getChild( &quot;implementation&quot; ).getValue() );</span>
+
+<span class="fc" id="L303">            parameter.setSince( d.getChild( &quot;since&quot; ).getValue() );</span>
+
+<span class="fc" id="L305">            PlexusConfiguration paramConfig = mojoConfig.getChild( parameter.getName(), false );</span>
+<span class="fc bfc" id="L306" title="All 2 branches covered.">            if ( paramConfig != null )</span>
+            {
+<span class="fc" id="L308">                parameter.setExpression( paramConfig.getValue( null ) );</span>
+<span class="fc" id="L309">                parameter.setDefaultValue( paramConfig.getAttribute( &quot;default-value&quot; ) );</span>
+            }
+
+<span class="fc" id="L312">            parameters.add( parameter );</span>
+        }
+
+<span class="fc" id="L315">        mojo.setParameters( parameters );</span>
+
+        // TODO this should not need to be handed off...
+
+        // ----------------------------------------------------------------------
+        // Requirements
+        // ----------------------------------------------------------------------
+
+<span class="fc" id="L323">        PlexusConfiguration[] requirements = c.getChild( &quot;requirements&quot; ).getChildren( &quot;requirement&quot; );</span>
+
+<span class="fc bfc" id="L325" title="All 2 branches covered.">        for ( PlexusConfiguration requirement : requirements )</span>
+        {
+<span class="fc" id="L327">            ComponentRequirement cr = new ComponentRequirement();</span>
+
+<span class="fc" id="L329">            cr.setRole( requirement.getChild( &quot;role&quot; ).getValue() );</span>
+
+<span class="fc" id="L331">            cr.setRoleHint( requirement.getChild( &quot;role-hint&quot; ).getValue() );</span>
+
+<span class="fc" id="L333">            cr.setFieldName( requirement.getChild( &quot;field-name&quot; ).getValue() );</span>
+
+<span class="fc" id="L335">            mojo.addRequirement( cr );</span>
+        }
+
+<span class="fc" id="L338">        return mojo;</span>
+    }
+
+    // ----------------------------------------------------------------------
+    //
+    // ----------------------------------------------------------------------
+
+    public PlexusConfiguration buildConfiguration( Reader configuration )
+        throws PlexusConfigurationException
+    {
+        try
+        {
+<span class="fc" id="L350">            return new XmlPlexusConfiguration( Xpp3DomBuilder.build( configuration ) );</span>
+        }
+<span class="nc" id="L352">        catch ( IOException | XmlPullParserException e )</span>
+        {
+<span class="nc" id="L354">            throw new PlexusConfigurationException( e.getMessage(), e );</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,507 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StringSearchModelInterpolator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.model.interpolation</a> &gt; <span class="el_source">StringSearchModelInterpolator.java</span></div><h1>StringSearchModelInterpolator.java</h1><pre class="source lang-java linenums">package org.apache.maven.model.interpolation;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.maven.model.Model;
+import org.apache.maven.model.building.ModelBuildingRequest;
+import org.apache.maven.model.building.ModelProblem.Severity;
+import org.apache.maven.model.building.ModelProblem.Version;
+import org.apache.maven.model.building.ModelProblemCollector;
+import org.apache.maven.model.building.ModelProblemCollectorRequest;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.interpolation.InterpolationPostProcessor;
+import org.codehaus.plexus.interpolation.Interpolator;
+import org.codehaus.plexus.interpolation.StringSearchInterpolator;
+import org.codehaus.plexus.interpolation.ValueSource;
+
+import java.io.File;
+import java.lang.reflect.Array;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+/**
+ * StringSearchModelInterpolator
+ */
+@Component( role = ModelInterpolator.class )
+<span class="fc" id="L51">public class StringSearchModelInterpolator</span>
+    extends AbstractStringBasedModelInterpolator
+{
+
+<span class="fc" id="L55">    private static final Map&lt;Class&lt;?&gt;, InterpolateObjectAction.CacheItem&gt; CACHED_ENTRIES =</span>
+        new ConcurrentHashMap&lt;&gt;( 80, 0.75f, 2 );
+    // Empirical data from 3.x, actual =40
+
+
+    @Override
+    public Model interpolateModel( Model model, File projectDir, ModelBuildingRequest config,
+                                   ModelProblemCollector problems )
+    {
+<span class="fc" id="L64">        interpolateObject( model, model, projectDir, config, problems );</span>
+
+<span class="fc" id="L66">        return model;</span>
+    }
+
+    protected void interpolateObject( Object obj, Model model, File projectDir, ModelBuildingRequest config,
+                                      ModelProblemCollector problems )
+    {
+        try
+        {
+<span class="fc" id="L74">            List&lt;? extends ValueSource&gt; valueSources = createValueSources( model, projectDir, config, problems );</span>
+<span class="fc" id="L75">            List&lt;? extends InterpolationPostProcessor&gt; postProcessors =</span>
+                createPostProcessors( model, projectDir, config );
+
+<span class="fc" id="L78">            InterpolateObjectAction action =</span>
+                new InterpolateObjectAction( obj, valueSources, postProcessors, this, problems );
+
+<span class="fc" id="L81">            AccessController.doPrivileged( action );</span>
+        }
+        finally
+        {
+<span class="fc" id="L85">            getInterpolator().clearAnswers();</span>
+        }
+<span class="fc" id="L87">    }</span>
+
+    @Override
+    protected Interpolator createInterpolator()
+    {
+<span class="fc" id="L92">        StringSearchInterpolator interpolator = new StringSearchInterpolator();</span>
+<span class="fc" id="L93">        interpolator.setCacheAnswers( true );</span>
+
+<span class="fc" id="L95">        return interpolator;</span>
+    }
+
+<span class="fc" id="L98">    private static final class InterpolateObjectAction</span>
+        implements PrivilegedAction&lt;Object&gt;
+    {
+
+        private final LinkedList&lt;Object&gt; interpolationTargets;
+
+        private final StringSearchModelInterpolator modelInterpolator;
+
+        private final List&lt;? extends ValueSource&gt; valueSources;
+
+        private final List&lt;? extends InterpolationPostProcessor&gt; postProcessors;
+
+        private final ModelProblemCollector problems;
+
+        InterpolateObjectAction( Object target, List&lt;? extends ValueSource&gt; valueSources,
+                                 List&lt;? extends InterpolationPostProcessor&gt; postProcessors,
+                                 StringSearchModelInterpolator modelInterpolator, ModelProblemCollector problems )
+<span class="fc" id="L115">        {</span>
+<span class="fc" id="L116">            this.valueSources = valueSources;</span>
+<span class="fc" id="L117">            this.postProcessors = postProcessors;</span>
+
+<span class="fc" id="L119">            this.interpolationTargets = new LinkedList&lt;&gt;();</span>
+<span class="fc" id="L120">            interpolationTargets.add( target );</span>
+
+<span class="fc" id="L122">            this.modelInterpolator = modelInterpolator;</span>
+
+<span class="fc" id="L124">            this.problems = problems;</span>
+<span class="fc" id="L125">        }</span>
+
+        @Override
+        public Object run()
+        {
+<span class="fc bfc" id="L130" title="All 2 branches covered.">            while ( !interpolationTargets.isEmpty() )</span>
+            {
+<span class="fc" id="L132">                Object obj = interpolationTargets.removeFirst();</span>
+
+<span class="fc" id="L134">                traverseObjectWithParents( obj.getClass(), obj );</span>
+<span class="fc" id="L135">            }</span>
+
+<span class="fc" id="L137">            return null;</span>
+        }
+
+
+        private String interpolate( String value )
+        {
+<span class="fc" id="L143">            return modelInterpolator.interpolateInternal( value, valueSources, postProcessors, problems );</span>
+        }
+
+        private void traverseObjectWithParents( Class&lt;?&gt; cls, Object target )
+        {
+<span class="pc bpc" id="L148" title="1 of 2 branches missed.">            if ( cls == null )</span>
+            {
+<span class="nc" id="L150">                return;</span>
+            }
+
+<span class="fc" id="L153">            CacheItem cacheEntry = getCacheEntry( cls );</span>
+<span class="pc bpc" id="L154" title="1 of 2 branches missed.">            if ( cacheEntry.isArray() )</span>
+            {
+<span class="nc" id="L156">                evaluateArray( target, this );</span>
+            }
+<span class="fc bfc" id="L158" title="All 2 branches covered.">            else if ( cacheEntry.isQualifiedForInterpolation )</span>
+            {
+<span class="fc" id="L160">                cacheEntry.interpolate( target, this );</span>
+
+<span class="fc" id="L162">                traverseObjectWithParents( cls.getSuperclass(), target );</span>
+            }
+<span class="fc" id="L164">        }</span>
+
+
+        private CacheItem getCacheEntry( Class&lt;?&gt; cls )
+        {
+<span class="fc" id="L169">            CacheItem cacheItem = CACHED_ENTRIES.get( cls );</span>
+<span class="fc bfc" id="L170" title="All 2 branches covered.">            if ( cacheItem == null )</span>
+            {
+<span class="fc" id="L172">                cacheItem = new CacheItem( cls );</span>
+<span class="fc" id="L173">                CACHED_ENTRIES.put( cls, cacheItem );</span>
+            }
+<span class="fc" id="L175">            return cacheItem;</span>
+        }
+
+        private static void evaluateArray( Object target, InterpolateObjectAction ctx )
+        {
+<span class="fc" id="L180">            int len = Array.getLength( target );</span>
+<span class="fc bfc" id="L181" title="All 2 branches covered.">            for ( int i = 0; i &lt; len; i++ )</span>
+            {
+<span class="fc" id="L183">                Object value = Array.get( target, i );</span>
+<span class="pc bpc" id="L184" title="1 of 2 branches missed.">                if ( value != null )</span>
+                {
+<span class="pc bpc" id="L186" title="1 of 2 branches missed.">                    if ( String.class == value.getClass() )</span>
+                    {
+<span class="nc" id="L188">                        String interpolated = ctx.interpolate( (String) value );</span>
+
+<span class="nc bnc" id="L190" title="All 2 branches missed.">                        if ( !interpolated.equals( value ) )</span>
+                        {
+<span class="nc" id="L192">                            Array.set( target, i, interpolated );</span>
+                        }
+<span class="nc" id="L194">                    }</span>
+                    else
+                    {
+<span class="fc" id="L197">                        ctx.interpolationTargets.add( value );</span>
+                    }
+                }
+            }
+<span class="fc" id="L201">        }</span>
+
+        private static class CacheItem
+        {
+            private final boolean isArray;
+
+            private final boolean isQualifiedForInterpolation;
+
+            private final CacheField[] fields;
+
+            private boolean isQualifiedForInterpolation( Class&lt;?&gt; cls )
+            {
+<span class="fc bfc" id="L213" title="All 2 branches covered.">                return !cls.getName().startsWith( &quot;java&quot; );</span>
+            }
+
+            private boolean isQualifiedForInterpolation( Field field, Class&lt;?&gt; fieldType )
+            {
+<span class="fc bfc" id="L218" title="All 4 branches covered.">                if ( Map.class.equals( fieldType ) &amp;&amp; &quot;locations&quot;.equals( field.getName() ) )</span>
+                {
+<span class="fc" id="L220">                    return false;</span>
+                }
+
+                //noinspection SimplifiableIfStatement
+<span class="fc bfc" id="L224" title="All 2 branches covered.">                if ( fieldType.isPrimitive() )</span>
+                {
+<span class="fc" id="L226">                    return false;</span>
+                }
+
+<span class="fc bfc" id="L229" title="All 2 branches covered.">                return !&quot;parent&quot;.equals( field.getName() );</span>
+            }
+
+            CacheItem( Class clazz )
+<span class="fc" id="L233">            {</span>
+<span class="fc" id="L234">                this.isQualifiedForInterpolation = isQualifiedForInterpolation( clazz );</span>
+<span class="fc" id="L235">                this.isArray = clazz.isArray();</span>
+<span class="fc" id="L236">                List&lt;CacheField&gt; fields = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L237" title="All 2 branches covered.">                for ( Field currentField : clazz.getDeclaredFields() )</span>
+                {
+<span class="fc" id="L239">                    Class&lt;?&gt; type = currentField.getType();</span>
+<span class="fc bfc" id="L240" title="All 2 branches covered.">                    if ( isQualifiedForInterpolation( currentField, type ) )</span>
+                    {
+<span class="fc bfc" id="L242" title="All 2 branches covered.">                        if ( String.class == type )</span>
+                        {
+<span class="fc bfc" id="L244" title="All 2 branches covered.">                            if ( !Modifier.isFinal( currentField.getModifiers() ) )</span>
+                            {
+<span class="fc" id="L246">                                fields.add( new StringField( currentField ) );</span>
+                            }
+                        }
+<span class="fc bfc" id="L249" title="All 2 branches covered.">                        else if ( List.class.isAssignableFrom( type ) )</span>
+                        {
+<span class="fc" id="L251">                            fields.add( new ListField( currentField ) );</span>
+                        }
+<span class="pc bpc" id="L253" title="1 of 2 branches missed.">                        else if ( Collection.class.isAssignableFrom( type ) )</span>
+                        {
+<span class="nc" id="L255">                            throw new RuntimeException( &quot;We dont interpolate into collections, use a list instead&quot; );</span>
+                        }
+<span class="fc bfc" id="L257" title="All 2 branches covered.">                        else if ( Map.class.isAssignableFrom( type ) )</span>
+                        {
+<span class="fc" id="L259">                            fields.add( new MapField( currentField ) );</span>
+                        }
+                        else
+                        {
+<span class="fc" id="L263">                            fields.add( new ObjectField( currentField ) );</span>
+                        }
+                    }
+
+                }
+<span class="fc" id="L268">                this.fields = fields.toArray( new CacheField[fields.size()] );</span>
+
+<span class="fc" id="L270">            }</span>
+
+            public void interpolate( Object target, InterpolateObjectAction interpolateObjectAction )
+            {
+<span class="fc bfc" id="L274" title="All 2 branches covered.">                for ( CacheField field : fields )</span>
+                {
+<span class="fc" id="L276">                    field.interpolate( target, interpolateObjectAction );</span>
+                }
+<span class="fc" id="L278">            }</span>
+
+            public boolean isArray()
+            {
+<span class="fc" id="L282">                return isArray;</span>
+            }
+        }
+
+        abstract static class CacheField
+        {
+            protected final Field field;
+
+            CacheField( Field field )
+<span class="fc" id="L291">            {</span>
+<span class="fc" id="L292">                this.field = field;</span>
+<span class="fc" id="L293">            }</span>
+
+            void interpolate( Object target, InterpolateObjectAction interpolateObjectAction )
+            {
+<span class="fc" id="L297">                synchronized ( field )</span>
+                {
+<span class="fc" id="L299">                    boolean isAccessible = field.isAccessible();</span>
+<span class="fc" id="L300">                    field.setAccessible( true );</span>
+                    try
+                    {
+<span class="fc" id="L303">                        doInterpolate( target, interpolateObjectAction );</span>
+                    }
+<span class="nc" id="L305">                    catch ( IllegalArgumentException e )</span>
+                    {
+<span class="nc" id="L307">                        interpolateObjectAction.problems.add(</span>
+                            new ModelProblemCollectorRequest( Severity.ERROR, Version.BASE ).setMessage(
+                                &quot;Failed to interpolate field3: &quot; + field + &quot; on class: &quot;
+                                    + field.getType().getName() ).setException(
+                                e ) ); // TODO Not entirely the same message
+                    }
+<span class="nc" id="L313">                    catch ( IllegalAccessException e )</span>
+                    {
+<span class="nc" id="L315">                        interpolateObjectAction.problems.add(</span>
+                            new ModelProblemCollectorRequest( Severity.ERROR, Version.BASE ).setMessage(
+                                &quot;Failed to interpolate field4: &quot; + field + &quot; on class: &quot;
+                                    + field.getType().getName() ).setException( e ) );
+                    }
+                    finally
+                    {
+<span class="fc" id="L322">                        field.setAccessible( isAccessible );</span>
+                    }
+<span class="fc" id="L324">                }</span>
+
+
+<span class="fc" id="L327">            }</span>
+
+            abstract void doInterpolate( Object target, InterpolateObjectAction ctx )
+                throws IllegalAccessException;
+        }
+
+        static final class StringField
+            extends CacheField
+        {
+            StringField( Field field )
+            {
+<span class="fc" id="L338">                super( field );</span>
+<span class="fc" id="L339">            }</span>
+
+            @Override
+            void doInterpolate( Object target, InterpolateObjectAction ctx )
+                throws IllegalAccessException
+            {
+<span class="fc" id="L345">                String value = (String) field.get( target );</span>
+<span class="fc bfc" id="L346" title="All 2 branches covered.">                if ( value == null )</span>
+                {
+<span class="fc" id="L348">                    return;</span>
+                }
+
+<span class="fc" id="L351">                String interpolated = ctx.interpolate( value );</span>
+
+<span class="fc bfc" id="L353" title="All 2 branches covered.">                if ( !interpolated.equals( value ) )</span>
+                {
+<span class="fc" id="L355">                    field.set( target, interpolated );</span>
+                }
+<span class="fc" id="L357">            }</span>
+        }
+
+        static final class ListField
+            extends CacheField
+        {
+            ListField( Field field )
+            {
+<span class="fc" id="L365">                super( field );</span>
+<span class="fc" id="L366">            }</span>
+
+            @Override
+            void doInterpolate( Object target, InterpolateObjectAction ctx )
+                throws IllegalAccessException
+            {
+<span class="fc" id="L372">                @SuppressWarnings( &quot;unchecked&quot; ) List&lt;Object&gt; c = (List&lt;Object&gt;) field.get( target );</span>
+<span class="fc bfc" id="L373" title="All 2 branches covered.">                if ( c == null )</span>
+                {
+<span class="fc" id="L375">                    return;</span>
+                }
+
+<span class="fc" id="L378">                int size = c.size();</span>
+                Object value;
+<span class="fc bfc" id="L380" title="All 2 branches covered.">                for ( int i = 0; i &lt; size; i++ )</span>
+                {
+
+<span class="fc" id="L383">                    value = c.get( i );</span>
+
+<span class="pc bpc" id="L385" title="1 of 2 branches missed.">                    if ( value != null )</span>
+                    {
+<span class="fc bfc" id="L387" title="All 2 branches covered.">                        if ( String.class == value.getClass() )</span>
+                        {
+<span class="fc" id="L389">                            String interpolated = ctx.interpolate( (String) value );</span>
+
+<span class="pc bpc" id="L391" title="1 of 2 branches missed.">                            if ( !interpolated.equals( value ) )</span>
+                            {
+                                try
+                                {
+<span class="nc" id="L395">                                    c.set( i, interpolated );</span>
+                                }
+<span class="nc" id="L397">                                catch ( UnsupportedOperationException e )</span>
+                                {
+<span class="nc" id="L399">                                    return;</span>
+<span class="nc" id="L400">                                }</span>
+                            }
+<span class="fc" id="L402">                        }</span>
+                        else
+                        {
+<span class="pc bpc" id="L405" title="1 of 2 branches missed.">                            if ( value.getClass().isArray() )</span>
+                            {
+<span class="nc" id="L407">                                evaluateArray( value, ctx );</span>
+                            }
+                            else
+                            {
+<span class="fc" id="L411">                                ctx.interpolationTargets.add( value );</span>
+                            }
+                        }
+                    }
+                }
+<span class="fc" id="L416">            }</span>
+        }
+
+        static final class MapField
+            extends CacheField
+        {
+            MapField( Field field )
+            {
+<span class="fc" id="L424">                super( field );</span>
+<span class="fc" id="L425">            }</span>
+
+            @Override
+            void doInterpolate( Object target, InterpolateObjectAction ctx )
+                throws IllegalAccessException
+            {
+<span class="fc" id="L431">                @SuppressWarnings( &quot;unchecked&quot; ) Map&lt;Object, Object&gt; m = (Map&lt;Object, Object&gt;) field.get( target );</span>
+<span class="fc bfc" id="L432" title="All 4 branches covered.">                if ( m == null || m.isEmpty() )</span>
+                {
+<span class="fc" id="L434">                    return;</span>
+                }
+
+<span class="fc bfc" id="L437" title="All 2 branches covered.">                for ( Map.Entry&lt;Object, Object&gt; entry : m.entrySet() )</span>
+                {
+<span class="fc" id="L439">                    Object value = entry.getValue();</span>
+
+<span class="pc bpc" id="L441" title="1 of 2 branches missed.">                    if ( value == null )</span>
+                    {
+<span class="nc" id="L443">                        continue;</span>
+                    }
+
+<span class="fc bfc" id="L446" title="All 2 branches covered.">                    if ( String.class == value.getClass() )</span>
+                    {
+<span class="fc" id="L448">                        String interpolated = ctx.interpolate( (String) value );</span>
+
+<span class="fc bfc" id="L450" title="All 2 branches covered.">                        if ( !interpolated.equals( value ) )</span>
+                        {
+                            try
+                            {
+<span class="fc" id="L454">                                entry.setValue( interpolated );</span>
+                            }
+<span class="nc" id="L456">                            catch ( UnsupportedOperationException ignore )</span>
+                            {
+                                // nop
+<span class="fc" id="L459">                            }</span>
+                        }
+<span class="fc" id="L461">                    }</span>
+<span class="pc bpc" id="L462" title="1 of 2 branches missed.">                    else if ( value.getClass().isArray() )</span>
+                    {
+<span class="nc" id="L464">                        evaluateArray( value, ctx );</span>
+                    }
+                    else
+                    {
+<span class="fc" id="L468">                        ctx.interpolationTargets.add( value );</span>
+                    }
+<span class="fc" id="L470">                }</span>
+<span class="fc" id="L471">            }</span>
+        }
+
+        static final class ObjectField
+            extends CacheField
+        {
+            private final boolean isArray;
+
+            ObjectField( Field field )
+            {
+<span class="fc" id="L481">                super( field );</span>
+<span class="fc" id="L482">                this.isArray = field.getType().isArray();</span>
+<span class="fc" id="L483">            }</span>
+
+            @Override
+            void doInterpolate( Object target, InterpolateObjectAction ctx )
+                throws IllegalAccessException
+            {
+<span class="fc" id="L489">                Object value = field.get( target );</span>
+<span class="fc bfc" id="L490" title="All 2 branches covered.">                if ( value != null )</span>
+                {
+<span class="fc bfc" id="L492" title="All 2 branches covered.">                    if ( isArray )</span>
+                    {
+<span class="fc" id="L494">                        evaluateArray( value, ctx );</span>
+                    }
+                    else
+                    {
+<span class="fc" id="L498">                        ctx.interpolationTargets.add( value );</span>
+                    }
+                }
+<span class="fc" id="L501">            }</span>
+        }
+
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

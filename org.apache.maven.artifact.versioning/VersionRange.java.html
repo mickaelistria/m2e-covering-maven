@@ -1,0 +1,585 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>VersionRange.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.artifact.versioning</a> &gt; <span class="el_source">VersionRange.java</span></div><h1>VersionRange.java</h1><pre class="source lang-java linenums">package org.apache.maven.artifact.versioning;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+
+import org.apache.maven.artifact.Artifact;
+
+/**
+ * Construct a version range from a specification.
+ *
+ * @author &lt;a href=&quot;mailto:brett@apache.org&quot;&gt;Brett Porter&lt;/a&gt;
+ */
+public class VersionRange
+{
+    private final ArtifactVersion recommendedVersion;
+
+    private final List&lt;Restriction&gt; restrictions;
+
+    private VersionRange( ArtifactVersion recommendedVersion,
+                          List&lt;Restriction&gt; restrictions )
+<span class="fc" id="L42">    {</span>
+<span class="fc" id="L43">        this.recommendedVersion = recommendedVersion;</span>
+<span class="fc" id="L44">        this.restrictions = restrictions;</span>
+<span class="fc" id="L45">    }</span>
+
+    public ArtifactVersion getRecommendedVersion()
+    {
+<span class="fc" id="L49">        return recommendedVersion;</span>
+    }
+
+    public List&lt;Restriction&gt; getRestrictions()
+    {
+<span class="nc" id="L54">        return restrictions;</span>
+    }
+
+    public VersionRange cloneOf()
+    {
+<span class="fc" id="L59">        List&lt;Restriction&gt; copiedRestrictions = null;</span>
+
+<span class="pc bpc" id="L61" title="1 of 2 branches missed.">        if ( restrictions != null )</span>
+        {
+<span class="fc" id="L63">            copiedRestrictions = new ArrayList&lt;&gt;();</span>
+
+<span class="pc bpc" id="L65" title="1 of 2 branches missed.">            if ( !restrictions.isEmpty() )</span>
+            {
+<span class="nc" id="L67">                copiedRestrictions.addAll( restrictions );</span>
+            }
+        }
+
+<span class="fc" id="L71">        return new VersionRange( recommendedVersion, copiedRestrictions );</span>
+    }
+
+    /**
+     * &lt;p&gt;
+     * Create a version range from a string representation
+     * &lt;/p&gt;
+     * Some spec examples are:
+     * &lt;ul&gt;
+     * &lt;li&gt;&lt;code&gt;1.0&lt;/code&gt; Version 1.0&lt;/li&gt;
+     * &lt;li&gt;&lt;code&gt;[1.0,2.0)&lt;/code&gt; Versions 1.0 (included) to 2.0 (not included)&lt;/li&gt;
+     * &lt;li&gt;&lt;code&gt;[1.0,2.0]&lt;/code&gt; Versions 1.0 to 2.0 (both included)&lt;/li&gt;
+     * &lt;li&gt;&lt;code&gt;[1.5,)&lt;/code&gt; Versions 1.5 and higher&lt;/li&gt;
+     * &lt;li&gt;&lt;code&gt;(,1.0],[1.2,)&lt;/code&gt; Versions up to 1.0 (included) and 1.2 or higher&lt;/li&gt;
+     * &lt;/ul&gt;
+     *
+     * @param spec string representation of a version or version range
+     * @return a new {@link VersionRange} object that represents the spec
+     * @throws InvalidVersionSpecificationException
+     *
+     */
+    public static VersionRange createFromVersionSpec( String spec )
+        throws InvalidVersionSpecificationException
+    {
+<span class="pc bpc" id="L95" title="1 of 2 branches missed.">        if ( spec == null )</span>
+        {
+<span class="nc" id="L97">            return null;</span>
+        }
+
+<span class="fc" id="L100">        List&lt;Restriction&gt; restrictions = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L101">        String process = spec;</span>
+<span class="fc" id="L102">        ArtifactVersion version = null;</span>
+<span class="fc" id="L103">        ArtifactVersion upperBound = null;</span>
+<span class="fc" id="L104">        ArtifactVersion lowerBound = null;</span>
+
+<span class="pc bpc" id="L106" title="1 of 4 branches missed.">        while ( process.startsWith( &quot;[&quot; ) || process.startsWith( &quot;(&quot; ) )</span>
+        {
+<span class="fc" id="L108">            int index1 = process.indexOf( ')' );</span>
+<span class="fc" id="L109">            int index2 = process.indexOf( ']' );</span>
+
+<span class="fc" id="L111">            int index = index2;</span>
+<span class="pc bpc" id="L112" title="3 of 4 branches missed.">            if ( index2 &lt; 0 || index1 &lt; index2 )</span>
+            {
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">                if ( index1 &gt;= 0 )</span>
+                {
+<span class="fc" id="L116">                    index = index1;</span>
+                }
+            }
+
+<span class="pc bpc" id="L120" title="1 of 2 branches missed.">            if ( index &lt; 0 )</span>
+            {
+<span class="nc" id="L122">                throw new InvalidVersionSpecificationException( &quot;Unbounded range: &quot; + spec );</span>
+            }
+
+<span class="fc" id="L125">            Restriction restriction = parseRestriction( process.substring( 0, index + 1 ) );</span>
+<span class="pc bpc" id="L126" title="1 of 2 branches missed.">            if ( lowerBound == null )</span>
+            {
+<span class="fc" id="L128">                lowerBound = restriction.getLowerBound();</span>
+            }
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">            if ( upperBound != null )</span>
+            {
+<span class="nc bnc" id="L132" title="All 4 branches missed.">                if ( restriction.getLowerBound() == null || restriction.getLowerBound().compareTo( upperBound ) &lt; 0 )</span>
+                {
+<span class="nc" id="L134">                    throw new InvalidVersionSpecificationException( &quot;Ranges overlap: &quot; + spec );</span>
+                }
+            }
+<span class="fc" id="L137">            restrictions.add( restriction );</span>
+<span class="fc" id="L138">            upperBound = restriction.getUpperBound();</span>
+
+<span class="fc" id="L140">            process = process.substring( index + 1 ).trim();</span>
+
+<span class="pc bpc" id="L142" title="3 of 4 branches missed.">            if ( process.length() &gt; 0 &amp;&amp; process.startsWith( &quot;,&quot; ) )</span>
+            {
+<span class="nc" id="L144">                process = process.substring( 1 ).trim();</span>
+            }
+<span class="fc" id="L146">        }</span>
+
+<span class="fc bfc" id="L148" title="All 2 branches covered.">        if ( process.length() &gt; 0 )</span>
+        {
+<span class="pc bpc" id="L150" title="1 of 2 branches missed.">            if ( restrictions.size() &gt; 0 )</span>
+            {
+<span class="nc" id="L152">                throw new InvalidVersionSpecificationException(</span>
+                    &quot;Only fully-qualified sets allowed in multiple set scenario: &quot; + spec );
+            }
+            else
+            {
+<span class="fc" id="L157">                version = new DefaultArtifactVersion( process );</span>
+<span class="fc" id="L158">                restrictions.add( Restriction.EVERYTHING );</span>
+            }
+        }
+
+<span class="fc" id="L162">        return new VersionRange( version, restrictions );</span>
+    }
+
+    private static Restriction parseRestriction( String spec )
+        throws InvalidVersionSpecificationException
+    {
+<span class="fc" id="L168">        boolean lowerBoundInclusive = spec.startsWith( &quot;[&quot; );</span>
+<span class="fc" id="L169">        boolean upperBoundInclusive = spec.endsWith( &quot;]&quot; );</span>
+
+<span class="fc" id="L171">        String process = spec.substring( 1, spec.length() - 1 ).trim();</span>
+
+        Restriction restriction;
+
+<span class="fc" id="L175">        int index = process.indexOf( ',' );</span>
+
+<span class="pc bpc" id="L177" title="1 of 2 branches missed.">        if ( index &lt; 0 )</span>
+        {
+<span class="nc bnc" id="L179" title="All 4 branches missed.">            if ( !lowerBoundInclusive || !upperBoundInclusive )</span>
+            {
+<span class="nc" id="L181">                throw new InvalidVersionSpecificationException( &quot;Single version must be surrounded by []: &quot; + spec );</span>
+            }
+
+<span class="nc" id="L184">            ArtifactVersion version = new DefaultArtifactVersion( process );</span>
+
+<span class="nc" id="L186">            restriction = new Restriction( version, lowerBoundInclusive, version, upperBoundInclusive );</span>
+<span class="nc" id="L187">        }</span>
+        else
+        {
+<span class="fc" id="L190">            String lowerBound = process.substring( 0, index ).trim();</span>
+<span class="fc" id="L191">            String upperBound = process.substring( index + 1 ).trim();</span>
+<span class="pc bpc" id="L192" title="1 of 2 branches missed.">            if ( lowerBound.equals( upperBound ) )</span>
+            {
+<span class="nc" id="L194">                throw new InvalidVersionSpecificationException( &quot;Range cannot have identical boundaries: &quot; + spec );</span>
+            }
+
+<span class="fc" id="L197">            ArtifactVersion lowerVersion = null;</span>
+<span class="pc bpc" id="L198" title="1 of 2 branches missed.">            if ( lowerBound.length() &gt; 0 )</span>
+            {
+<span class="fc" id="L200">                lowerVersion = new DefaultArtifactVersion( lowerBound );</span>
+            }
+<span class="fc" id="L202">            ArtifactVersion upperVersion = null;</span>
+<span class="fc bfc" id="L203" title="All 2 branches covered.">            if ( upperBound.length() &gt; 0 )</span>
+            {
+<span class="fc" id="L205">                upperVersion = new DefaultArtifactVersion( upperBound );</span>
+            }
+
+<span class="pc bpc" id="L208" title="2 of 6 branches missed.">            if ( upperVersion != null &amp;&amp; lowerVersion != null &amp;&amp; upperVersion.compareTo( lowerVersion ) &lt; 0 )</span>
+            {
+<span class="nc" id="L210">                throw new InvalidVersionSpecificationException( &quot;Range defies version ordering: &quot; + spec );</span>
+            }
+
+<span class="fc" id="L213">            restriction = new Restriction( lowerVersion, lowerBoundInclusive, upperVersion, upperBoundInclusive );</span>
+        }
+
+<span class="fc" id="L216">        return restriction;</span>
+    }
+
+    public static VersionRange createFromVersion( String version )
+    {
+<span class="fc" id="L221">        List&lt;Restriction&gt; restrictions = Collections.emptyList();</span>
+<span class="fc" id="L222">        return new VersionRange( new DefaultArtifactVersion( version ), restrictions );</span>
+    }
+
+    /**
+     * Creates and returns a new &lt;code&gt;VersionRange&lt;/code&gt; that is a restriction of this
+     * version range and the specified version range.
+     * &lt;p&gt;
+     * Note: Precedence is given to the recommended version from this version range over the
+     * recommended version from the specified version range.
+     * &lt;/p&gt;
+     *
+     * @param restriction the &lt;code&gt;VersionRange&lt;/code&gt; that will be used to restrict this version
+     *                    range.
+     * @return the &lt;code&gt;VersionRange&lt;/code&gt; that is a restriction of this version range and the
+     *         specified version range.
+     *         &lt;p&gt;
+     *         The restrictions of the returned version range will be an intersection of the restrictions
+     *         of this version range and the specified version range if both version ranges have
+     *         restrictions. Otherwise, the restrictions on the returned range will be empty.
+     *         &lt;/p&gt;
+     *         &lt;p&gt;
+     *         The recommended version of the returned version range will be the recommended version of
+     *         this version range, provided that ranges falls within the intersected restrictions. If
+     *         the restrictions are empty, this version range's recommended version is used if it is not
+     *         &lt;code&gt;null&lt;/code&gt;. If it is &lt;code&gt;null&lt;/code&gt;, the specified version range's recommended
+     *         version is used (provided it is non-&lt;code&gt;null&lt;/code&gt;). If no recommended version can be
+     *         obtained, the returned version range's recommended version is set to &lt;code&gt;null&lt;/code&gt;.
+     *         &lt;/p&gt;
+     * @throws NullPointerException if the specified &lt;code&gt;VersionRange&lt;/code&gt; is
+     *                              &lt;code&gt;null&lt;/code&gt;.
+     */
+    public VersionRange restrict( VersionRange restriction )
+    {
+<span class="nc" id="L255">        List&lt;Restriction&gt; r1 = this.restrictions;</span>
+<span class="nc" id="L256">        List&lt;Restriction&gt; r2 = restriction.restrictions;</span>
+        List&lt;Restriction&gt; restrictions;
+
+<span class="nc bnc" id="L259" title="All 4 branches missed.">        if ( r1.isEmpty() || r2.isEmpty() )</span>
+        {
+<span class="nc" id="L261">            restrictions = Collections.emptyList();</span>
+        }
+        else
+        {
+<span class="nc" id="L265">            restrictions = intersection( r1, r2 );</span>
+        }
+
+<span class="nc" id="L268">        ArtifactVersion version = null;</span>
+<span class="nc bnc" id="L269" title="All 2 branches missed.">        if ( restrictions.size() &gt; 0 )</span>
+        {
+<span class="nc bnc" id="L271" title="All 2 branches missed.">            for ( Restriction r : restrictions )</span>
+            {
+<span class="nc bnc" id="L273" title="All 4 branches missed.">                if ( recommendedVersion != null &amp;&amp; r.containsVersion( recommendedVersion ) )</span>
+                {
+                    // if we find the original, use that
+<span class="nc" id="L276">                    version = recommendedVersion;</span>
+<span class="nc" id="L277">                    break;</span>
+                }
+<span class="nc bnc" id="L279" title="All 6 branches missed.">                else if ( version == null &amp;&amp; restriction.getRecommendedVersion() != null</span>
+                    &amp;&amp; r.containsVersion( restriction.getRecommendedVersion() ) )
+                {
+                    // use this if we can, but prefer the original if possible
+<span class="nc" id="L283">                    version = restriction.getRecommendedVersion();</span>
+                }
+<span class="nc" id="L285">            }</span>
+        }
+        // Either the original or the specified version ranges have no restrictions
+<span class="nc bnc" id="L288" title="All 2 branches missed.">        else if ( recommendedVersion != null )</span>
+        {
+            // Use the original recommended version since it exists
+<span class="nc" id="L291">            version = recommendedVersion;</span>
+        }
+<span class="nc bnc" id="L293" title="All 2 branches missed.">        else if ( restriction.recommendedVersion != null )</span>
+        {
+            // Use the recommended version from the specified VersionRange since there is no
+            // original recommended version
+<span class="nc" id="L297">            version = restriction.recommendedVersion;</span>
+        }
+/* TODO should throw this immediately, but need artifact
+        else
+        {
+            throw new OverConstrainedVersionException( &quot;Restricting incompatible version ranges&quot; );
+        }
+*/
+
+<span class="nc" id="L306">        return new VersionRange( version, restrictions );</span>
+    }
+
+    private List&lt;Restriction&gt; intersection( List&lt;Restriction&gt; r1, List&lt;Restriction&gt; r2 )
+    {
+<span class="nc" id="L311">        List&lt;Restriction&gt; restrictions = new ArrayList&lt;&gt;( r1.size() + r2.size() );</span>
+<span class="nc" id="L312">        Iterator&lt;Restriction&gt; i1 = r1.iterator();</span>
+<span class="nc" id="L313">        Iterator&lt;Restriction&gt; i2 = r2.iterator();</span>
+<span class="nc" id="L314">        Restriction res1 = i1.next();</span>
+<span class="nc" id="L315">        Restriction res2 = i2.next();</span>
+
+<span class="nc" id="L317">        boolean done = false;</span>
+<span class="nc bnc" id="L318" title="All 2 branches missed.">        while ( !done )</span>
+        {
+<span class="nc bnc" id="L320" title="All 6 branches missed.">            if ( res1.getLowerBound() == null || res2.getUpperBound() == null</span>
+                || res1.getLowerBound().compareTo( res2.getUpperBound() ) &lt;= 0 )
+            {
+<span class="nc bnc" id="L323" title="All 6 branches missed.">                if ( res1.getUpperBound() == null || res2.getLowerBound() == null</span>
+                    || res1.getUpperBound().compareTo( res2.getLowerBound() ) &gt;= 0 )
+                {
+                    ArtifactVersion lower;
+                    ArtifactVersion upper;
+                    boolean lowerInclusive;
+                    boolean upperInclusive;
+
+                    // overlaps
+<span class="nc bnc" id="L332" title="All 2 branches missed.">                    if ( res1.getLowerBound() == null )</span>
+                    {
+<span class="nc" id="L334">                        lower = res2.getLowerBound();</span>
+<span class="nc" id="L335">                        lowerInclusive = res2.isLowerBoundInclusive();</span>
+                    }
+<span class="nc bnc" id="L337" title="All 2 branches missed.">                    else if ( res2.getLowerBound() == null )</span>
+                    {
+<span class="nc" id="L339">                        lower = res1.getLowerBound();</span>
+<span class="nc" id="L340">                        lowerInclusive = res1.isLowerBoundInclusive();</span>
+                    }
+                    else
+                    {
+<span class="nc" id="L344">                        int comparison = res1.getLowerBound().compareTo( res2.getLowerBound() );</span>
+<span class="nc bnc" id="L345" title="All 2 branches missed.">                        if ( comparison &lt; 0 )</span>
+                        {
+<span class="nc" id="L347">                            lower = res2.getLowerBound();</span>
+<span class="nc" id="L348">                            lowerInclusive = res2.isLowerBoundInclusive();</span>
+                        }
+<span class="nc bnc" id="L350" title="All 2 branches missed.">                        else if ( comparison == 0 )</span>
+                        {
+<span class="nc" id="L352">                            lower = res1.getLowerBound();</span>
+<span class="nc bnc" id="L353" title="All 4 branches missed.">                            lowerInclusive = res1.isLowerBoundInclusive() &amp;&amp; res2.isLowerBoundInclusive();</span>
+                        }
+                        else
+                        {
+<span class="nc" id="L357">                            lower = res1.getLowerBound();</span>
+<span class="nc" id="L358">                            lowerInclusive = res1.isLowerBoundInclusive();</span>
+                        }
+                    }
+
+<span class="nc bnc" id="L362" title="All 2 branches missed.">                    if ( res1.getUpperBound() == null )</span>
+                    {
+<span class="nc" id="L364">                        upper = res2.getUpperBound();</span>
+<span class="nc" id="L365">                        upperInclusive = res2.isUpperBoundInclusive();</span>
+                    }
+<span class="nc bnc" id="L367" title="All 2 branches missed.">                    else if ( res2.getUpperBound() == null )</span>
+                    {
+<span class="nc" id="L369">                        upper = res1.getUpperBound();</span>
+<span class="nc" id="L370">                        upperInclusive = res1.isUpperBoundInclusive();</span>
+                    }
+                    else
+                    {
+<span class="nc" id="L374">                        int comparison = res1.getUpperBound().compareTo( res2.getUpperBound() );</span>
+<span class="nc bnc" id="L375" title="All 2 branches missed.">                        if ( comparison &lt; 0 )</span>
+                        {
+<span class="nc" id="L377">                            upper = res1.getUpperBound();</span>
+<span class="nc" id="L378">                            upperInclusive = res1.isUpperBoundInclusive();</span>
+                        }
+<span class="nc bnc" id="L380" title="All 2 branches missed.">                        else if ( comparison == 0 )</span>
+                        {
+<span class="nc" id="L382">                            upper = res1.getUpperBound();</span>
+<span class="nc bnc" id="L383" title="All 4 branches missed.">                            upperInclusive = res1.isUpperBoundInclusive() &amp;&amp; res2.isUpperBoundInclusive();</span>
+                        }
+                        else
+                        {
+<span class="nc" id="L387">                            upper = res2.getUpperBound();</span>
+<span class="nc" id="L388">                            upperInclusive = res2.isUpperBoundInclusive();</span>
+                        }
+                    }
+
+                    // don't add if they are equal and one is not inclusive
+<span class="nc bnc" id="L393" title="All 6 branches missed.">                    if ( lower == null || upper == null || lower.compareTo( upper ) != 0 )</span>
+                    {
+<span class="nc" id="L395">                        restrictions.add( new Restriction( lower, lowerInclusive, upper, upperInclusive ) );</span>
+                    }
+<span class="nc bnc" id="L397" title="All 4 branches missed.">                    else if ( lowerInclusive &amp;&amp; upperInclusive )</span>
+                    {
+<span class="nc" id="L399">                        restrictions.add( new Restriction( lower, lowerInclusive, upper, upperInclusive ) );</span>
+                    }
+
+                    //noinspection ObjectEquality
+<span class="nc bnc" id="L403" title="All 2 branches missed.">                    if ( upper == res2.getUpperBound() )</span>
+                    {
+                        // advance res2
+<span class="nc bnc" id="L406" title="All 2 branches missed.">                        if ( i2.hasNext() )</span>
+                        {
+<span class="nc" id="L408">                            res2 = i2.next();</span>
+                        }
+                        else
+                        {
+<span class="nc" id="L412">                            done = true;</span>
+                        }
+                    }
+                    else
+                    {
+                        // advance res1
+<span class="nc bnc" id="L418" title="All 2 branches missed.">                        if ( i1.hasNext() )</span>
+                        {
+<span class="nc" id="L420">                            res1 = i1.next();</span>
+                        }
+                        else
+                        {
+<span class="nc" id="L424">                            done = true;</span>
+                        }
+                    }
+<span class="nc" id="L427">                }</span>
+                else
+                {
+                    // move on to next in r1
+<span class="nc bnc" id="L431" title="All 2 branches missed.">                    if ( i1.hasNext() )</span>
+                    {
+<span class="nc" id="L433">                        res1 = i1.next();</span>
+                    }
+                    else
+                    {
+<span class="nc" id="L437">                        done = true;</span>
+                    }
+                }
+            }
+            else
+            {
+                // move on to next in r2
+<span class="nc bnc" id="L444" title="All 2 branches missed.">                if ( i2.hasNext() )</span>
+                {
+<span class="nc" id="L446">                    res2 = i2.next();</span>
+                }
+                else
+                {
+<span class="nc" id="L450">                    done = true;</span>
+                }
+            }
+        }
+
+<span class="nc" id="L455">        return restrictions;</span>
+    }
+
+    public ArtifactVersion getSelectedVersion( Artifact artifact )
+        throws OverConstrainedVersionException
+    {
+        ArtifactVersion version;
+<span class="nc bnc" id="L462" title="All 2 branches missed.">        if ( recommendedVersion != null )</span>
+        {
+<span class="nc" id="L464">            version = recommendedVersion;</span>
+        }
+        else
+        {
+<span class="nc bnc" id="L468" title="All 2 branches missed.">            if ( restrictions.size() == 0 )</span>
+            {
+<span class="nc" id="L470">                throw new OverConstrainedVersionException( &quot;The artifact has no valid ranges&quot;, artifact );</span>
+            }
+
+<span class="nc" id="L473">            version = null;</span>
+        }
+<span class="nc" id="L475">        return version;</span>
+    }
+
+    public boolean isSelectedVersionKnown( Artifact artifact )
+        throws OverConstrainedVersionException
+    {
+<span class="nc" id="L481">        boolean value = false;</span>
+<span class="nc bnc" id="L482" title="All 2 branches missed.">        if ( recommendedVersion != null )</span>
+        {
+<span class="nc" id="L484">            value = true;</span>
+        }
+        else
+        {
+<span class="nc bnc" id="L488" title="All 2 branches missed.">            if ( restrictions.size() == 0 )</span>
+            {
+<span class="nc" id="L490">                throw new OverConstrainedVersionException( &quot;The artifact has no valid ranges&quot;, artifact );</span>
+            }
+        }
+<span class="nc" id="L493">        return value;</span>
+    }
+
+    public String toString()
+    {
+<span class="nc bnc" id="L498" title="All 2 branches missed.">        if ( recommendedVersion != null )</span>
+        {
+<span class="nc" id="L500">            return recommendedVersion.toString();</span>
+        }
+        else
+        {
+<span class="nc" id="L504">            StringBuilder buf = new StringBuilder();</span>
+<span class="nc bnc" id="L505" title="All 2 branches missed.">            for ( Iterator&lt;Restriction&gt; i = restrictions.iterator(); i.hasNext(); )</span>
+            {
+<span class="nc" id="L507">                Restriction r = i.next();</span>
+
+<span class="nc" id="L509">                buf.append( r.toString() );</span>
+
+<span class="nc bnc" id="L511" title="All 2 branches missed.">                if ( i.hasNext() )</span>
+                {
+<span class="nc" id="L513">                    buf.append( ',' );</span>
+                }
+<span class="nc" id="L515">            }</span>
+<span class="nc" id="L516">            return buf.toString();</span>
+        }
+    }
+
+    public ArtifactVersion matchVersion( List&lt;ArtifactVersion&gt; versions )
+    {
+        // TODO could be more efficient by sorting the list and then moving along the restrictions in order?
+
+<span class="nc" id="L524">        ArtifactVersion matched = null;</span>
+<span class="nc bnc" id="L525" title="All 2 branches missed.">        for ( ArtifactVersion version : versions )</span>
+        {
+<span class="nc bnc" id="L527" title="All 2 branches missed.">            if ( containsVersion( version ) )</span>
+            {
+                // valid - check if it is greater than the currently matched version
+<span class="nc bnc" id="L530" title="All 4 branches missed.">                if ( matched == null || version.compareTo( matched ) &gt; 0 )</span>
+                {
+<span class="nc" id="L532">                    matched = version;</span>
+                }
+            }
+<span class="nc" id="L535">        }</span>
+<span class="nc" id="L536">        return matched;</span>
+    }
+
+    public boolean containsVersion( ArtifactVersion version )
+    {
+<span class="fc bfc" id="L541" title="All 2 branches covered.">        for ( Restriction restriction : restrictions )</span>
+        {
+<span class="fc bfc" id="L543" title="All 2 branches covered.">            if ( restriction.containsVersion( version ) )</span>
+            {
+<span class="fc" id="L545">                return true;</span>
+            }
+<span class="fc" id="L547">        }</span>
+<span class="fc" id="L548">        return false;</span>
+    }
+
+    public boolean hasRestrictions()
+    {
+<span class="pc bpc" id="L553" title="2 of 4 branches missed.">        return !restrictions.isEmpty() &amp;&amp; recommendedVersion == null;</span>
+    }
+
+    public boolean equals( Object obj )
+    {
+<span class="nc bnc" id="L558" title="All 2 branches missed.">        if ( this == obj )</span>
+        {
+<span class="nc" id="L560">            return true;</span>
+        }
+<span class="nc bnc" id="L562" title="All 2 branches missed.">        if ( !( obj instanceof VersionRange ) )</span>
+        {
+<span class="nc" id="L564">            return false;</span>
+        }
+<span class="nc" id="L566">        VersionRange other = (VersionRange) obj;</span>
+
+<span class="nc bnc" id="L568" title="All 6 branches missed.">        boolean equals =</span>
+            recommendedVersion == other.recommendedVersion
+                || ( ( recommendedVersion != null ) &amp;&amp; recommendedVersion.equals( other.recommendedVersion ) );
+<span class="nc bnc" id="L571" title="All 6 branches missed.">        equals &amp;=</span>
+            restrictions == other.restrictions
+                || ( ( restrictions != null ) &amp;&amp; restrictions.equals( other.restrictions ) );
+<span class="nc" id="L574">        return equals;</span>
+    }
+
+    public int hashCode()
+    {
+<span class="nc" id="L579">        int hash = 7;</span>
+<span class="nc bnc" id="L580" title="All 2 branches missed.">        hash = 31 * hash + ( recommendedVersion == null ? 0 : recommendedVersion.hashCode() );</span>
+<span class="nc bnc" id="L581" title="All 2 branches missed.">        hash = 31 * hash + ( restrictions == null ? 0 : restrictions.hashCode() );</span>
+<span class="nc" id="L582">        return hash;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MavenMetadata.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository.internal</a> &gt; <span class="el_source">MavenMetadata.java</span></div><h1>MavenMetadata.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository.internal;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.maven.artifact.repository.metadata.Metadata;
+import org.apache.maven.artifact.repository.metadata.io.xpp3.MetadataXpp3Reader;
+import org.apache.maven.artifact.repository.metadata.io.xpp3.MetadataXpp3Writer;
+import org.codehaus.plexus.util.ReaderFactory;
+import org.codehaus.plexus.util.WriterFactory;
+import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
+import org.eclipse.aether.RepositoryException;
+import org.eclipse.aether.metadata.AbstractMetadata;
+import org.eclipse.aether.metadata.MergeableMetadata;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.Reader;
+import java.io.Writer;
+import java.util.Collections;
+import java.util.Map;
+
+/**
+ * @author Benjamin Bentmann
+ */
+abstract class MavenMetadata
+    extends AbstractMetadata
+    implements MergeableMetadata
+{
+
+    static final String MAVEN_METADATA_XML = &quot;maven-metadata.xml&quot;;
+
+    private final File file;
+
+    protected Metadata metadata;
+
+    private boolean merged;
+
+    protected MavenMetadata( Metadata metadata, File file )
+<span class="nc" id="L56">    {</span>
+<span class="nc" id="L57">        this.metadata = metadata;</span>
+<span class="nc" id="L58">        this.file = file;</span>
+<span class="nc" id="L59">    }</span>
+
+    public String getType()
+    {
+<span class="nc" id="L63">        return MAVEN_METADATA_XML;</span>
+    }
+
+    public File getFile()
+    {
+<span class="nc" id="L68">        return file;</span>
+    }
+
+    public void merge( File existing, File result )
+        throws RepositoryException
+    {
+<span class="nc" id="L74">        Metadata recessive = read( existing );</span>
+
+<span class="nc" id="L76">        merge( recessive );</span>
+
+<span class="nc" id="L78">        write( result, metadata );</span>
+
+<span class="nc" id="L80">        merged = true;</span>
+<span class="nc" id="L81">    }</span>
+
+    public boolean isMerged()
+    {
+<span class="nc" id="L85">        return merged;</span>
+    }
+
+    protected abstract void merge( Metadata recessive );
+
+    static Metadata read( File metadataFile )
+        throws RepositoryException
+    {
+<span class="nc bnc" id="L93" title="All 2 branches missed.">        if ( metadataFile.length() &lt;= 0 )</span>
+        {
+<span class="nc" id="L95">            return new Metadata();</span>
+        }
+
+<span class="nc" id="L98">        try ( Reader reader = ReaderFactory.newXmlReader( metadataFile ) )</span>
+        {
+<span class="nc" id="L100">            return new MetadataXpp3Reader().read( reader, false );</span>
+<span class="nc" id="L101">        }</span>
+<span class="nc" id="L102">        catch ( IOException e )</span>
+        {
+<span class="nc" id="L104">            throw new RepositoryException( &quot;Could not read metadata &quot; + metadataFile + &quot;: &quot; + e.getMessage(), e );</span>
+        }
+<span class="nc" id="L106">        catch ( XmlPullParserException e )</span>
+        {
+<span class="nc" id="L108">            throw new RepositoryException( &quot;Could not parse metadata &quot; + metadataFile + &quot;: &quot; + e.getMessage(), e );</span>
+        }
+    }
+
+    private void write( File metadataFile, Metadata metadata )
+        throws RepositoryException
+    {
+<span class="nc" id="L115">        metadataFile.getParentFile().mkdirs();</span>
+<span class="nc" id="L116">        try ( Writer writer = WriterFactory.newXmlWriter( metadataFile ) )</span>
+        {
+<span class="nc" id="L118">            new MetadataXpp3Writer().write( writer, metadata );</span>
+        }
+<span class="nc" id="L120">        catch ( IOException e )</span>
+        {
+<span class="nc" id="L122">            throw new RepositoryException( &quot;Could not write metadata &quot; + metadataFile + &quot;: &quot; + e.getMessage(), e );</span>
+<span class="nc" id="L123">        }</span>
+<span class="nc" id="L124">    }</span>
+
+    public Map&lt;String, String&gt; getProperties()
+    {
+<span class="nc" id="L128">        return Collections.emptyMap();</span>
+    }
+
+    @Override
+    public org.eclipse.aether.metadata.Metadata setProperties( Map&lt;String, String&gt; properties )
+    {
+<span class="nc" id="L134">        return this;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,261 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultPathTranslator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.project.path</a> &gt; <span class="el_source">DefaultPathTranslator.java</span></div><h1>DefaultPathTranslator.java</h1><pre class="source lang-java linenums">package org.apache.maven.project.path;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.maven.model.Build;
+import org.apache.maven.model.Model;
+import org.apache.maven.model.Reporting;
+import org.apache.maven.model.Resource;
+import org.codehaus.plexus.component.annotations.Component;
+
+/**
+ * DefaultPathTranslator
+ */
+@Deprecated
+@Component( role = PathTranslator.class )
+<span class="nc" id="L37">public class DefaultPathTranslator</span>
+    implements PathTranslator
+{
+<span class="nc" id="L40">    private static final String[] BASEDIR_EXPRESSIONS = {&quot;${basedir}&quot;, &quot;${pom.basedir}&quot;, &quot;${project.basedir}&quot;};</span>
+
+    public void alignToBaseDirectory( Model model, File basedir )
+    {
+<span class="nc bnc" id="L44" title="All 2 branches missed.">        if ( basedir == null )</span>
+        {
+<span class="nc" id="L46">            return;</span>
+        }
+
+<span class="nc" id="L49">        Build build = model.getBuild();</span>
+
+<span class="nc bnc" id="L51" title="All 2 branches missed.">        if ( build != null )</span>
+        {
+<span class="nc" id="L53">            build.setDirectory( alignToBaseDirectory( build.getDirectory(), basedir ) );</span>
+
+<span class="nc" id="L55">            build.setSourceDirectory( alignToBaseDirectory( build.getSourceDirectory(), basedir ) );</span>
+
+<span class="nc" id="L57">            build.setTestSourceDirectory( alignToBaseDirectory( build.getTestSourceDirectory(), basedir ) );</span>
+
+<span class="nc bnc" id="L59" title="All 2 branches missed.">            for ( Resource resource : build.getResources() )</span>
+            {
+<span class="nc" id="L61">                resource.setDirectory( alignToBaseDirectory( resource.getDirectory(), basedir ) );</span>
+<span class="nc" id="L62">            }</span>
+
+<span class="nc bnc" id="L64" title="All 2 branches missed.">            for ( Resource resource : build.getTestResources() )</span>
+            {
+<span class="nc" id="L66">                resource.setDirectory( alignToBaseDirectory( resource.getDirectory(), basedir ) );</span>
+<span class="nc" id="L67">            }</span>
+
+<span class="nc bnc" id="L69" title="All 2 branches missed.">            if ( build.getFilters() != null )</span>
+            {
+<span class="nc" id="L71">                List&lt;String&gt; filters = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L72" title="All 2 branches missed.">                for ( String filter : build.getFilters() )</span>
+                {
+<span class="nc" id="L74">                    filters.add( alignToBaseDirectory( filter, basedir ) );</span>
+<span class="nc" id="L75">                }</span>
+<span class="nc" id="L76">                build.setFilters( filters );</span>
+            }
+
+<span class="nc" id="L79">            build.setOutputDirectory( alignToBaseDirectory( build.getOutputDirectory(), basedir ) );</span>
+
+<span class="nc" id="L81">            build.setTestOutputDirectory( alignToBaseDirectory( build.getTestOutputDirectory(), basedir ) );</span>
+        }
+
+<span class="nc" id="L84">        Reporting reporting = model.getReporting();</span>
+
+<span class="nc bnc" id="L86" title="All 2 branches missed.">        if ( reporting != null )</span>
+        {
+<span class="nc" id="L88">            reporting.setOutputDirectory( alignToBaseDirectory( reporting.getOutputDirectory(), basedir ) );</span>
+        }
+<span class="nc" id="L90">    }</span>
+
+    public String alignToBaseDirectory( String path, File basedir )
+    {
+<span class="nc bnc" id="L94" title="All 2 branches missed.">        if ( basedir == null )</span>
+        {
+<span class="nc" id="L96">            return path;</span>
+        }
+
+<span class="nc bnc" id="L99" title="All 2 branches missed.">        if ( path == null )</span>
+        {
+<span class="nc" id="L101">            return null;</span>
+        }
+
+<span class="nc" id="L104">        String s = stripBasedirToken( path );</span>
+
+<span class="nc" id="L106">        File file = new File( s );</span>
+<span class="nc bnc" id="L107" title="All 2 branches missed.">        if ( file.isAbsolute() )</span>
+        {
+            // path was already absolute, just normalize file separator and we're done
+<span class="nc" id="L110">            s = file.getPath();</span>
+        }
+<span class="nc bnc" id="L112" title="All 2 branches missed.">        else if ( file.getPath().startsWith( File.separator ) )</span>
+        {
+            // drive-relative Windows path, don't align with project directory but with drive root
+<span class="nc" id="L115">            s = file.getAbsolutePath();</span>
+        }
+        else
+        {
+            // an ordinary relative path, align with project directory
+<span class="nc" id="L120">            s = new File( new File( basedir, s ).toURI().normalize() ).getAbsolutePath();</span>
+        }
+
+<span class="nc" id="L123">        return s;</span>
+    }
+
+    private String stripBasedirToken( String s )
+    {
+<span class="nc bnc" id="L128" title="All 2 branches missed.">        if ( s != null )</span>
+        {
+<span class="nc" id="L130">            String basedirExpr = null;</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">            for ( String expression : BASEDIR_EXPRESSIONS )</span>
+            {
+<span class="nc bnc" id="L133" title="All 2 branches missed.">                if ( s.startsWith( expression ) )</span>
+                {
+<span class="nc" id="L135">                    basedirExpr = expression;</span>
+<span class="nc" id="L136">                    break;</span>
+                }
+            }
+
+<span class="nc bnc" id="L140" title="All 2 branches missed.">            if ( basedirExpr != null )</span>
+            {
+<span class="nc bnc" id="L142" title="All 2 branches missed.">                if ( s.length() &gt; basedirExpr.length() )</span>
+                {
+                    // Take out basedir expression and the leading slash
+<span class="nc" id="L145">                    s = chopLeadingFileSeparator( s.substring( basedirExpr.length() ) );</span>
+                }
+                else
+                {
+<span class="nc" id="L149">                    s = &quot;.&quot;;</span>
+                }
+            }
+        }
+
+<span class="nc" id="L154">        return s;</span>
+    }
+
+    /**
+     * Removes the leading directory separator from the specified filesystem path (if any). For platform-independent
+     * behavior, this method accepts both the forward slash and the backward slash as separator.
+     *
+     * @param path The filesystem path, may be &lt;code&gt;null&lt;/code&gt;.
+     * @return The altered filesystem path or &lt;code&gt;null&lt;/code&gt; if the input path was &lt;code&gt;null&lt;/code&gt;.
+     */
+    private String chopLeadingFileSeparator( String path )
+    {
+<span class="nc bnc" id="L166" title="All 2 branches missed.">        if ( path != null )</span>
+        {
+<span class="nc bnc" id="L168" title="All 4 branches missed.">            if ( path.startsWith( &quot;/&quot; ) || path.startsWith( &quot;\\&quot; ) )</span>
+            {
+<span class="nc" id="L170">                path = path.substring( 1 );</span>
+            }
+        }
+<span class="nc" id="L173">        return path;</span>
+    }
+
+    public void unalignFromBaseDirectory( Model model, File basedir )
+    {
+<span class="nc bnc" id="L178" title="All 2 branches missed.">        if ( basedir == null )</span>
+        {
+<span class="nc" id="L180">            return;</span>
+        }
+
+<span class="nc" id="L183">        Build build = model.getBuild();</span>
+
+<span class="nc bnc" id="L185" title="All 2 branches missed.">        if ( build != null )</span>
+        {
+<span class="nc" id="L187">            build.setDirectory( unalignFromBaseDirectory( build.getDirectory(), basedir ) );</span>
+
+<span class="nc" id="L189">            build.setSourceDirectory( unalignFromBaseDirectory( build.getSourceDirectory(), basedir ) );</span>
+
+<span class="nc" id="L191">            build.setTestSourceDirectory( unalignFromBaseDirectory( build.getTestSourceDirectory(), basedir ) );</span>
+
+<span class="nc bnc" id="L193" title="All 2 branches missed.">            for ( Resource resource : build.getResources() )</span>
+            {
+<span class="nc" id="L195">                resource.setDirectory( unalignFromBaseDirectory( resource.getDirectory(), basedir ) );</span>
+<span class="nc" id="L196">            }</span>
+
+<span class="nc bnc" id="L198" title="All 2 branches missed.">            for ( Resource resource : build.getTestResources() )</span>
+            {
+<span class="nc" id="L200">                resource.setDirectory( unalignFromBaseDirectory( resource.getDirectory(), basedir ) );</span>
+<span class="nc" id="L201">            }</span>
+
+<span class="nc bnc" id="L203" title="All 2 branches missed.">            if ( build.getFilters() != null )</span>
+            {
+<span class="nc" id="L205">                List&lt;String&gt; filters = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L206" title="All 2 branches missed.">                for ( String filter : build.getFilters() )</span>
+                {
+<span class="nc" id="L208">                    filters.add( unalignFromBaseDirectory( filter, basedir ) );</span>
+<span class="nc" id="L209">                }</span>
+<span class="nc" id="L210">                build.setFilters( filters );</span>
+            }
+
+<span class="nc" id="L213">            build.setOutputDirectory( unalignFromBaseDirectory( build.getOutputDirectory(), basedir ) );</span>
+
+<span class="nc" id="L215">            build.setTestOutputDirectory( unalignFromBaseDirectory( build.getTestOutputDirectory(), basedir ) );</span>
+        }
+
+<span class="nc" id="L218">        Reporting reporting = model.getReporting();</span>
+
+<span class="nc bnc" id="L220" title="All 2 branches missed.">        if ( reporting != null )</span>
+        {
+<span class="nc" id="L222">            reporting.setOutputDirectory( unalignFromBaseDirectory( reporting.getOutputDirectory(), basedir ) );</span>
+        }
+<span class="nc" id="L224">    }</span>
+
+    public String unalignFromBaseDirectory( String path, File basedir )
+    {
+<span class="nc bnc" id="L228" title="All 2 branches missed.">        if ( basedir == null )</span>
+        {
+<span class="nc" id="L230">            return path;</span>
+        }
+
+<span class="nc bnc" id="L233" title="All 2 branches missed.">        if ( path == null )</span>
+        {
+<span class="nc" id="L235">            return null;</span>
+        }
+
+<span class="nc" id="L238">        path = path.trim();</span>
+
+<span class="nc" id="L240">        String base = basedir.getAbsolutePath();</span>
+<span class="nc bnc" id="L241" title="All 2 branches missed.">        if ( path.startsWith( base ) )</span>
+        {
+<span class="nc" id="L243">            path = chopLeadingFileSeparator( path.substring( base.length() ) );</span>
+        }
+
+<span class="nc bnc" id="L246" title="All 2 branches missed.">        if ( path.length() &lt;= 0 )</span>
+        {
+<span class="nc" id="L248">            path = &quot;.&quot;;</span>
+        }
+
+<span class="nc bnc" id="L251" title="All 2 branches missed.">        if ( !new File( path ).isAbsolute() )</span>
+        {
+<span class="nc" id="L253">            path = path.replace( '\\', '/' );</span>
+        }
+
+<span class="nc" id="L256">        return path;</span>
+    }
+
+}
+
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ModelBuildingException.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.model.building</a> &gt; <span class="el_source">ModelBuildingException.java</span></div><h1>ModelBuildingException.java</h1><pre class="source lang-java linenums">package org.apache.maven.model.building;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.util.Collections;
+import java.util.List;
+
+import org.apache.maven.model.Model;
+
+/**
+ * Signals one ore more errors during model building. The model builder tries to collect as many problems as possible
+ * before eventually failing to provide callers with rich error information. Use {@link #getProblems()} to query the
+ * details of the failure.
+ *
+ * @author Benjamin Bentmann
+ */
+public class ModelBuildingException
+    extends Exception
+{
+
+    private final ModelBuildingResult result;
+
+    /**
+     * Creates a new exception with the specified problems.
+     *
+     * @param model The model that could not be built, may be {@code null}.
+     * @param modelId The identifier of the model that could not be built, may be {@code null}.
+     * @param problems The problems that causes this exception, may be {@code null}.
+     * @deprecated Use {@link #ModelBuildingException(ModelBuildingResult)} instead.
+     */
+    @Deprecated
+    public ModelBuildingException( Model model, String modelId, List&lt;ModelProblem&gt; problems )
+    {
+<span class="nc" id="L53">        super( toMessage( modelId, problems ) );</span>
+
+<span class="nc bnc" id="L55" title="All 2 branches missed.">        if ( model != null )</span>
+        {
+<span class="nc" id="L57">            DefaultModelBuildingResult tmp = new DefaultModelBuildingResult();</span>
+<span class="nc bnc" id="L58" title="All 2 branches missed.">            if ( modelId == null )</span>
+            {
+<span class="nc" id="L60">                modelId = &quot;&quot;;</span>
+            }
+<span class="nc" id="L62">            tmp.addModelId( modelId );</span>
+<span class="nc" id="L63">            tmp.setRawModel( modelId, model );</span>
+<span class="nc" id="L64">            tmp.setProblems( problems );</span>
+<span class="nc" id="L65">            result = tmp;</span>
+<span class="nc" id="L66">        }</span>
+        else
+        {
+<span class="nc" id="L69">            result = null;</span>
+        }
+<span class="nc" id="L71">    }</span>
+
+    /**
+     * Creates a new exception from the specified interim result and its associated problems.
+     *
+     * @param result The interim result, may be {@code null}.
+     */
+    public ModelBuildingException( ModelBuildingResult result )
+    {
+<span class="fc" id="L80">        super( toMessage( result ) );</span>
+<span class="fc" id="L81">        this.result = result;</span>
+<span class="fc" id="L82">    }</span>
+
+    /**
+     * Gets the interim result of the model building up to the point where it failed.
+     *
+     * @return The interim model building result or {@code null} if not available.
+     */
+    public ModelBuildingResult getResult()
+    {
+<span class="fc" id="L91">        return result;</span>
+    }
+
+    /**
+     * Gets the model that could not be built properly.
+     *
+     * @return The erroneous model or {@code null} if not available.
+     */
+    public Model getModel()
+    {
+<span class="nc bnc" id="L101" title="All 2 branches missed.">        if ( result == null )</span>
+        {
+<span class="nc" id="L103">            return null;</span>
+        }
+<span class="nc bnc" id="L105" title="All 2 branches missed.">        if ( result.getEffectiveModel() != null )</span>
+        {
+<span class="nc" id="L107">            return result.getEffectiveModel();</span>
+        }
+<span class="nc" id="L109">        return result.getRawModel();</span>
+    }
+
+    /**
+     * Gets the identifier of the POM whose effective model could not be built. The general format of the identifier is
+     * {@code &lt;groupId&gt;:&lt;artifactId&gt;:&lt;version&gt;} but some of these coordinates may still be unknown at the point the
+     * exception is thrown so this information is merely meant to assist the user.
+     *
+     * @return The identifier of the POM or an empty string if not known, never {@code null}.
+     */
+    public String getModelId()
+    {
+<span class="pc bpc" id="L121" title="2 of 4 branches missed.">        if ( result == null || result.getModelIds().isEmpty() )</span>
+        {
+<span class="nc" id="L123">            return &quot;&quot;;</span>
+        }
+<span class="fc" id="L125">        return result.getModelIds().get( 0 );</span>
+    }
+
+    /**
+     * Gets the problems that caused this exception.
+     *
+     * @return The problems that caused this exception, never {@code null}.
+     */
+    public List&lt;ModelProblem&gt; getProblems()
+    {
+<span class="pc bpc" id="L135" title="1 of 2 branches missed.">        if ( result == null )</span>
+        {
+<span class="nc" id="L137">            return Collections.emptyList();</span>
+        }
+<span class="fc" id="L139">        return result.getProblems();</span>
+    }
+
+    private static String toMessage( ModelBuildingResult result )
+    {
+<span class="pc bpc" id="L144" title="2 of 4 branches missed.">        if ( result != null &amp;&amp; !result.getModelIds().isEmpty() )</span>
+        {
+<span class="fc" id="L146">            return toMessage( result.getModelIds().get( 0 ), result.getProblems() );</span>
+        }
+<span class="nc" id="L148">        return null;</span>
+    }
+
+    private static String toMessage( String modelId, List&lt;ModelProblem&gt; problems )
+    {
+<span class="fc" id="L153">        StringWriter buffer = new StringWriter( 1024 );</span>
+
+<span class="fc" id="L155">        PrintWriter writer = new PrintWriter( buffer );</span>
+
+<span class="fc" id="L157">        writer.print( problems.size() );</span>
+<span class="fc bfc" id="L158" title="All 2 branches covered.">        writer.print( ( problems.size() == 1 ) ? &quot; problem was &quot; : &quot; problems were &quot; );</span>
+<span class="fc" id="L159">        writer.print( &quot;encountered while building the effective model&quot; );</span>
+<span class="pc bpc" id="L160" title="1 of 4 branches missed.">        if ( modelId != null &amp;&amp; modelId.length() &gt; 0 )</span>
+        {
+<span class="fc" id="L162">            writer.print( &quot; for &quot; );</span>
+<span class="fc" id="L163">            writer.print( modelId );</span>
+        }
+<span class="fc" id="L165">        writer.println();</span>
+
+<span class="fc bfc" id="L167" title="All 2 branches covered.">        for ( ModelProblem problem : problems )</span>
+        {
+<span class="fc" id="L169">            writer.print( &quot;[&quot; );</span>
+<span class="fc" id="L170">            writer.print( problem.getSeverity() );</span>
+<span class="fc" id="L171">            writer.print( &quot;] &quot; );</span>
+<span class="fc" id="L172">            writer.print( problem.getMessage() );</span>
+<span class="fc" id="L173">            writer.print( &quot; @ &quot; );</span>
+<span class="fc" id="L174">            writer.println( ModelProblemUtils.formatLocation( problem, modelId ) );</span>
+<span class="fc" id="L175">        }</span>
+
+<span class="fc" id="L177">        return buffer.toString();</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

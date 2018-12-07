@@ -1,0 +1,447 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ExecutionEventLogger.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.cli.event</a> &gt; <span class="el_source">ExecutionEventLogger.java</span></div><h1>ExecutionEventLogger.java</h1><pre class="source lang-java linenums">package org.apache.maven.cli.event;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import static org.apache.maven.cli.CLIReportingUtils.formatDuration;
+import static org.apache.maven.cli.CLIReportingUtils.formatTimestamp;
+import static org.apache.maven.shared.utils.logging.MessageUtils.buffer;
+
+import java.util.List;
+
+import org.apache.commons.lang3.Validate;
+import org.apache.maven.execution.AbstractExecutionListener;
+import org.apache.maven.execution.BuildFailure;
+import org.apache.maven.execution.BuildSuccess;
+import org.apache.maven.execution.BuildSummary;
+import org.apache.maven.execution.ExecutionEvent;
+import org.apache.maven.execution.MavenExecutionResult;
+import org.apache.maven.execution.MavenSession;
+import org.apache.maven.plugin.MojoExecution;
+import org.apache.maven.plugin.descriptor.MojoDescriptor;
+import org.apache.maven.project.MavenProject;
+import org.apache.maven.shared.utils.logging.MessageBuilder;
+import org.codehaus.plexus.util.StringUtils;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+/**
+ * Logs execution events to logger, eventually user-supplied.
+ *
+ * @author Benjamin Bentmann
+ */
+public class ExecutionEventLogger
+    extends AbstractExecutionListener
+{
+    private final Logger logger;
+
+    private static final int LINE_LENGTH = 72;
+    private static final int MAX_PADDED_BUILD_TIME_DURATION_LENGTH = 9;
+    private static final int MAX_PROJECT_NAME_LENGTH = 52;
+
+    private int totalProjects;
+    private volatile int currentVisitedProjectCount;
+
+    public ExecutionEventLogger()
+<span class="nc" id="L62">    {</span>
+<span class="nc" id="L63">        logger = LoggerFactory.getLogger( ExecutionEventLogger.class );</span>
+<span class="nc" id="L64">    }</span>
+
+    // TODO should we deprecate?
+    public ExecutionEventLogger( Logger logger )
+<span class="nc" id="L68">    {</span>
+<span class="nc" id="L69">        this.logger = Validate.notNull( logger, &quot;logger cannot be null&quot; );</span>
+<span class="nc" id="L70">    }</span>
+
+    private static String chars( char c, int count )
+    {
+<span class="nc" id="L74">        StringBuilder buffer = new StringBuilder( count );</span>
+
+<span class="nc bnc" id="L76" title="All 2 branches missed.">        for ( int i = count; i &gt; 0; i-- )</span>
+        {
+<span class="nc" id="L78">            buffer.append( c );</span>
+        }
+
+<span class="nc" id="L81">        return buffer.toString();</span>
+    }
+
+    private void infoLine( char c )
+    {
+<span class="nc" id="L86">        infoMain( chars( c, LINE_LENGTH ) );</span>
+<span class="nc" id="L87">    }</span>
+
+    private void infoMain( String msg )
+    {
+<span class="nc" id="L91">        logger.info( buffer().strong( msg ).toString() );</span>
+<span class="nc" id="L92">    }</span>
+
+    @Override
+    public void projectDiscoveryStarted( ExecutionEvent event )
+    {
+<span class="nc bnc" id="L97" title="All 2 branches missed.">        if ( logger.isInfoEnabled() )</span>
+        {
+<span class="nc" id="L99">            logger.info( &quot;Scanning for projects...&quot; );</span>
+        }
+<span class="nc" id="L101">    }</span>
+
+    @Override
+    public void sessionStarted( ExecutionEvent event )
+    {
+<span class="nc bnc" id="L106" title="All 4 branches missed.">        if ( logger.isInfoEnabled() &amp;&amp; event.getSession().getProjects().size() &gt; 1 )</span>
+        {
+<span class="nc" id="L108">            infoLine( '-' );</span>
+
+<span class="nc" id="L110">            infoMain( &quot;Reactor Build Order:&quot; );</span>
+
+<span class="nc" id="L112">            logger.info( &quot;&quot; );</span>
+
+<span class="nc" id="L114">            final List&lt;MavenProject&gt; projects = event.getSession().getProjects();</span>
+<span class="nc bnc" id="L115" title="All 2 branches missed.">            for ( MavenProject project : projects )</span>
+            {
+<span class="nc" id="L117">                int len = LINE_LENGTH - project.getName().length() - project.getPackaging().length() - 2;</span>
+<span class="nc bnc" id="L118" title="All 2 branches missed.">                logger.info( project.getName() + chars( ' ', ( len &gt; 0 ) ? len : 1 ) + '[' + project.getPackaging()</span>
+                    + ']' );
+<span class="nc" id="L120">            }</span>
+
+<span class="nc" id="L122">            totalProjects = projects.size();</span>
+        }
+<span class="nc" id="L124">    }</span>
+
+    @Override
+    public void sessionEnded( ExecutionEvent event )
+    {
+<span class="nc bnc" id="L129" title="All 2 branches missed.">        if ( logger.isInfoEnabled() )</span>
+        {
+<span class="nc bnc" id="L131" title="All 2 branches missed.">            if ( event.getSession().getProjects().size() &gt; 1 )</span>
+            {
+<span class="nc" id="L133">                logReactorSummary( event.getSession() );</span>
+            }
+
+<span class="nc" id="L136">            logResult( event.getSession() );</span>
+
+<span class="nc" id="L138">            logStats( event.getSession() );</span>
+
+<span class="nc" id="L140">            infoLine( '-' );</span>
+        }
+<span class="nc" id="L142">    }</span>
+
+    private void logReactorSummary( MavenSession session )
+    {
+<span class="nc" id="L146">        infoLine( '-' );</span>
+
+<span class="nc" id="L148">        infoMain( &quot;Reactor Summary:&quot; );</span>
+
+<span class="nc" id="L150">        logger.info( &quot;&quot; );</span>
+
+<span class="nc" id="L152">        MavenExecutionResult result = session.getResult();</span>
+
+<span class="nc" id="L154">        List&lt;MavenProject&gt; projects = session.getProjects();</span>
+<span class="nc" id="L155">        MavenProject lastProject = projects.get( projects.size() - 1 );</span>
+<span class="nc" id="L156">        MavenProject topProject = session.getTopLevelProject();</span>
+
+<span class="nc bnc" id="L158" title="All 2 branches missed.">        for ( MavenProject project : projects )</span>
+        {
+<span class="nc" id="L160">            StringBuilder buffer = new StringBuilder( 128 );</span>
+
+<span class="nc" id="L162">            buffer.append( project.getName() );</span>
+<span class="nc" id="L163">            buffer.append( ' ' );</span>
+
+<span class="nc bnc" id="L165" title="All 6 branches missed.">            if ( topProject.equals( project ) || lastProject.equals( project )</span>
+                || !topProject.getVersion().equals( project.getVersion() ) )
+            {
+<span class="nc" id="L168">                buffer.append( project.getVersion() );</span>
+<span class="nc" id="L169">                buffer.append( ' ' );</span>
+            }
+
+<span class="nc bnc" id="L172" title="All 2 branches missed.">            if ( buffer.length() &lt;= MAX_PROJECT_NAME_LENGTH )</span>
+            {
+<span class="nc bnc" id="L174" title="All 2 branches missed.">                while ( buffer.length() &lt; MAX_PROJECT_NAME_LENGTH )</span>
+                {
+<span class="nc" id="L176">                    buffer.append( '.' );</span>
+                }
+<span class="nc" id="L178">                buffer.append( ' ' );</span>
+            }
+
+<span class="nc" id="L181">            BuildSummary buildSummary = result.getBuildSummary( project );</span>
+
+<span class="nc bnc" id="L183" title="All 2 branches missed.">            if ( buildSummary == null )</span>
+            {
+<span class="nc" id="L185">                buffer.append( buffer().warning( &quot;SKIPPED&quot; ) );</span>
+            }
+<span class="nc bnc" id="L187" title="All 2 branches missed.">            else if ( buildSummary instanceof BuildSuccess )</span>
+            {
+<span class="nc" id="L189">                buffer.append( buffer().success( &quot;SUCCESS&quot; ) );</span>
+<span class="nc" id="L190">                buffer.append( &quot; [&quot; );</span>
+<span class="nc" id="L191">                String buildTimeDuration = formatDuration( buildSummary.getTime() );</span>
+<span class="nc" id="L192">                int padSize = MAX_PADDED_BUILD_TIME_DURATION_LENGTH - buildTimeDuration.length();</span>
+<span class="nc bnc" id="L193" title="All 2 branches missed.">                if ( padSize &gt; 0 )</span>
+                {
+<span class="nc" id="L195">                    buffer.append( chars( ' ', padSize ) );</span>
+                }
+<span class="nc" id="L197">                buffer.append( buildTimeDuration );</span>
+<span class="nc" id="L198">                buffer.append( ']' );</span>
+<span class="nc" id="L199">            }</span>
+<span class="nc bnc" id="L200" title="All 2 branches missed.">            else if ( buildSummary instanceof BuildFailure )</span>
+            {
+<span class="nc" id="L202">                buffer.append( buffer().failure( &quot;FAILURE&quot; ) );</span>
+<span class="nc" id="L203">                buffer.append( &quot; [&quot; );</span>
+<span class="nc" id="L204">                String buildTimeDuration = formatDuration( buildSummary.getTime() );</span>
+<span class="nc" id="L205">                int padSize = MAX_PADDED_BUILD_TIME_DURATION_LENGTH - buildTimeDuration.length();</span>
+<span class="nc bnc" id="L206" title="All 2 branches missed.">                if ( padSize &gt; 0 )</span>
+                {
+<span class="nc" id="L208">                    buffer.append( chars( ' ', padSize ) );</span>
+                }
+<span class="nc" id="L210">                buffer.append( buildTimeDuration );</span>
+<span class="nc" id="L211">                buffer.append( ']' );</span>
+            }
+
+<span class="nc" id="L214">            logger.info( buffer.toString() );</span>
+<span class="nc" id="L215">        }</span>
+<span class="nc" id="L216">    }</span>
+
+    private void logResult( MavenSession session )
+    {
+<span class="nc" id="L220">        infoLine( '-' );</span>
+<span class="nc" id="L221">        MessageBuilder buffer = buffer();</span>
+
+<span class="nc bnc" id="L223" title="All 2 branches missed.">        if ( session.getResult().hasExceptions() )</span>
+        {
+<span class="nc" id="L225">            buffer.failure( &quot;BUILD FAILURE&quot; );</span>
+        }
+        else
+        {
+<span class="nc" id="L229">            buffer.success( &quot;BUILD SUCCESS&quot; );</span>
+        }
+<span class="nc" id="L231">        logger.info( buffer.toString() );</span>
+<span class="nc" id="L232">    }</span>
+
+    private void logStats( MavenSession session )
+    {
+<span class="nc" id="L236">        infoLine( '-' );</span>
+
+<span class="nc" id="L238">        long finish = System.currentTimeMillis();</span>
+
+<span class="nc" id="L240">        long time = finish - session.getRequest().getStartTime().getTime();</span>
+
+<span class="nc bnc" id="L242" title="All 2 branches missed.">        String wallClock = session.getRequest().getDegreeOfConcurrency() &gt; 1 ? &quot; (Wall Clock)&quot; : &quot;&quot;;</span>
+
+<span class="nc" id="L244">        logger.info( &quot;Total time: &quot; + formatDuration( time ) + wallClock );</span>
+
+<span class="nc" id="L246">        logger.info( &quot;Finished at: &quot; + formatTimestamp( finish ) );</span>
+<span class="nc" id="L247">    }</span>
+
+    @Override
+    public void projectSkipped( ExecutionEvent event )
+    {
+<span class="nc bnc" id="L252" title="All 2 branches missed.">        if ( logger.isInfoEnabled() )</span>
+        {
+<span class="nc" id="L254">            logger.info( &quot;&quot; );</span>
+<span class="nc" id="L255">            infoLine( '-' );</span>
+
+<span class="nc" id="L257">            infoMain( &quot;Skipping &quot; + event.getProject().getName() );</span>
+<span class="nc" id="L258">            logger.info( &quot;This project has been banned from the build due to previous failures.&quot; );</span>
+
+<span class="nc" id="L260">            infoLine( '-' );</span>
+        }
+<span class="nc" id="L262">    }</span>
+
+    @Override
+    public void projectStarted( ExecutionEvent event )
+    {
+<span class="nc bnc" id="L267" title="All 2 branches missed.">        if ( logger.isInfoEnabled() )</span>
+        {
+<span class="nc" id="L269">            MavenProject project = event.getProject();</span>
+
+<span class="nc" id="L271">            logger.info( &quot;&quot; );</span>
+
+            // -------&lt; groupId:artifactId &gt;-------
+<span class="nc" id="L274">            String projectKey = project.getGroupId() + ':' + project.getArtifactId();</span>
+            
+<span class="nc" id="L276">            final String preHeader  = &quot;--&lt; &quot;;</span>
+<span class="nc" id="L277">            final String postHeader = &quot; &gt;--&quot;;</span>
+
+<span class="nc" id="L279">            final int headerLen = preHeader.length() + projectKey.length() + postHeader.length();</span>
+
+<span class="nc" id="L281">            String prefix = chars( '-', Math.max( 0, ( LINE_LENGTH - headerLen ) / 2 ) ) + preHeader;</span>
+
+<span class="nc" id="L283">            String suffix = postHeader</span>
+                + chars( '-', Math.max( 0, LINE_LENGTH - headerLen - prefix.length() + preHeader.length() ) );
+
+<span class="nc" id="L286">            logger.info( buffer().strong( prefix ).project( projectKey ).strong( suffix ).toString() );</span>
+
+            // Building Project Name Version    [i/n]
+<span class="nc" id="L289">            String building = &quot;Building &quot; + event.getProject().getName() + &quot; &quot; + event.getProject().getVersion();</span>
+
+<span class="nc bnc" id="L291" title="All 2 branches missed.">            if ( totalProjects &lt;= 1 )</span>
+            {
+<span class="nc" id="L293">                infoMain( building );</span>
+            }
+            else
+            {
+                // display progress [i/n]
+                int number;
+<span class="nc" id="L299">                synchronized ( this )</span>
+                {
+<span class="nc" id="L301">                    number = ++currentVisitedProjectCount;</span>
+<span class="nc" id="L302">                }</span>
+<span class="nc" id="L303">                String progress = &quot; [&quot; + number + '/' + totalProjects + ']';</span>
+
+<span class="nc" id="L305">                int pad = LINE_LENGTH - building.length() - progress.length();</span>
+
+<span class="nc bnc" id="L307" title="All 2 branches missed.">                infoMain( building + ( ( pad &gt; 0 ) ? chars( ' ', pad ) : &quot;&quot; ) + progress );</span>
+            }
+
+            // ----------[ packaging ]----------
+<span class="nc" id="L311">            prefix = chars( '-', Math.max( 0, ( LINE_LENGTH - project.getPackaging().length() - 4 ) / 2 ) );</span>
+<span class="nc" id="L312">            suffix = chars( '-', Math.max( 0, LINE_LENGTH - project.getPackaging().length() - 4 - prefix.length() ) );</span>
+<span class="nc" id="L313">            infoMain( prefix + &quot;[ &quot; + project.getPackaging() + &quot; ]&quot; + suffix );</span>
+        }
+<span class="nc" id="L315">    }</span>
+
+    @Override
+    public void mojoSkipped( ExecutionEvent event )
+    {
+<span class="nc bnc" id="L320" title="All 2 branches missed.">        if ( logger.isWarnEnabled() )</span>
+        {
+<span class="nc" id="L322">            logger.warn( &quot;Goal &quot; + event.getMojoExecution().getGoal()</span>
+                + &quot; requires online mode for execution but Maven is currently offline, skipping&quot; );
+        }
+<span class="nc" id="L325">    }</span>
+
+    /**
+     * &lt;pre&gt;--- mojo-artifactId:version:goal (mojo-executionId) @ project-artifactId ---&lt;/pre&gt;
+     */
+    @Override
+    public void mojoStarted( ExecutionEvent event )
+    {
+<span class="nc bnc" id="L333" title="All 2 branches missed.">        if ( logger.isInfoEnabled() )</span>
+        {
+<span class="nc" id="L335">            logger.info( &quot;&quot; );</span>
+
+<span class="nc" id="L337">            MessageBuilder buffer = buffer().strong( &quot;--- &quot; );</span>
+<span class="nc" id="L338">            append( buffer, event.getMojoExecution() );</span>
+<span class="nc" id="L339">            append( buffer, event.getProject() );</span>
+<span class="nc" id="L340">            buffer.strong( &quot; ---&quot; );</span>
+
+<span class="nc" id="L342">            logger.info( buffer.toString() );</span>
+        }
+<span class="nc" id="L344">    }</span>
+
+    // CHECKSTYLE_OFF: LineLength
+    /**
+     * &lt;pre&gt;&amp;gt;&amp;gt;&amp;gt; mojo-artifactId:version:goal (mojo-executionId) &amp;gt; :forked-goal @ project-artifactId &amp;gt;&amp;gt;&amp;gt;&lt;/pre&gt;
+     * &lt;pre&gt;&amp;gt;&amp;gt;&amp;gt; mojo-artifactId:version:goal (mojo-executionId) &amp;gt; [lifecycle]phase @ project-artifactId &amp;gt;&amp;gt;&amp;gt;&lt;/pre&gt;
+     */
+    // CHECKSTYLE_ON: LineLength
+    @Override
+    public void forkStarted( ExecutionEvent event )
+    {
+<span class="nc bnc" id="L355" title="All 2 branches missed.">        if ( logger.isInfoEnabled() )</span>
+        {
+<span class="nc" id="L357">            logger.info( &quot;&quot; );</span>
+
+<span class="nc" id="L359">            MessageBuilder buffer = buffer().strong( &quot;&gt;&gt;&gt; &quot; );</span>
+<span class="nc" id="L360">            append( buffer, event.getMojoExecution() );</span>
+<span class="nc" id="L361">            buffer.strong( &quot; &gt; &quot; );</span>
+<span class="nc" id="L362">            appendForkInfo( buffer, event.getMojoExecution().getMojoDescriptor() );</span>
+<span class="nc" id="L363">            append( buffer, event.getProject() );</span>
+<span class="nc" id="L364">            buffer.strong( &quot; &gt;&gt;&gt;&quot; );</span>
+
+<span class="nc" id="L366">            logger.info( buffer.toString() );</span>
+        }
+<span class="nc" id="L368">    }</span>
+
+    // CHECKSTYLE_OFF: LineLength
+    /**
+     * &lt;pre&gt;&amp;lt;&amp;lt;&amp;lt; mojo-artifactId:version:goal (mojo-executionId) &amp;lt; :forked-goal @ project-artifactId &amp;lt;&amp;lt;&amp;lt;&lt;/pre&gt;
+     * &lt;pre&gt;&amp;lt;&amp;lt;&amp;lt; mojo-artifactId:version:goal (mojo-executionId) &amp;lt; [lifecycle]phase @ project-artifactId &amp;lt;&amp;lt;&amp;lt;&lt;/pre&gt;
+     */
+    // CHECKSTYLE_ON: LineLength
+    @Override
+    public void forkSucceeded( ExecutionEvent event )
+    {
+<span class="nc bnc" id="L379" title="All 2 branches missed.">        if ( logger.isInfoEnabled() )</span>
+        {
+<span class="nc" id="L381">            logger.info( &quot;&quot; );</span>
+
+<span class="nc" id="L383">            MessageBuilder buffer = buffer().strong( &quot;&lt;&lt;&lt; &quot; );</span>
+<span class="nc" id="L384">            append( buffer, event.getMojoExecution() );</span>
+<span class="nc" id="L385">            buffer.strong( &quot; &lt; &quot; );</span>
+<span class="nc" id="L386">            appendForkInfo( buffer, event.getMojoExecution().getMojoDescriptor() );</span>
+<span class="nc" id="L387">            append( buffer, event.getProject() );</span>
+<span class="nc" id="L388">            buffer.strong( &quot; &lt;&lt;&lt;&quot; );</span>
+
+<span class="nc" id="L390">            logger.info( buffer.toString() );</span>
+
+<span class="nc" id="L392">            logger.info( &quot;&quot; );</span>
+        }
+<span class="nc" id="L394">    }</span>
+
+    private void append( MessageBuilder buffer, MojoExecution me )
+    {
+<span class="nc" id="L398">        buffer.mojo( me.getArtifactId() + ':' + me.getVersion() + ':' + me.getGoal() );</span>
+<span class="nc bnc" id="L399" title="All 2 branches missed.">        if ( me.getExecutionId() != null )</span>
+        {
+<span class="nc" id="L401">            buffer.a( ' ' ).strong( '(' + me.getExecutionId() + ')' );</span>
+        }
+<span class="nc" id="L403">    }</span>
+
+    private void appendForkInfo( MessageBuilder buffer, MojoDescriptor md )
+    {
+<span class="nc" id="L407">        StringBuilder buff = new StringBuilder();</span>
+<span class="nc bnc" id="L408" title="All 2 branches missed.">        if ( StringUtils.isNotEmpty( md.getExecutePhase() ) )</span>
+        {
+            // forked phase
+<span class="nc bnc" id="L411" title="All 2 branches missed.">            if ( StringUtils.isNotEmpty( md.getExecuteLifecycle() ) )</span>
+            {
+<span class="nc" id="L413">                buff.append( '[' );</span>
+<span class="nc" id="L414">                buff.append( md.getExecuteLifecycle() );</span>
+<span class="nc" id="L415">                buff.append( ']' );</span>
+            }
+<span class="nc" id="L417">            buff.append( md.getExecutePhase() );</span>
+        }
+        else
+        {
+            // forked goal
+<span class="nc" id="L422">            buff.append( ':' );</span>
+<span class="nc" id="L423">            buff.append( md.getExecuteGoal() );</span>
+        }
+<span class="nc" id="L425">        buffer.strong( buff.toString() );</span>
+<span class="nc" id="L426">    }</span>
+
+    private void append( MessageBuilder buffer, MavenProject project )
+    {
+<span class="nc" id="L430">        buffer.a( &quot; @ &quot; ).project( project.getArtifactId() );</span>
+<span class="nc" id="L431">    }</span>
+
+    @Override
+    public void forkedProjectStarted( ExecutionEvent event )
+    {
+<span class="nc bnc" id="L436" title="All 4 branches missed.">        if ( logger.isInfoEnabled() &amp;&amp; event.getMojoExecution().getForkedExecutions().size() &gt; 1 )</span>
+        {
+<span class="nc" id="L438">            logger.info( &quot;&quot; );</span>
+<span class="nc" id="L439">            infoLine( '&gt;' );</span>
+
+<span class="nc" id="L441">            infoMain( &quot;Forking &quot; + event.getProject().getName() + &quot; &quot; + event.getProject().getVersion() );</span>
+
+<span class="nc" id="L443">            infoLine( '&gt;' );</span>
+        }
+<span class="nc" id="L445">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

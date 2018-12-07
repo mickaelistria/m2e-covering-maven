@@ -1,0 +1,667 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultArtifactResolver.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.artifact.resolver</a> &gt; <span class="el_source">DefaultArtifactResolver.java</span></div><h1>DefaultArtifactResolver.java</h1><pre class="source lang-java linenums">package org.apache.maven.artifact.resolver;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.regex.Matcher;
+
+import org.apache.maven.RepositoryUtils;
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.factory.ArtifactFactory;
+import org.apache.maven.artifact.metadata.ArtifactMetadataRetrievalException;
+import org.apache.maven.artifact.metadata.ArtifactMetadataSource;
+import org.apache.maven.artifact.metadata.ResolutionGroup;
+import org.apache.maven.artifact.repository.ArtifactRepository;
+import org.apache.maven.artifact.repository.LegacyLocalRepositoryManager;
+import org.apache.maven.artifact.repository.RepositoryRequest;
+import org.apache.maven.artifact.repository.metadata.Snapshot;
+import org.apache.maven.artifact.repository.metadata.SnapshotArtifactRepositoryMetadata;
+import org.apache.maven.artifact.resolver.filter.ArtifactFilter;
+import org.apache.maven.execution.MavenSession;
+import org.apache.maven.plugin.LegacySupport;
+import org.apache.maven.repository.legacy.metadata.DefaultMetadataResolutionRequest;
+import org.apache.maven.repository.legacy.metadata.MetadataResolutionRequest;
+import org.apache.maven.repository.legacy.resolver.conflict.ConflictResolver;
+import org.apache.maven.wagon.events.TransferListener;
+import org.codehaus.plexus.PlexusContainer;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
+import org.codehaus.plexus.component.repository.exception.ComponentLookupException;
+import org.codehaus.plexus.logging.Logger;
+import org.codehaus.plexus.personality.plexus.lifecycle.phase.Disposable;
+import org.eclipse.aether.RepositorySystem;
+import org.eclipse.aether.RepositorySystemSession;
+import org.eclipse.aether.repository.LocalRepositoryManager;
+import org.eclipse.aether.resolution.ArtifactRequest;
+import org.eclipse.aether.resolution.ArtifactResult;
+
+/**
+ * @author Jason van Zyl
+ */
+@Component( role = ArtifactResolver.class )
+public class DefaultArtifactResolver
+    implements ArtifactResolver, Disposable
+{
+    @Requirement
+    private Logger logger;
+
+    @Requirement
+    protected ArtifactFactory artifactFactory;
+
+    @Requirement
+    private ArtifactCollector artifactCollector;
+
+    @Requirement
+    private ResolutionErrorHandler resolutionErrorHandler;
+
+    @Requirement
+    private ArtifactMetadataSource source;
+
+    @Requirement
+    private PlexusContainer container;
+
+    @Requirement
+    private LegacySupport legacySupport;
+
+    @Requirement
+    private RepositorySystem repoSystem;
+
+    private final Executor executor;
+
+    public DefaultArtifactResolver()
+<span class="fc" id="L104">    {</span>
+<span class="fc" id="L105">        int threads = Integer.getInteger( &quot;maven.artifact.threads&quot;, 5 );</span>
+<span class="pc bpc" id="L106" title="1 of 2 branches missed.">        if ( threads &lt;= 1 )</span>
+        {
+<span class="nc" id="L108">            executor = new Executor()</span>
+<span class="nc" id="L109">            {</span>
+                public void execute( Runnable command )
+                {
+<span class="nc" id="L112">                    command.run();</span>
+<span class="nc" id="L113">                }</span>
+            };
+        }
+        else
+        {
+<span class="fc" id="L118">            executor = new ThreadPoolExecutor( threads, threads, 3, TimeUnit.SECONDS,</span>
+                                               new LinkedBlockingQueue&lt;Runnable&gt;(), new DaemonThreadCreator() );
+        }
+<span class="fc" id="L121">    }</span>
+
+    private RepositorySystemSession getSession( ArtifactRepository localRepository )
+    {
+<span class="fc" id="L125">        return LegacyLocalRepositoryManager.overlay( localRepository, legacySupport.getRepositorySession(),</span>
+                                                     repoSystem );
+    }
+
+    private void injectSession1( RepositoryRequest request, MavenSession session )
+    {
+<span class="nc bnc" id="L131" title="All 2 branches missed.">        if ( session != null )</span>
+        {
+<span class="nc" id="L133">            request.setOffline( session.isOffline() );</span>
+<span class="nc" id="L134">            request.setForceUpdate( session.getRequest().isUpdateSnapshots() );</span>
+        }
+<span class="nc" id="L136">    }</span>
+
+    private void injectSession2( ArtifactResolutionRequest request, MavenSession session )
+    {
+<span class="nc" id="L140">        injectSession1( request, session );</span>
+
+<span class="nc bnc" id="L142" title="All 2 branches missed.">        if ( session != null )</span>
+        {
+<span class="nc" id="L144">            request.setServers( session.getRequest().getServers() );</span>
+<span class="nc" id="L145">            request.setMirrors( session.getRequest().getMirrors() );</span>
+<span class="nc" id="L146">            request.setProxies( session.getRequest().getProxies() );</span>
+        }
+<span class="nc" id="L148">    }</span>
+
+    public void resolve( Artifact artifact, List&lt;ArtifactRepository&gt; remoteRepositories,
+                         ArtifactRepository localRepository, TransferListener resolutionListener )
+                             throws ArtifactResolutionException, ArtifactNotFoundException
+    {
+<span class="fc" id="L154">        resolve( artifact, remoteRepositories, getSession( localRepository ) );</span>
+<span class="fc" id="L155">    }</span>
+
+    public void resolveAlways( Artifact artifact, List&lt;ArtifactRepository&gt; remoteRepositories,
+                               ArtifactRepository localRepository )
+                                   throws ArtifactResolutionException, ArtifactNotFoundException
+    {
+<span class="nc" id="L161">        resolve( artifact, remoteRepositories, getSession( localRepository ) );</span>
+<span class="nc" id="L162">    }</span>
+
+    private void resolve( Artifact artifact, List&lt;ArtifactRepository&gt; remoteRepositories,
+                          RepositorySystemSession session )
+                              throws ArtifactResolutionException, ArtifactNotFoundException
+    {
+<span class="pc bpc" id="L168" title="1 of 2 branches missed.">        if ( artifact == null )</span>
+        {
+<span class="nc" id="L170">            return;</span>
+        }
+
+<span class="pc bpc" id="L173" title="1 of 2 branches missed.">        if ( Artifact.SCOPE_SYSTEM.equals( artifact.getScope() ) )</span>
+        {
+<span class="nc" id="L175">            File systemFile = artifact.getFile();</span>
+
+<span class="nc bnc" id="L177" title="All 2 branches missed.">            if ( systemFile == null )</span>
+            {
+<span class="nc" id="L179">                throw new ArtifactNotFoundException( &quot;System artifact: &quot; + artifact + &quot; has no file attached&quot;,</span>
+                                                     artifact );
+            }
+
+<span class="nc bnc" id="L183" title="All 2 branches missed.">            if ( !systemFile.exists() )</span>
+            {
+<span class="nc" id="L185">                throw new ArtifactNotFoundException( &quot;System artifact: &quot; + artifact + &quot; not found in path: &quot;</span>
+                    + systemFile, artifact );
+            }
+
+<span class="nc bnc" id="L189" title="All 2 branches missed.">            if ( !systemFile.isFile() )</span>
+            {
+<span class="nc" id="L191">                throw new ArtifactNotFoundException( &quot;System artifact: &quot; + artifact + &quot; is not a file: &quot; + systemFile,</span>
+                                                     artifact );
+            }
+
+<span class="nc" id="L195">            artifact.setResolved( true );</span>
+
+<span class="nc" id="L197">            return;</span>
+        }
+
+<span class="pc bpc" id="L200" title="1 of 2 branches missed.">        if ( !artifact.isResolved() )</span>
+        {
+            ArtifactResult result;
+
+            try
+            {
+<span class="fc" id="L206">                ArtifactRequest artifactRequest = new ArtifactRequest();</span>
+<span class="fc" id="L207">                artifactRequest.setArtifact( RepositoryUtils.toArtifact( artifact ) );</span>
+<span class="fc" id="L208">                artifactRequest.setRepositories( RepositoryUtils.toRepos( remoteRepositories ) );</span>
+
+                // Maven 2.x quirk: an artifact always points at the local repo, regardless whether resolved or not
+<span class="fc" id="L211">                LocalRepositoryManager lrm = session.getLocalRepositoryManager();</span>
+<span class="fc" id="L212">                String path = lrm.getPathForLocalArtifact( artifactRequest.getArtifact() );</span>
+<span class="fc" id="L213">                artifact.setFile( new File( lrm.getRepository().getBasedir(), path ) );</span>
+
+<span class="fc" id="L215">                result = repoSystem.resolveArtifact( session, artifactRequest );</span>
+            }
+<span class="nc" id="L217">            catch ( org.eclipse.aether.resolution.ArtifactResolutionException e )</span>
+            {
+<span class="nc bnc" id="L219" title="All 2 branches missed.">                if ( e.getCause() instanceof org.eclipse.aether.transfer.ArtifactNotFoundException )</span>
+                {
+<span class="nc" id="L221">                    throw new ArtifactNotFoundException( e.getMessage(), artifact, remoteRepositories, e );</span>
+                }
+                else
+                {
+<span class="nc" id="L225">                    throw new ArtifactResolutionException( e.getMessage(), artifact, remoteRepositories, e );</span>
+                }
+<span class="fc" id="L227">            }</span>
+
+<span class="fc" id="L229">            artifact.selectVersion( result.getArtifact().getVersion() );</span>
+<span class="fc" id="L230">            artifact.setFile( result.getArtifact().getFile() );</span>
+<span class="fc" id="L231">            artifact.setResolved( true );</span>
+
+<span class="fc bfc" id="L233" title="All 2 branches covered.">            if ( artifact.isSnapshot() )</span>
+            {
+<span class="fc" id="L235">                Matcher matcher = Artifact.VERSION_FILE_PATTERN.matcher( artifact.getVersion() );</span>
+<span class="pc bpc" id="L236" title="1 of 2 branches missed.">                if ( matcher.matches() )</span>
+                {
+<span class="nc" id="L238">                    Snapshot snapshot = new Snapshot();</span>
+<span class="nc" id="L239">                    snapshot.setTimestamp( matcher.group( 2 ) );</span>
+                    try
+                    {
+<span class="nc" id="L242">                        snapshot.setBuildNumber( Integer.parseInt( matcher.group( 3 ) ) );</span>
+<span class="nc" id="L243">                        artifact.addMetadata( new SnapshotArtifactRepositoryMetadata( artifact, snapshot ) );</span>
+                    }
+<span class="nc" id="L245">                    catch ( NumberFormatException e )</span>
+                    {
+<span class="nc" id="L247">                        logger.warn( &quot;Invalid artifact version &quot; + artifact.getVersion() + &quot;: &quot; + e.getMessage() );</span>
+<span class="nc" id="L248">                    }</span>
+                }
+            }
+        }
+<span class="fc" id="L252">    }</span>
+
+    public ArtifactResolutionResult resolveTransitively( Set&lt;Artifact&gt; artifacts, Artifact originatingArtifact,
+                                                         ArtifactRepository localRepository,
+                                                         List&lt;ArtifactRepository&gt; remoteRepositories,
+                                                         ArtifactMetadataSource source, ArtifactFilter filter )
+                                                             throws ArtifactResolutionException,
+                                                             ArtifactNotFoundException
+    {
+<span class="nc" id="L261">        return resolveTransitively(</span>
+                artifacts, originatingArtifact, Collections.&lt;String, Artifact&gt;emptyMap(), localRepository,
+                                    remoteRepositories, source, filter );
+
+    }
+
+    public ArtifactResolutionResult resolveTransitively( Set&lt;Artifact&gt; artifacts, Artifact originatingArtifact,
+                                                         Map&lt;String, Artifact&gt; managedVersions,
+                                                         ArtifactRepository localRepository,
+                                                         List&lt;ArtifactRepository&gt; remoteRepositories,
+                                                         ArtifactMetadataSource source )
+                                                             throws ArtifactResolutionException,
+                                                             ArtifactNotFoundException
+    {
+<span class="nc" id="L275">        return resolveTransitively( artifacts, originatingArtifact, managedVersions, localRepository,</span>
+                                    remoteRepositories, source, null );
+    }
+
+    public ArtifactResolutionResult resolveTransitively( Set&lt;Artifact&gt; artifacts, Artifact originatingArtifact,
+                                                         Map&lt;String, Artifact&gt; managedVersions,
+                                                         ArtifactRepository localRepository,
+                                                         List&lt;ArtifactRepository&gt; remoteRepositories,
+                                                         ArtifactMetadataSource source, ArtifactFilter filter )
+                                                             throws ArtifactResolutionException,
+                                                             ArtifactNotFoundException
+    {
+<span class="nc" id="L287">        return resolveTransitively( artifacts, originatingArtifact, managedVersions, localRepository,</span>
+                                    remoteRepositories, source, filter, null );
+    }
+
+    public ArtifactResolutionResult resolveTransitively( Set&lt;Artifact&gt; artifacts, Artifact originatingArtifact,
+                                                         List&lt;ArtifactRepository&gt; remoteRepositories,
+                                                         ArtifactRepository localRepository,
+                                                         ArtifactMetadataSource source )
+                                                             throws ArtifactResolutionException,
+                                                             ArtifactNotFoundException
+    {
+<span class="nc" id="L298">        return resolveTransitively( artifacts, originatingArtifact, localRepository, remoteRepositories, source, null );</span>
+    }
+
+    public ArtifactResolutionResult resolveTransitively( Set&lt;Artifact&gt; artifacts, Artifact originatingArtifact,
+                                                         List&lt;ArtifactRepository&gt; remoteRepositories,
+                                                         ArtifactRepository localRepository,
+                                                         ArtifactMetadataSource source,
+                                                         List&lt;ResolutionListener&gt; listeners )
+                                                             throws ArtifactResolutionException,
+                                                             ArtifactNotFoundException
+    {
+<span class="nc" id="L309">        return resolveTransitively(</span>
+                artifacts, originatingArtifact, Collections.&lt;String, Artifact&gt;emptyMap(), localRepository,
+                                    remoteRepositories, source, null, listeners );
+    }
+
+    @SuppressWarnings( &quot;checkstyle:parameternumber&quot; )
+    public ArtifactResolutionResult resolveTransitively( Set&lt;Artifact&gt; artifacts, Artifact originatingArtifact,
+                                                         Map&lt;String, Artifact&gt; managedVersions,
+                                                         ArtifactRepository localRepository,
+                                                         List&lt;ArtifactRepository&gt; remoteRepositories,
+                                                         ArtifactMetadataSource source, ArtifactFilter filter,
+                                                         List&lt;ResolutionListener&gt; listeners )
+                                                             throws ArtifactResolutionException,
+                                                             ArtifactNotFoundException
+    {
+<span class="nc" id="L324">        return resolveTransitively( artifacts, originatingArtifact, managedVersions, localRepository,</span>
+                                    remoteRepositories, source, filter, listeners, null );
+    }
+
+    @SuppressWarnings( &quot;checkstyle:parameternumber&quot; )
+    public ArtifactResolutionResult resolveTransitively( Set&lt;Artifact&gt; artifacts, Artifact originatingArtifact,
+                                                         Map&lt;String, Artifact&gt; managedVersions,
+                                                         ArtifactRepository localRepository,
+                                                         List&lt;ArtifactRepository&gt; remoteRepositories,
+                                                         ArtifactMetadataSource source, ArtifactFilter filter,
+                                                         List&lt;ResolutionListener&gt; listeners,
+                                                         List&lt;ConflictResolver&gt; conflictResolvers )
+                                                             throws ArtifactResolutionException,
+                                                             ArtifactNotFoundException
+    {
+<span class="nc" id="L339">        ArtifactResolutionRequest request = new ArtifactResolutionRequest().</span>
+            setArtifact( originatingArtifact ).
+            setResolveRoot( false ).
+            // This is required by the surefire plugin
+            setArtifactDependencies( artifacts ).
+            setManagedVersionMap( managedVersions ).
+            setLocalRepository( localRepository ).
+            setRemoteRepositories( remoteRepositories ).
+            setCollectionFilter( filter ).
+            setListeners( listeners );
+
+<span class="nc" id="L350">        injectSession2( request, legacySupport.getSession() );</span>
+
+<span class="nc" id="L352">        return resolveWithExceptions( request );</span>
+    }
+
+    public ArtifactResolutionResult resolveWithExceptions( ArtifactResolutionRequest request )
+        throws ArtifactResolutionException, ArtifactNotFoundException
+    {
+<span class="nc" id="L358">        ArtifactResolutionResult result = resolve( request );</span>
+
+        // We have collected all the problems so let's mimic the way the old code worked and just blow up right here.
+        // That's right lets just let it rip right here and send a big incomprehensible blob of text at unsuspecting
+        // users. Bad dog!
+
+<span class="nc" id="L364">        resolutionErrorHandler.throwErrors( request, result );</span>
+
+<span class="nc" id="L366">        return result;</span>
+    }
+
+    // ------------------------------------------------------------------------
+    //
+    // ------------------------------------------------------------------------
+
+    @SuppressWarnings( &quot;checkstyle:methodlength&quot; )
+    public ArtifactResolutionResult resolve( ArtifactResolutionRequest request )
+    {
+<span class="nc" id="L376">        Artifact rootArtifact = request.getArtifact();</span>
+<span class="nc" id="L377">        Set&lt;Artifact&gt; artifacts = request.getArtifactDependencies();</span>
+<span class="nc" id="L378">        Map&lt;String, Artifact&gt; managedVersions = request.getManagedVersionMap();</span>
+<span class="nc" id="L379">        List&lt;ResolutionListener&gt; listeners = request.getListeners();</span>
+<span class="nc" id="L380">        ArtifactFilter collectionFilter = request.getCollectionFilter();</span>
+<span class="nc" id="L381">        ArtifactFilter resolutionFilter = request.getResolutionFilter();</span>
+<span class="nc" id="L382">        RepositorySystemSession session = getSession( request.getLocalRepository() );</span>
+
+        // TODO: hack because metadata isn't generated in m2e correctly and i want to run the maven i have in the
+        // workspace
+<span class="nc bnc" id="L386" title="All 2 branches missed.">        if ( source == null )</span>
+        {
+            try
+            {
+<span class="nc" id="L390">                source = container.lookup( ArtifactMetadataSource.class );</span>
+            }
+<span class="nc" id="L392">            catch ( ComponentLookupException e )</span>
+            {
+                // won't happen
+<span class="nc" id="L395">            }</span>
+        }
+
+<span class="nc bnc" id="L398" title="All 2 branches missed.">        if ( listeners == null )</span>
+        {
+<span class="nc" id="L400">            listeners = new ArrayList&lt;&gt;();</span>
+
+<span class="nc bnc" id="L402" title="All 2 branches missed.">            if ( logger.isDebugEnabled() )</span>
+            {
+<span class="nc" id="L404">                listeners.add( new DebugResolutionListener( logger ) );</span>
+            }
+
+<span class="nc" id="L407">            listeners.add( new WarningResolutionListener( logger ) );</span>
+        }
+
+<span class="nc" id="L410">        ArtifactResolutionResult result = new ArtifactResolutionResult();</span>
+
+        // The root artifact may, or may not be resolved so we need to check before we attempt to resolve.
+        // This is often an artifact like a POM that is taken from disk and we already have hold of the
+        // file reference. But this may be a Maven Plugin that we need to resolve from a remote repository
+        // as well as its dependencies.
+
+<span class="nc bnc" id="L417" title="All 2 branches missed.">        if ( request.isResolveRoot() /* &amp;&amp; rootArtifact.getFile() == null */ )</span>
+        {
+            try
+            {
+<span class="nc" id="L421">                resolve( rootArtifact, request.getRemoteRepositories(), session );</span>
+            }
+<span class="nc" id="L423">            catch ( ArtifactResolutionException e )</span>
+            {
+<span class="nc" id="L425">                result.addErrorArtifactException( e );</span>
+<span class="nc" id="L426">                return result;</span>
+            }
+<span class="nc" id="L428">            catch ( ArtifactNotFoundException e )</span>
+            {
+<span class="nc" id="L430">                result.addMissingArtifact( request.getArtifact() );</span>
+<span class="nc" id="L431">                return result;</span>
+<span class="nc" id="L432">            }</span>
+        }
+
+<span class="nc" id="L435">        ArtifactResolutionRequest collectionRequest = request;</span>
+
+<span class="nc bnc" id="L437" title="All 2 branches missed.">        if ( request.isResolveTransitively() )</span>
+        {
+<span class="nc" id="L439">            MetadataResolutionRequest metadataRequest = new DefaultMetadataResolutionRequest( request );</span>
+
+<span class="nc" id="L441">            metadataRequest.setArtifact( rootArtifact );</span>
+<span class="nc bnc" id="L442" title="All 2 branches missed.">            metadataRequest.setResolveManagedVersions( managedVersions == null );</span>
+
+            try
+            {
+<span class="nc" id="L446">                ResolutionGroup resolutionGroup = source.retrieve( metadataRequest );</span>
+
+<span class="nc bnc" id="L448" title="All 2 branches missed.">                if ( managedVersions == null )</span>
+                {
+<span class="nc" id="L450">                    managedVersions = resolutionGroup.getManagedVersions();</span>
+                }
+
+<span class="nc" id="L453">                Set&lt;Artifact&gt; directArtifacts = resolutionGroup.getArtifacts();</span>
+
+<span class="nc bnc" id="L455" title="All 4 branches missed.">                if ( artifacts == null || artifacts.isEmpty() )</span>
+                {
+<span class="nc" id="L457">                    artifacts = directArtifacts;</span>
+                }
+                else
+                {
+<span class="nc" id="L461">                    List&lt;Artifact&gt; allArtifacts = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L462">                    allArtifacts.addAll( artifacts );</span>
+<span class="nc" id="L463">                    allArtifacts.addAll( directArtifacts );</span>
+
+<span class="nc" id="L465">                    Map&lt;String, Artifact&gt; mergedArtifacts = new LinkedHashMap&lt;&gt;();</span>
+<span class="nc bnc" id="L466" title="All 2 branches missed.">                    for ( Artifact artifact : allArtifacts )</span>
+                    {
+<span class="nc" id="L468">                        String conflictId = artifact.getDependencyConflictId();</span>
+<span class="nc bnc" id="L469" title="All 2 branches missed.">                        if ( !mergedArtifacts.containsKey( conflictId ) )</span>
+                        {
+<span class="nc" id="L471">                            mergedArtifacts.put( conflictId, artifact );</span>
+                        }
+<span class="nc" id="L473">                    }</span>
+
+<span class="nc" id="L475">                    artifacts = new LinkedHashSet&lt;&gt;( mergedArtifacts.values() );</span>
+                }
+
+<span class="nc" id="L478">                collectionRequest = new ArtifactResolutionRequest( request );</span>
+<span class="nc" id="L479">                collectionRequest.setServers( request.getServers() );</span>
+<span class="nc" id="L480">                collectionRequest.setMirrors( request.getMirrors() );</span>
+<span class="nc" id="L481">                collectionRequest.setProxies( request.getProxies() );</span>
+<span class="nc" id="L482">                collectionRequest.setRemoteRepositories( resolutionGroup.getResolutionRepositories() );</span>
+            }
+<span class="nc" id="L484">            catch ( ArtifactMetadataRetrievalException e )</span>
+            {
+<span class="nc" id="L486">                ArtifactResolutionException are =</span>
+                    new ArtifactResolutionException( &quot;Unable to get dependency information for &quot; + rootArtifact.getId()
+                        + &quot;: &quot; + e.getMessage(), rootArtifact, metadataRequest.getRemoteRepositories(), e );
+<span class="nc" id="L489">                result.addMetadataResolutionException( are );</span>
+<span class="nc" id="L490">                return result;</span>
+<span class="nc" id="L491">            }</span>
+        }
+
+<span class="nc bnc" id="L494" title="All 4 branches missed.">        if ( artifacts == null || artifacts.isEmpty() )</span>
+        {
+<span class="nc bnc" id="L496" title="All 2 branches missed.">            if ( request.isResolveRoot() )</span>
+            {
+<span class="nc" id="L498">                result.addArtifact( rootArtifact );</span>
+            }
+<span class="nc" id="L500">            return result;</span>
+        }
+
+        // After the collection we will have the artifact object in the result but they will not be resolved yet.
+<span class="nc" id="L504">        result = artifactCollector.collect( artifacts, rootArtifact, managedVersions, collectionRequest, source,</span>
+                                            collectionFilter, listeners, null );
+
+        // We have metadata retrieval problems, or there are cycles that have been detected
+        // so we give this back to the calling code and let them deal with this information
+        // appropriately.
+
+<span class="nc bnc" id="L511" title="All 6 branches missed.">        if ( result.hasMetadataResolutionExceptions() || result.hasVersionRangeViolations()</span>
+            || result.hasCircularDependencyExceptions() )
+        {
+<span class="nc" id="L514">            logger.info( &quot;Failure detected.&quot; );</span>
+<span class="nc" id="L515">            return result;</span>
+        }
+
+<span class="nc bnc" id="L518" title="All 2 branches missed.">        if ( result.getArtifactResolutionNodes() != null )</span>
+        {
+<span class="nc" id="L520">            ClassLoader classLoader = Thread.currentThread().getContextClassLoader();</span>
+
+<span class="nc" id="L522">            CountDownLatch latch = new CountDownLatch( result.getArtifactResolutionNodes().size() );</span>
+
+<span class="nc bnc" id="L524" title="All 2 branches missed.">            for ( ResolutionNode node : result.getArtifactResolutionNodes() )</span>
+            {
+<span class="nc" id="L526">                Artifact artifact = node.getArtifact();</span>
+
+<span class="nc bnc" id="L528" title="All 4 branches missed.">                if ( resolutionFilter == null || resolutionFilter.include( artifact ) )</span>
+                {
+<span class="nc" id="L530">                    executor.execute( new ResolveTask( classLoader, latch, artifact, session,</span>
+                                                       node.getRemoteRepositories(), result ) );
+                }
+                else
+                {
+<span class="nc" id="L535">                    latch.countDown();</span>
+                }
+<span class="nc" id="L537">            }</span>
+            try
+            {
+<span class="nc" id="L540">                latch.await();</span>
+            }
+<span class="nc" id="L542">            catch ( InterruptedException e )</span>
+            {
+<span class="nc" id="L544">                result.addErrorArtifactException( new ArtifactResolutionException( &quot;Resolution interrupted&quot;,</span>
+                                                                                   rootArtifact, e ) );
+<span class="nc" id="L546">            }</span>
+        }
+
+        // We want to send the root artifact back in the result but we need to do this after the other dependencies
+        // have been resolved.
+<span class="nc bnc" id="L551" title="All 2 branches missed.">        if ( request.isResolveRoot() )</span>
+        {
+            // Add the root artifact (as the first artifact to retain logical order of class path!)
+<span class="nc" id="L554">            Set&lt;Artifact&gt; allArtifacts = new LinkedHashSet&lt;&gt;();</span>
+<span class="nc" id="L555">            allArtifacts.add( rootArtifact );</span>
+<span class="nc" id="L556">            allArtifacts.addAll( result.getArtifacts() );</span>
+<span class="nc" id="L557">            result.setArtifacts( allArtifacts );</span>
+        }
+
+<span class="nc" id="L560">        return result;</span>
+    }
+
+    public void resolve( Artifact artifact, List&lt;ArtifactRepository&gt; remoteRepositories,
+                         ArtifactRepository localRepository )
+                             throws ArtifactResolutionException, ArtifactNotFoundException
+    {
+<span class="fc" id="L567">        resolve( artifact, remoteRepositories, localRepository, null );</span>
+<span class="fc" id="L568">    }</span>
+
+    /**
+     * ThreadCreator for creating daemon threads with fixed ThreadGroup-name.
+     */
+<span class="fc" id="L573">    static final class DaemonThreadCreator</span>
+        implements ThreadFactory
+    {
+        static final String THREADGROUP_NAME = &quot;org.apache.maven.artifact.resolver.DefaultArtifactResolver&quot;;
+
+<span class="fc" id="L578">        static final ThreadGroup GROUP = new ThreadGroup( THREADGROUP_NAME );</span>
+
+<span class="fc" id="L580">        static final AtomicInteger THREAD_NUMBER = new AtomicInteger( 1 );</span>
+
+        public Thread newThread( Runnable r )
+        {
+<span class="nc" id="L584">            Thread newThread = new Thread( GROUP, r, &quot;resolver-&quot; + THREAD_NUMBER.getAndIncrement() );</span>
+<span class="nc" id="L585">            newThread.setDaemon( true );</span>
+<span class="nc" id="L586">            newThread.setContextClassLoader( null );</span>
+<span class="nc" id="L587">            return newThread;</span>
+        }
+    }
+
+    private class ResolveTask
+        implements Runnable
+    {
+
+        private final ClassLoader classLoader;
+
+        private final CountDownLatch latch;
+
+        private final Artifact artifact;
+
+        private final RepositorySystemSession session;
+
+        private final List&lt;ArtifactRepository&gt; remoteRepositories;
+
+        private final ArtifactResolutionResult result;
+
+        ResolveTask( ClassLoader classLoader, CountDownLatch latch, Artifact artifact,
+                            RepositorySystemSession session, List&lt;ArtifactRepository&gt; remoteRepositories,
+                            ArtifactResolutionResult result )
+<span class="nc" id="L610">        {</span>
+<span class="nc" id="L611">            this.classLoader = classLoader;</span>
+<span class="nc" id="L612">            this.latch = latch;</span>
+<span class="nc" id="L613">            this.artifact = artifact;</span>
+<span class="nc" id="L614">            this.session = session;</span>
+<span class="nc" id="L615">            this.remoteRepositories = remoteRepositories;</span>
+<span class="nc" id="L616">            this.result = result;</span>
+<span class="nc" id="L617">        }</span>
+
+        public void run()
+        {
+<span class="nc" id="L621">            ClassLoader old = Thread.currentThread().getContextClassLoader();</span>
+            try
+            {
+<span class="nc" id="L624">                Thread.currentThread().setContextClassLoader( classLoader );</span>
+<span class="nc" id="L625">                resolve( artifact, remoteRepositories, session );</span>
+            }
+<span class="nc" id="L627">            catch ( ArtifactNotFoundException anfe )</span>
+            {
+                // These are cases where the artifact just isn't present in any of the remote repositories
+                // because it wasn't deployed, or it was deployed in the wrong place.
+
+<span class="nc" id="L632">                synchronized ( result )</span>
+                {
+<span class="nc" id="L634">                    result.addMissingArtifact( artifact );</span>
+<span class="nc" id="L635">                }</span>
+            }
+<span class="nc" id="L637">            catch ( ArtifactResolutionException e )</span>
+            {
+                // This is really a wagon TransferFailedException so something went wrong after we successfully
+                // retrieved the metadata.
+
+<span class="nc" id="L642">                synchronized ( result )</span>
+                {
+<span class="nc" id="L644">                    result.addErrorArtifactException( e );</span>
+<span class="nc" id="L645">                }</span>
+            }
+            finally
+            {
+<span class="nc" id="L649">                latch.countDown();</span>
+<span class="nc" id="L650">                Thread.currentThread().setContextClassLoader( old );</span>
+
+            }
+<span class="nc" id="L653">        }</span>
+
+    }
+
+    @Override
+    public void dispose()
+    {
+<span class="pc bpc" id="L660" title="1 of 2 branches missed.">        if ( executor instanceof ExecutorService )</span>
+        {
+<span class="fc" id="L662">            ( (ExecutorService) executor ).shutdownNow();</span>
+        }
+<span class="fc" id="L664">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

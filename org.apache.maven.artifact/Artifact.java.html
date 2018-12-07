@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Artifact.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.artifact</a> &gt; <span class="el_source">Artifact.java</span></div><h1>Artifact.java</h1><pre class="source lang-java linenums">package org.apache.maven.artifact;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+import java.util.Collection;
+import java.util.List;
+import java.util.regex.Pattern;
+
+import org.apache.maven.artifact.handler.ArtifactHandler;
+import org.apache.maven.artifact.metadata.ArtifactMetadata;
+import org.apache.maven.artifact.repository.ArtifactRepository;
+import org.apache.maven.artifact.resolver.filter.ArtifactFilter;
+import org.apache.maven.artifact.versioning.ArtifactVersion;
+import org.apache.maven.artifact.versioning.OverConstrainedVersionException;
+import org.apache.maven.artifact.versioning.VersionRange;
+
+/**
+ * Maven Artifact interface. Notice that it mixes artifact definition concepts (groupId, artifactId, version)
+ * with dependency information (version range, scope).
+ */
+public interface Artifact
+    extends Comparable&lt;Artifact&gt;
+{
+
+    String RELEASE_VERSION = &quot;RELEASE&quot;;
+
+    String LATEST_VERSION = &quot;LATEST&quot;;
+
+    String SNAPSHOT_VERSION = &quot;SNAPSHOT&quot;;
+
+<span class="fc" id="L49">    Pattern VERSION_FILE_PATTERN = Pattern.compile( &quot;^(.*)-([0-9]{8}.[0-9]{6})-([0-9]+)$&quot; );</span>
+
+    // TODO into artifactScope handler
+
+    String SCOPE_COMPILE = &quot;compile&quot;;
+
+    String SCOPE_COMPILE_PLUS_RUNTIME = &quot;compile+runtime&quot;;
+
+    String SCOPE_TEST = &quot;test&quot;;
+
+    String SCOPE_RUNTIME = &quot;runtime&quot;;
+
+    String SCOPE_RUNTIME_PLUS_SYSTEM = &quot;runtime+system&quot;;
+
+    String SCOPE_PROVIDED = &quot;provided&quot;;
+
+    String SCOPE_SYSTEM = &quot;system&quot;;
+
+    String SCOPE_IMPORT = &quot;import&quot;;   // Used to import dependencyManagement dependencies
+
+    String getGroupId();
+
+    String getArtifactId();
+
+    String getVersion();
+
+    void setVersion( String version );
+
+    String getScope();
+
+    String getType();
+
+    String getClassifier();
+
+    boolean hasClassifier();
+
+    File getFile();
+
+    void setFile( File destination );
+
+    String getBaseVersion();
+
+    void setBaseVersion( String baseVersion );
+
+    String getId();
+
+    String getDependencyConflictId();
+
+    void addMetadata( ArtifactMetadata metadata );
+
+    Collection&lt;ArtifactMetadata&gt; getMetadataList();
+
+    void setRepository( ArtifactRepository remoteRepository );
+
+    ArtifactRepository getRepository();
+
+    void updateVersion( String version, ArtifactRepository localRepository );
+
+    String getDownloadUrl();
+
+    void setDownloadUrl( String downloadUrl );
+
+    ArtifactFilter getDependencyFilter();
+
+    void setDependencyFilter( ArtifactFilter artifactFilter );
+
+    ArtifactHandler getArtifactHandler();
+
+    List&lt;String&gt; getDependencyTrail();
+
+    void setDependencyTrail( List&lt;String&gt; dependencyTrail );
+
+    void setScope( String scope );
+
+    VersionRange getVersionRange();
+
+    void setVersionRange( VersionRange newRange );
+
+    void selectVersion( String version );
+
+    void setGroupId( String groupId );
+
+    void setArtifactId( String artifactId );
+
+    boolean isSnapshot();
+
+    void setResolved( boolean resolved );
+
+    boolean isResolved();
+
+    void setResolvedVersion( String version );
+
+    void setArtifactHandler( ArtifactHandler handler );
+
+    boolean isRelease();
+
+    void setRelease( boolean release );
+
+    List&lt;ArtifactVersion&gt; getAvailableVersions();
+
+    void setAvailableVersions( List&lt;ArtifactVersion&gt; versions );
+
+    boolean isOptional();
+
+    void setOptional( boolean optional );
+
+    ArtifactVersion getSelectedVersion()
+        throws OverConstrainedVersionException;
+
+    boolean isSelectedVersionKnown()
+        throws OverConstrainedVersionException;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

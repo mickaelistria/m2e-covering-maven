@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ArtifactDescriptorUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository.internal</a> &gt; <span class="el_source">ArtifactDescriptorUtils.java</span></div><h1>ArtifactDescriptorUtils.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository.internal;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.maven.model.Repository;
+import org.eclipse.aether.artifact.Artifact;
+import org.eclipse.aether.artifact.DefaultArtifact;
+import org.eclipse.aether.repository.RemoteRepository;
+import org.eclipse.aether.repository.RepositoryPolicy;
+
+/**
+ * &lt;strong&gt;Warning:&lt;/strong&gt; This is an internal utility class that is only public for technical reasons, it is not part
+ * of the public API. In particular, this class can be changed or deleted without prior notice.
+ *
+ * @author Benjamin Bentmann
+ */
+<span class="nc" id="L34">public class ArtifactDescriptorUtils</span>
+{
+
+    public static Artifact toPomArtifact( Artifact artifact )
+    {
+<span class="fc" id="L39">        Artifact pomArtifact = artifact;</span>
+
+<span class="fc bfc" id="L41" title="All 4 branches covered.">        if ( pomArtifact.getClassifier().length() &gt; 0 || !&quot;pom&quot;.equals( pomArtifact.getExtension() ) )</span>
+        {
+<span class="fc" id="L43">            pomArtifact =</span>
+                new DefaultArtifact( artifact.getGroupId(), artifact.getArtifactId(), &quot;pom&quot;, artifact.getVersion() );
+        }
+
+<span class="fc" id="L47">        return pomArtifact;</span>
+    }
+
+    public static RemoteRepository toRemoteRepository( Repository repository )
+    {
+<span class="fc" id="L52">        RemoteRepository.Builder builder =</span>
+            new RemoteRepository.Builder( repository.getId(), repository.getLayout(), repository.getUrl() );
+<span class="fc" id="L54">        builder.setSnapshotPolicy( toRepositoryPolicy( repository.getSnapshots() ) );</span>
+<span class="fc" id="L55">        builder.setReleasePolicy( toRepositoryPolicy( repository.getReleases() ) );</span>
+<span class="fc" id="L56">        return builder.build();</span>
+    }
+
+    public static RepositoryPolicy toRepositoryPolicy( org.apache.maven.model.RepositoryPolicy policy )
+    {
+<span class="fc" id="L61">        boolean enabled = true;</span>
+<span class="fc" id="L62">        String checksums = RepositoryPolicy.CHECKSUM_POLICY_WARN;</span>
+<span class="fc" id="L63">        String updates = RepositoryPolicy.UPDATE_POLICY_DAILY;</span>
+
+<span class="fc bfc" id="L65" title="All 2 branches covered.">        if ( policy != null )</span>
+        {
+<span class="fc" id="L67">            enabled = policy.isEnabled();</span>
+<span class="fc bfc" id="L68" title="All 2 branches covered.">            if ( policy.getUpdatePolicy() != null )</span>
+            {
+<span class="fc" id="L70">                updates = policy.getUpdatePolicy();</span>
+            }
+<span class="fc bfc" id="L72" title="All 2 branches covered.">            if ( policy.getChecksumPolicy() != null )</span>
+            {
+<span class="fc" id="L74">                checksums = policy.getChecksumPolicy();</span>
+            }
+        }
+
+<span class="fc" id="L78">        return new RepositoryPolicy( enabled, updates, checksums );</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

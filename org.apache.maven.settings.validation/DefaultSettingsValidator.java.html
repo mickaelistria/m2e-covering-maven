@@ -1,0 +1,286 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultSettingsValidator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.settings.validation</a> &gt; <span class="el_source">DefaultSettingsValidator.java</span></div><h1>DefaultSettingsValidator.java</h1><pre class="source lang-java linenums">package org.apache.maven.settings.validation;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
+
+import org.apache.maven.settings.Mirror;
+import org.apache.maven.settings.Profile;
+import org.apache.maven.settings.Repository;
+import org.apache.maven.settings.Proxy;
+import org.apache.maven.settings.Server;
+import org.apache.maven.settings.Settings;
+import org.apache.maven.settings.building.SettingsProblem.Severity;
+import org.apache.maven.settings.building.SettingsProblemCollector;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.util.StringUtils;
+
+/**
+ * @author Milos Kleint
+ */
+@Component( role = SettingsValidator.class )
+<span class="fc" id="L41">public class DefaultSettingsValidator</span>
+    implements SettingsValidator
+{
+
+    private static final String ID_REGEX = &quot;[A-Za-z0-9_\\-.]+&quot;;
+
+    private static final String ILLEGAL_FS_CHARS = &quot;\\/:\&quot;&lt;&gt;|?*&quot;;
+
+    private static final String ILLEGAL_REPO_ID_CHARS = ILLEGAL_FS_CHARS;
+
+    @Override
+    public void validate( Settings settings, SettingsProblemCollector problems )
+    {
+<span class="pc bpc" id="L54" title="1 of 2 branches missed.">        if ( settings.isUsePluginRegistry() )</span>
+        {
+<span class="nc" id="L56">            addViolation( problems, Severity.WARNING, &quot;usePluginRegistry&quot;, null, &quot;is deprecated and has no effect.&quot; );</span>
+        }
+
+<span class="fc" id="L59">        List&lt;String&gt; pluginGroups = settings.getPluginGroups();</span>
+
+<span class="pc bpc" id="L61" title="1 of 2 branches missed.">        if ( pluginGroups != null )</span>
+        {
+<span class="pc bpc" id="L63" title="1 of 2 branches missed.">            for ( int i = 0; i &lt; pluginGroups.size(); i++ )</span>
+            {
+<span class="nc" id="L65">                String pluginGroup = pluginGroups.get( i ).trim();</span>
+
+<span class="nc bnc" id="L67" title="All 2 branches missed.">                if ( StringUtils.isBlank( pluginGroup ) )</span>
+                {
+<span class="nc" id="L69">                    addViolation( problems, Severity.ERROR, &quot;pluginGroups.pluginGroup[&quot; + i + &quot;]&quot;, null,</span>
+                                  &quot;must not be empty&quot; );
+                }
+<span class="nc bnc" id="L72" title="All 2 branches missed.">                else if ( !pluginGroup.matches( ID_REGEX ) )</span>
+                {
+<span class="nc" id="L74">                    addViolation( problems, Severity.ERROR, &quot;pluginGroups.pluginGroup[&quot; + i + &quot;]&quot;, null,</span>
+                                  &quot;must denote a valid group id and match the pattern &quot; + ID_REGEX );
+                }
+            }
+        }
+
+<span class="fc" id="L80">        List&lt;Server&gt; servers = settings.getServers();</span>
+
+<span class="pc bpc" id="L82" title="1 of 2 branches missed.">        if ( servers != null )</span>
+        {
+<span class="fc" id="L84">            Set&lt;String&gt; serverIds = new HashSet&lt;&gt;();</span>
+
+<span class="fc bfc" id="L86" title="All 2 branches covered.">            for ( int i = 0; i &lt; servers.size(); i++ )</span>
+            {
+<span class="fc" id="L88">                Server server = servers.get( i );</span>
+
+<span class="fc" id="L90">                validateStringNotEmpty( problems, &quot;servers.server[&quot; + i + &quot;].id&quot;, server.getId(), null );</span>
+
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">                if ( !serverIds.add( server.getId() ) )</span>
+                {
+<span class="nc" id="L94">                    addViolation( problems, Severity.WARNING, &quot;servers.server.id&quot;, null,</span>
+                                  &quot;must be unique but found duplicate server with id &quot; + server.getId() );
+                }
+            }
+        }
+
+<span class="fc" id="L100">        List&lt;Mirror&gt; mirrors = settings.getMirrors();</span>
+
+<span class="pc bpc" id="L102" title="1 of 2 branches missed.">        if ( mirrors != null )</span>
+        {
+<span class="fc bfc" id="L104" title="All 2 branches covered.">            for ( Mirror mirror : mirrors )</span>
+            {
+<span class="fc" id="L106">                validateStringNotEmpty( problems, &quot;mirrors.mirror.id&quot;, mirror.getId(), mirror.getUrl() );</span>
+
+<span class="fc" id="L108">                validateBannedCharacters( problems, &quot;mirrors.mirror.id&quot;, Severity.WARNING, mirror.getId(), null,</span>
+                                          ILLEGAL_REPO_ID_CHARS );
+
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">                if ( &quot;local&quot;.equals( mirror.getId() ) )</span>
+                {
+<span class="nc" id="L113">                    addViolation( problems, Severity.WARNING, &quot;mirrors.mirror.id&quot;, null, &quot;must not be 'local'&quot;</span>
+                        + &quot;, this identifier is reserved for the local repository&quot;
+                        + &quot;, using it for other repositories will corrupt your repository metadata.&quot; );
+                }
+
+<span class="fc" id="L118">                validateStringNotEmpty( problems, &quot;mirrors.mirror.url&quot;, mirror.getUrl(), mirror.getId() );</span>
+
+<span class="fc" id="L120">                validateStringNotEmpty( problems, &quot;mirrors.mirror.mirrorOf&quot;, mirror.getMirrorOf(), mirror.getId() );</span>
+<span class="fc" id="L121">            }</span>
+        }
+
+<span class="fc" id="L124">        List&lt;Profile&gt; profiles = settings.getProfiles();</span>
+
+<span class="pc bpc" id="L126" title="1 of 2 branches missed.">        if ( profiles != null )</span>
+        {
+<span class="fc" id="L128">            Set&lt;String&gt; profileIds = new HashSet&lt;&gt;();</span>
+
+<span class="fc bfc" id="L130" title="All 2 branches covered.">            for ( Profile profile : profiles )</span>
+            {
+<span class="pc bpc" id="L132" title="1 of 2 branches missed.">                if ( !profileIds.add( profile.getId() ) )</span>
+                {
+<span class="nc" id="L134">                    addViolation( problems, Severity.WARNING, &quot;profiles.profile.id&quot;, null,</span>
+                                  &quot;must be unique but found duplicate profile with id &quot; + profile.getId() );
+                }
+
+<span class="fc" id="L138">                String prefix = &quot;profiles.profile[&quot; + profile.getId() + &quot;].&quot;;</span>
+
+<span class="fc" id="L140">                validateRepositories( problems, profile.getRepositories(), prefix + &quot;repositories.repository&quot; );</span>
+<span class="fc" id="L141">                validateRepositories( problems, profile.getPluginRepositories(), prefix</span>
+                    + &quot;pluginRepositories.pluginRepository&quot; );
+<span class="fc" id="L143">            }</span>
+        }
+
+<span class="fc" id="L146">        List&lt;Proxy&gt; proxies = settings.getProxies();</span>
+
+<span class="pc bpc" id="L148" title="1 of 2 branches missed.">        if ( proxies != null )</span>
+        {
+<span class="fc" id="L150">            Set&lt;String&gt; proxyIds = new HashSet&lt;&gt;();</span>
+            
+<span class="fc bfc" id="L152" title="All 2 branches covered.">            for ( Proxy proxy : proxies )</span>
+            {
+<span class="pc bpc" id="L154" title="1 of 2 branches missed.">                if ( !proxyIds.add( proxy.getId() ) )</span>
+                {
+<span class="nc" id="L156">                    addViolation( problems, Severity.WARNING, &quot;proxies.proxy.id&quot;, null,</span>
+                                  &quot;must be unique but found duplicate proxy with id &quot; + proxy.getId() );
+                }
+<span class="fc" id="L159">                validateStringNotEmpty( problems, &quot;proxies.proxy.host&quot;, proxy.getHost(), proxy.getId() );</span>
+<span class="fc" id="L160">            }</span>
+        }
+<span class="fc" id="L162">    }</span>
+
+    private void validateRepositories( SettingsProblemCollector problems, List&lt;Repository&gt; repositories, String prefix )
+    {
+<span class="fc" id="L166">        Set&lt;String&gt; repoIds = new HashSet&lt;&gt;();</span>
+
+<span class="fc bfc" id="L168" title="All 2 branches covered.">        for ( Repository repository : repositories )</span>
+        {
+<span class="fc" id="L170">            validateStringNotEmpty( problems, prefix + &quot;.id&quot;, repository.getId(), repository.getUrl() );</span>
+
+<span class="fc" id="L172">            validateBannedCharacters( problems, prefix + &quot;.id&quot;, Severity.WARNING, repository.getId(), null,</span>
+                                      ILLEGAL_REPO_ID_CHARS );
+
+<span class="pc bpc" id="L175" title="1 of 2 branches missed.">            if ( &quot;local&quot;.equals( repository.getId() ) )</span>
+            {
+<span class="nc" id="L177">                addViolation( problems, Severity.WARNING, prefix + &quot;.id&quot;, null, &quot;must not be 'local'&quot;</span>
+                    + &quot;, this identifier is reserved for the local repository&quot;
+                    + &quot;, using it for other repositories will corrupt your repository metadata.&quot; );
+            }
+
+<span class="pc bpc" id="L182" title="1 of 2 branches missed.">            if ( !repoIds.add( repository.getId() ) )</span>
+            {
+<span class="nc" id="L184">                addViolation( problems, Severity.WARNING, prefix + &quot;.id&quot;, null,</span>
+                              &quot;must be unique but found duplicate repository with id &quot; + repository.getId() );
+            }
+
+<span class="fc" id="L188">            validateStringNotEmpty( problems, prefix + &quot;.url&quot;, repository.getUrl(), repository.getId() );</span>
+
+<span class="pc bpc" id="L190" title="1 of 2 branches missed.">            if ( &quot;legacy&quot;.equals( repository.getLayout() ) )</span>
+            {
+<span class="nc" id="L192">                addViolation( problems, Severity.WARNING, prefix + &quot;.layout&quot;, repository.getId(),</span>
+                              &quot;uses the unsupported value 'legacy', artifact resolution might fail.&quot; );
+            }
+<span class="fc" id="L195">        }</span>
+<span class="fc" id="L196">    }</span>
+
+    // ----------------------------------------------------------------------
+    // Field validation
+    // ----------------------------------------------------------------------
+
+    /**
+     * Asserts:
+     * &lt;p/&gt;
+     * &lt;ul&gt;
+     * &lt;li&gt;&lt;code&gt;string.length != null&lt;/code&gt;
+     * &lt;li&gt;&lt;code&gt;string.length &gt; 0&lt;/code&gt;
+     * &lt;/ul&gt;
+     */
+    private static boolean validateStringNotEmpty( SettingsProblemCollector problems, String fieldName, String string,
+                                            String sourceHint )
+    {
+<span class="pc bpc" id="L213" title="1 of 2 branches missed.">        if ( !validateNotNull( problems, fieldName, string, sourceHint ) )</span>
+        {
+<span class="nc" id="L215">            return false;</span>
+        }
+
+<span class="pc bpc" id="L218" title="1 of 2 branches missed.">        if ( string.length() &gt; 0 )</span>
+        {
+<span class="fc" id="L220">            return true;</span>
+        }
+
+<span class="nc" id="L223">        addViolation( problems, Severity.ERROR, fieldName, sourceHint, &quot;is missing&quot; );</span>
+
+<span class="nc" id="L225">        return false;</span>
+    }
+
+    /**
+     * Asserts:
+     * &lt;p/&gt;
+     * &lt;ul&gt;
+     * &lt;li&gt;&lt;code&gt;string != null&lt;/code&gt;
+     * &lt;/ul&gt;
+     */
+    private static boolean validateNotNull( SettingsProblemCollector problems, String fieldName, Object object,
+                                            String sourceHint )
+    {
+<span class="pc bpc" id="L238" title="1 of 2 branches missed.">        if ( object != null )</span>
+        {
+<span class="fc" id="L240">            return true;</span>
+        }
+
+<span class="nc" id="L243">        addViolation( problems, Severity.ERROR, fieldName, sourceHint, &quot;is missing&quot; );</span>
+
+<span class="nc" id="L245">        return false;</span>
+    }
+
+    private static boolean validateBannedCharacters( SettingsProblemCollector problems, String fieldName,
+                                                     Severity severity, String string, String sourceHint,
+                                                     String banned )
+    {
+<span class="pc bpc" id="L252" title="1 of 2 branches missed.">        if ( string != null )</span>
+        {
+<span class="fc bfc" id="L254" title="All 2 branches covered.">            for ( int i = string.length() - 1; i &gt;= 0; i-- )</span>
+            {
+<span class="pc bpc" id="L256" title="1 of 2 branches missed.">                if ( banned.indexOf( string.charAt( i ) ) &gt;= 0 )</span>
+                {
+<span class="nc" id="L258">                    addViolation( problems, severity, fieldName, sourceHint,</span>
+                                  &quot;must not contain any of these characters &quot; + banned + &quot; but found &quot;
+                                      + string.charAt( i ) );
+<span class="nc" id="L261">                    return false;</span>
+                }
+            }
+        }
+
+<span class="fc" id="L266">        return true;</span>
+    }
+
+    private static void addViolation( SettingsProblemCollector problems, Severity severity, String fieldName,
+                               String sourceHint, String message )
+    {
+<span class="nc" id="L272">        StringBuilder buffer = new StringBuilder( 256 );</span>
+<span class="nc" id="L273">        buffer.append( '\'' ).append( fieldName ).append( '\'' );</span>
+
+<span class="nc bnc" id="L275" title="All 2 branches missed.">        if ( sourceHint != null )</span>
+        {
+<span class="nc" id="L277">            buffer.append( &quot; for &quot; ).append( sourceHint );</span>
+        }
+
+<span class="nc" id="L280">        buffer.append( ' ' ).append( message );</span>
+
+<span class="nc" id="L282">        problems.add( severity, buffer.toString(), -1, -1, null );</span>
+<span class="nc" id="L283">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

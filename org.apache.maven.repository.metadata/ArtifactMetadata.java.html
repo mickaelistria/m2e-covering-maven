@@ -1,0 +1,345 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ArtifactMetadata.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository.metadata</a> &gt; <span class="el_source">ArtifactMetadata.java</span></div><h1>ArtifactMetadata.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository.metadata;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.Collection;
+
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.ArtifactScopeEnum;
+
+/**
+ * Artifact Metadata that is resolved independent of Artifact itself.
+ *
+ * @author &lt;a href=&quot;oleg@codehaus.org&quot;&gt;Oleg Gusakov&lt;/a&gt;
+ */
+public class ArtifactMetadata
+{
+    /**
+     * standard glorified artifact coordinates
+     */
+    protected String groupId;
+    protected String artifactId;
+    protected String version;
+    protected String type;
+    protected ArtifactScopeEnum artifactScope;
+    protected String classifier;
+
+    /**
+     * explanation: why this MD was chosen over it's siblings
+     * in the resulting structure (classpath for now)
+     */
+    protected String why;
+
+    /** dependencies of the artifact behind this metadata */
+    protected Collection&lt;ArtifactMetadata&gt; dependencies;
+
+    /** metadata URI */
+    protected String uri;
+
+    /** is metadata found anywhere */
+<span class="nc" id="L57">    protected boolean resolved = false;</span>
+
+    /** does the actual artifact for this metadata exists */
+<span class="nc" id="L60">    protected boolean artifactExists = false;</span>
+    /** artifact URI */
+    protected String artifactUri;
+
+    /** error message  */
+    private String error;
+
+    //------------------------------------------------------------------
+    /**
+     *
+     */
+    public ArtifactMetadata( String name )
+<span class="nc" id="L72">    {</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">        if ( name == null )</span>
+        {
+<span class="nc" id="L75">            return;</span>
+        }
+<span class="nc" id="L77">        int ind1 = name.indexOf( ':' );</span>
+<span class="nc" id="L78">        int ind2 = name.lastIndexOf( ':' );</span>
+
+<span class="nc bnc" id="L80" title="All 4 branches missed.">        if ( ind1 == -1 || ind2 == -1 )</span>
+        {
+<span class="nc" id="L82">            return;</span>
+        }
+
+<span class="nc" id="L85">        this.groupId = name.substring( 0, ind1 );</span>
+<span class="nc bnc" id="L86" title="All 2 branches missed.">        if ( ind1 == ind2 )</span>
+        {
+<span class="nc" id="L88">            this.artifactId = name.substring( ind1 + 1 );</span>
+        }
+        else
+        {
+<span class="nc" id="L92">            this.artifactId = name.substring( ind1 + 1, ind2 );</span>
+<span class="nc" id="L93">            this.version = name.substring( ind2 + 1 );</span>
+        }
+<span class="nc" id="L95">    }</span>
+
+    public ArtifactMetadata( String groupId, String name, String version )
+    {
+<span class="nc" id="L99">        this( groupId, name, version, null );</span>
+<span class="nc" id="L100">    }</span>
+
+    public ArtifactMetadata( String groupId, String name, String version, String type )
+    {
+<span class="nc" id="L104">        this( groupId, name, version, type, null );</span>
+<span class="nc" id="L105">    }</span>
+
+    public ArtifactMetadata( String groupId, String name, String version, String type, ArtifactScopeEnum artifactScope )
+    {
+<span class="nc" id="L109">        this( groupId, name, version, type, artifactScope, null );</span>
+<span class="nc" id="L110">    }</span>
+
+    public ArtifactMetadata( String groupId, String name, String version, String type, ArtifactScopeEnum artifactScope,
+                             String classifier )
+    {
+<span class="nc" id="L115">        this( groupId, name, version, type, artifactScope, classifier, null );</span>
+<span class="nc" id="L116">    }</span>
+
+    public ArtifactMetadata( String groupId, String name, String version, String type, ArtifactScopeEnum artifactScope,
+                             String classifier, String artifactUri )
+    {
+<span class="nc" id="L121">        this( groupId, name, version, type, artifactScope, classifier, artifactUri, null, true, null );</span>
+<span class="nc" id="L122">    }</span>
+
+    @SuppressWarnings( &quot;checkstyle:parameternumber&quot; )
+    public ArtifactMetadata( String groupId, String name, String version, String type, ArtifactScopeEnum artifactScope,
+                             String classifier, String artifactUri, String why, boolean resolved, String error )
+<span class="nc" id="L127">    {</span>
+<span class="nc" id="L128">        this.groupId = groupId;</span>
+<span class="nc" id="L129">        this.artifactId = name;</span>
+<span class="nc" id="L130">        this.version = version;</span>
+<span class="nc" id="L131">        this.type = type;</span>
+<span class="nc" id="L132">        this.artifactScope = artifactScope;</span>
+<span class="nc" id="L133">        this.classifier = classifier;</span>
+<span class="nc" id="L134">        this.artifactUri = artifactUri;</span>
+<span class="nc" id="L135">        this.why = why;</span>
+<span class="nc" id="L136">        this.resolved = resolved;</span>
+<span class="nc" id="L137">        this.error = error;</span>
+<span class="nc" id="L138">    }</span>
+
+    @SuppressWarnings( &quot;checkstyle:parameternumber&quot; )
+    public ArtifactMetadata( String groupId, String name, String version, String type, String scopeString,
+                             String classifier, String artifactUri, String why, boolean resolved, String error )
+    {
+<span class="nc bnc" id="L144" title="All 2 branches missed.">        this( groupId, name, version, type,</span>
+              scopeString == null ? ArtifactScopeEnum.DEFAULT_SCOPE : ArtifactScopeEnum.valueOf( scopeString ),
+              classifier, artifactUri, why, resolved, error );
+<span class="nc" id="L147">    }</span>
+
+    public ArtifactMetadata( Artifact af )
+<span class="nc" id="L150">    {</span>
+        /*
+        if ( af != null )
+        {
+            init( af );
+        }
+        */
+<span class="nc" id="L157">    }</span>
+    //------------------------------------------------------------------
+//    public void init( ArtifactMetadata af )
+//    {
+//        setGroupId( af.getGroupId() );
+//        setArtifactId( af.getArtifactId() );
+//        setVersion( af.getVersion() );
+//        setType( af.getType() );
+//        setScope( af.getScope() );
+//        setClassifier( af.getClassifier() );
+//        //setUri( af.getDownloadUrl() );
+//
+//        this.resolved = af.isResolved();
+//    }
+
+    @Override
+    public String toString()
+    {
+<span class="nc" id="L175">        return groupId + &quot;:&quot; + artifactId + &quot;:&quot; + version;</span>
+    }
+
+    public String toDomainString()
+    {
+<span class="nc" id="L180">        return groupId + &quot;:&quot; + artifactId;</span>
+    }
+
+    public String getGroupId()
+    {
+<span class="nc" id="L185">        return groupId;</span>
+    }
+
+    public void setGroupId( String groupId )
+    {
+<span class="nc" id="L190">        this.groupId = groupId;</span>
+<span class="nc" id="L191">    }</span>
+
+    public String getArtifactId()
+    {
+<span class="nc" id="L195">        return artifactId;</span>
+    }
+
+    public void setArtifactId( String name )
+    {
+<span class="nc" id="L200">        this.artifactId = name;</span>
+<span class="nc" id="L201">    }</span>
+
+    public String getVersion()
+    {
+<span class="nc" id="L205">        return version;</span>
+    }
+
+    public void setVersion( String version )
+    {
+<span class="nc" id="L210">        this.version = version;</span>
+<span class="nc" id="L211">    }</span>
+
+    public String getType()
+    {
+<span class="nc" id="L215">        return type;</span>
+    }
+
+    public String getCheckedType()
+    {
+<span class="nc bnc" id="L220" title="All 2 branches missed.">        return type == null ? &quot;jar&quot; : type;</span>
+    }
+
+    public void setType( String type )
+    {
+<span class="nc" id="L225">        this.type = type;</span>
+<span class="nc" id="L226">    }</span>
+
+    public ArtifactScopeEnum getArtifactScope()
+    {
+<span class="nc bnc" id="L230" title="All 2 branches missed.">        return artifactScope == null ? ArtifactScopeEnum.DEFAULT_SCOPE : artifactScope;</span>
+    }
+
+    public void setArtifactScope( ArtifactScopeEnum artifactScope )
+    {
+<span class="nc" id="L235">        this.artifactScope = artifactScope;</span>
+<span class="nc" id="L236">    }</span>
+
+    public void setScope( String scope )
+    {
+<span class="nc bnc" id="L240" title="All 2 branches missed.">        this.artifactScope = scope == null ? ArtifactScopeEnum.DEFAULT_SCOPE : ArtifactScopeEnum.valueOf( scope );</span>
+<span class="nc" id="L241">    }</span>
+
+    public String getClassifier()
+    {
+<span class="nc" id="L245">        return classifier;</span>
+    }
+
+    public void setClassifier( String classifier )
+    {
+<span class="nc" id="L250">        this.classifier = classifier;</span>
+<span class="nc" id="L251">    }</span>
+
+    public boolean isResolved()
+    {
+<span class="nc" id="L255">        return resolved;</span>
+    }
+
+    public void setResolved( boolean resolved )
+    {
+<span class="nc" id="L260">        this.resolved = resolved;</span>
+<span class="nc" id="L261">    }</span>
+
+    public String getUri()
+    {
+<span class="nc" id="L265">        return uri;</span>
+    }
+
+    public void setUri( String uri )
+    {
+<span class="nc" id="L270">        this.uri = uri;</span>
+<span class="nc" id="L271">    }</span>
+
+    public String getScope()
+    {
+<span class="nc" id="L275">        return getArtifactScope().getScope();</span>
+    }
+
+    public ArtifactScopeEnum getScopeAsEnum()
+    {
+<span class="nc bnc" id="L280" title="All 2 branches missed.">        return artifactScope == null ? ArtifactScopeEnum.DEFAULT_SCOPE : artifactScope;</span>
+    }
+
+    public boolean isArtifactExists()
+    {
+<span class="nc" id="L285">        return artifactExists;</span>
+    }
+
+    public void setArtifactExists( boolean artifactExists )
+    {
+<span class="nc" id="L290">        this.artifactExists = artifactExists;</span>
+<span class="nc" id="L291">    }</span>
+
+
+    public Collection&lt;ArtifactMetadata&gt; getDependencies()
+    {
+<span class="nc" id="L296">        return dependencies;</span>
+    }
+
+    public void setDependencies( Collection&lt;ArtifactMetadata&gt; dependencies )
+    {
+<span class="nc" id="L301">        this.dependencies = dependencies;</span>
+<span class="nc" id="L302">    }</span>
+
+    public String getArtifactUri()
+    {
+<span class="nc" id="L306">        return artifactUri;</span>
+    }
+
+    public void setArtifactUri( String artifactUri )
+    {
+<span class="nc" id="L311">        this.artifactUri = artifactUri;</span>
+<span class="nc" id="L312">    }</span>
+
+
+    public String getWhy()
+    {
+<span class="nc" id="L317">        return why;</span>
+    }
+
+    public void setWhy( String why )
+    {
+<span class="nc" id="L322">        this.why = why;</span>
+<span class="nc" id="L323">    }</span>
+
+    public String getError()
+    {
+<span class="nc" id="L327">        return error;</span>
+    }
+
+    public void setError( String error )
+    {
+<span class="nc" id="L332">        this.error = error;</span>
+<span class="nc" id="L333">    }</span>
+
+    public boolean isError()
+    {
+<span class="nc bnc" id="L337" title="All 2 branches missed.">        return error == null;</span>
+    }
+
+    public String getDependencyConflictId()
+    {
+<span class="nc" id="L342">        return groupId + &quot;:&quot; + artifactId;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

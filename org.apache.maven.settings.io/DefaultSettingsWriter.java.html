@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultSettingsWriter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.settings.io</a> &gt; <span class="el_source">DefaultSettingsWriter.java</span></div><h1>DefaultSettingsWriter.java</h1><pre class="source lang-java linenums">package org.apache.maven.settings.io;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.OutputStreamWriter;
+import java.io.Writer;
+import java.util.Map;
+
+import org.apache.commons.lang3.Validate;
+import org.apache.maven.settings.Settings;
+import org.apache.maven.settings.io.xpp3.SettingsXpp3Writer;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.util.WriterFactory;
+
+/**
+ * Handles serialization of settings into the default textual format.
+ *
+ * @author Benjamin Bentmann
+ */
+@Component( role = SettingsWriter.class )
+<span class="fc" id="L41">public class DefaultSettingsWriter</span>
+    implements SettingsWriter
+{
+
+    @Override
+    public void write( File output, Map&lt;String, Object&gt; options, Settings settings )
+        throws IOException
+    {
+<span class="nc" id="L49">        Validate.notNull( output, &quot;output cannot be null&quot; );</span>
+<span class="nc" id="L50">        Validate.notNull( settings, &quot;settings cannot be null&quot; );</span>
+
+<span class="nc" id="L52">        output.getParentFile().mkdirs();</span>
+
+<span class="nc" id="L54">        write( WriterFactory.newXmlWriter( output ), options, settings );</span>
+<span class="nc" id="L55">    }</span>
+
+    @Override
+    public void write( Writer output, Map&lt;String, Object&gt; options, Settings settings )
+        throws IOException
+    {
+<span class="fc" id="L61">        Validate.notNull( output, &quot;output cannot be null&quot; );</span>
+<span class="fc" id="L62">        Validate.notNull( settings, &quot;settings cannot be null&quot; );</span>
+
+<span class="fc" id="L64">        try ( final Writer out = output )</span>
+        {
+<span class="fc" id="L66">            new SettingsXpp3Writer().write( out, settings );</span>
+        }
+<span class="fc" id="L68">    }</span>
+
+    @Override
+    public void write( OutputStream output, Map&lt;String, Object&gt; options, Settings settings )
+        throws IOException
+    {
+<span class="nc" id="L74">        Validate.notNull( output, &quot;output cannot be null&quot; );</span>
+<span class="nc" id="L75">        Validate.notNull( settings, &quot;settings cannot be null&quot; );</span>
+
+<span class="nc" id="L77">        String encoding = settings.getModelEncoding();</span>
+        // TODO Use StringUtils here
+<span class="nc bnc" id="L79" title="All 4 branches missed.">        if ( encoding == null || encoding.length() &lt;= 0 )</span>
+        {
+<span class="nc" id="L81">            encoding = &quot;UTF-8&quot;;</span>
+        }
+
+<span class="nc" id="L84">        try ( final Writer out = new OutputStreamWriter( output, encoding ) )</span>
+        {
+<span class="nc" id="L86">            write( out, options, settings );</span>
+        }
+<span class="nc" id="L88">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

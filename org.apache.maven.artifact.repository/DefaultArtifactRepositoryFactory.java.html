@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultArtifactRepositoryFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.artifact.repository</a> &gt; <span class="el_source">DefaultArtifactRepositoryFactory.java</span></div><h1>DefaultArtifactRepositoryFactory.java</h1><pre class="source lang-java linenums">package org.apache.maven.artifact.repository;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.Arrays;
+import java.util.List;
+
+import org.apache.maven.artifact.UnknownRepositoryLayoutException;
+import org.apache.maven.artifact.repository.layout.ArtifactRepositoryLayout;
+import org.apache.maven.plugin.LegacySupport;
+import org.apache.maven.repository.RepositorySystem;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
+import org.eclipse.aether.RepositorySystemSession;
+
+/**
+ * @author jdcasey
+ */
+@Component( role = ArtifactRepositoryFactory.class )
+<span class="fc" id="L37">public class DefaultArtifactRepositoryFactory</span>
+    implements ArtifactRepositoryFactory
+{
+
+    @Requirement
+    private org.apache.maven.repository.legacy.repository.ArtifactRepositoryFactory factory;
+
+    @Requirement
+    private LegacySupport legacySupport;
+
+    @Requirement
+    private RepositorySystem repositorySystem;
+
+    public ArtifactRepositoryLayout getLayout( String layoutId )
+        throws UnknownRepositoryLayoutException
+    {
+<span class="nc" id="L53">        return factory.getLayout( layoutId );</span>
+    }
+
+    public ArtifactRepository createDeploymentArtifactRepository( String id, String url, String layoutId,
+                                                                  boolean uniqueVersion )
+        throws UnknownRepositoryLayoutException
+    {
+<span class="nc" id="L60">        return injectSession( factory.createDeploymentArtifactRepository( id, url, layoutId, uniqueVersion ), false );</span>
+    }
+
+    public ArtifactRepository createDeploymentArtifactRepository( String id, String url,
+                                                                  ArtifactRepositoryLayout repositoryLayout,
+                                                                  boolean uniqueVersion )
+    {
+<span class="nc" id="L67">        return injectSession( factory.createDeploymentArtifactRepository( id, url, repositoryLayout, uniqueVersion ),</span>
+                              false );
+    }
+
+    public ArtifactRepository createArtifactRepository( String id, String url, String layoutId,
+                                                        ArtifactRepositoryPolicy snapshots,
+                                                        ArtifactRepositoryPolicy releases )
+        throws UnknownRepositoryLayoutException
+    {
+<span class="nc" id="L76">        return injectSession( factory.createArtifactRepository( id, url, layoutId, snapshots, releases ), true );</span>
+    }
+
+    public ArtifactRepository createArtifactRepository( String id, String url,
+                                                        ArtifactRepositoryLayout repositoryLayout,
+                                                        ArtifactRepositoryPolicy snapshots,
+                                                        ArtifactRepositoryPolicy releases )
+    {
+<span class="fc" id="L84">        return injectSession( factory.createArtifactRepository( id, url, repositoryLayout, snapshots, releases ),</span>
+                              true );
+
+    }
+
+    public void setGlobalUpdatePolicy( String updatePolicy )
+    {
+<span class="nc" id="L91">        factory.setGlobalUpdatePolicy( updatePolicy );</span>
+<span class="nc" id="L92">    }</span>
+
+    public void setGlobalChecksumPolicy( String checksumPolicy )
+    {
+<span class="nc" id="L96">        factory.setGlobalChecksumPolicy( checksumPolicy );</span>
+<span class="nc" id="L97">    }</span>
+
+    private ArtifactRepository injectSession( ArtifactRepository repository, boolean mirrors )
+    {
+<span class="fc" id="L101">        RepositorySystemSession session = legacySupport.getRepositorySession();</span>
+
+<span class="pc bpc" id="L103" title="3 of 6 branches missed.">        if ( session != null &amp;&amp; repository != null &amp;&amp; !isLocalRepository( repository ) )</span>
+        {
+<span class="fc" id="L105">            List&lt;ArtifactRepository&gt; repositories = Arrays.asList( repository );</span>
+
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">            if ( mirrors )</span>
+            {
+<span class="fc" id="L109">                repositorySystem.injectMirror( session, repositories );</span>
+            }
+
+<span class="fc" id="L112">            repositorySystem.injectProxy( session, repositories );</span>
+
+<span class="fc" id="L114">            repositorySystem.injectAuthentication( session, repositories );</span>
+        }
+
+<span class="fc" id="L117">        return repository;</span>
+    }
+
+    private boolean isLocalRepository( ArtifactRepository repository )
+    {
+        // unfortunately, the API doesn't allow to tell a remote repo and the local repo apart...
+<span class="fc" id="L123">        return &quot;local&quot;.equals( repository.getId() );</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

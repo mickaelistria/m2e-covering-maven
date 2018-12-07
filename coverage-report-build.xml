@@ -1,0 +1,105 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<!-- 
+   Copyright (c) 2009, 2018 Mountainminds GmbH & Co. KG and Contributors
+   All rights reserved. This program and the accompanying materials
+   are made available under the terms of the Eclipse Public License v1.0
+   which accompanies this distribution, and is available at
+   http://www.eclipse.org/legal/epl-v10.html
+  
+   Contributors:
+      Marc R. Hoffmann - initial API and implementation
+-->
+
+<project name="Example Ant Build with JaCoCo" default="report" xmlns:jacoco="antlib:org.jacoco.ant">
+	
+	<taskdef uri="antlib:org.jacoco.ant" resource="org/jacoco/ant/antlib.xml">
+		<classpath path="/home/mistria/apps/org.jacoco.ant-0.8.2-nodeps.jar" />
+	</taskdef>
+
+	<target name="report">
+		<jacoco:report>
+
+			<executiondata>
+				<!-- Use https://github.com/tesla/m2e-core-tests/pull/65 and then
+				`mvn clean verify -Pits,uts` (will use Maven release included in m2e) -->
+				<file file="/home/mistria/git/m2e-core-tests/target/jacoco.exec" />
+			</executiondata>
+
+			<structure name="m2e-core-tests coverage of Maven">
+				<classfiles>
+					<fileset dir="/home/mistria/git/m2e-core-tests/org.eclipse.m2e.tests/target/work/plugins/"
+						includes="org.eclipse.m2e.*/jars/*maven*.jar"/>
+					<!-- Resolves to
+					org.eclipse.m2e.editor.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-artifact-3.5.3.jar
+					org.eclipse.m2e.editor.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-builder-support-3.5.3.jar
+					org.eclipse.m2e.editor.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-compat-3.5.3.jar
+					org.eclipse.m2e.editor.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-core-3.5.3.jar
+					org.eclipse.m2e.editor.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-embedder-3.5.3.jar
+					org.eclipse.m2e.editor.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-model-3.5.3.jar
+					org.eclipse.m2e.editor.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-model-builder-3.5.3.jar
+					org.eclipse.m2e.editor.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-plugin-api-3.5.3.jar
+					org.eclipse.m2e.editor.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-repository-metadata-3.5.3.jar
+					org.eclipse.m2e.editor.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-resolver-api-1.1.1.jar
+					org.eclipse.m2e.editor.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-resolver-connector-basic-1.1.1.jar
+					org.eclipse.m2e.editor.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-resolver-impl-1.1.1.jar
+					org.eclipse.m2e.editor.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-resolver-provider-3.5.3.jar
+					org.eclipse.m2e.editor.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-resolver-spi-1.1.1.jar
+					org.eclipse.m2e.editor.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-resolver-transport-wagon-1.1.1.jar
+					org.eclipse.m2e.editor.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-resolver-util-1.1.1.jar
+					org.eclipse.m2e.editor.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-settings-3.5.3.jar
+					org.eclipse.m2e.editor.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-settings-builder-3.5.3.jar
+					org.eclipse.m2e.editor.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-shared-utils-3.2.1.jar
+					org.eclipse.m2e.editor.xml.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-artifact-3.5.3.jar
+					org.eclipse.m2e.editor.xml.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-builder-support-3.5.3.jar
+					org.eclipse.m2e.editor.xml.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-compat-3.5.3.jar
+					org.eclipse.m2e.editor.xml.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-core-3.5.3.jar
+					org.eclipse.m2e.editor.xml.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-embedder-3.5.3.jar
+					org.eclipse.m2e.editor.xml.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-model-3.5.3.jar
+					org.eclipse.m2e.editor.xml.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-model-builder-3.5.3.jar
+					org.eclipse.m2e.editor.xml.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-plugin-api-3.5.3.jar
+					org.eclipse.m2e.editor.xml.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-repository-metadata-3.5.3.jar
+					org.eclipse.m2e.editor.xml.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-resolver-api-1.1.1.jar
+					org.eclipse.m2e.editor.xml.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-resolver-connector-basic-1.1.1.jar
+					org.eclipse.m2e.editor.xml.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-resolver-impl-1.1.1.jar
+					org.eclipse.m2e.editor.xml.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-resolver-provider-3.5.3.jar
+					org.eclipse.m2e.editor.xml.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-resolver-spi-1.1.1.jar
+					org.eclipse.m2e.editor.xml.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-resolver-transport-wagon-1.1.1.jar
+					org.eclipse.m2e.editor.xml.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-resolver-util-1.1.1.jar
+					org.eclipse.m2e.editor.xml.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-settings-3.5.3.jar
+					org.eclipse.m2e.editor.xml.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-settings-builder-3.5.3.jar
+					org.eclipse.m2e.editor.xml.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-shared-utils-3.2.1.jar
+					org.eclipse.m2e.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-artifact-3.5.3.jar
+					org.eclipse.m2e.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-builder-support-3.5.3.jar
+					org.eclipse.m2e.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-compat-3.5.3.jar
+					org.eclipse.m2e.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-core-3.5.3.jar
+					org.eclipse.m2e.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-embedder-3.5.3.jar
+					org.eclipse.m2e.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-model-3.5.3.jar
+					org.eclipse.m2e.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-model-builder-3.5.3.jar
+					org.eclipse.m2e.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-plugin-api-3.5.3.jar
+					org.eclipse.m2e.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-repository-metadata-3.5.3.jar
+					org.eclipse.m2e.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-resolver-api-1.1.1.jar
+					org.eclipse.m2e.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-resolver-connector-basic-1.1.1.jar
+					org.eclipse.m2e.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-resolver-impl-1.1.1.jar
+					org.eclipse.m2e.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-resolver-provider-3.5.3.jar
+					org.eclipse.m2e.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-resolver-spi-1.1.1.jar
+					org.eclipse.m2e.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-resolver-transport-wagon-1.1.1.jar
+					org.eclipse.m2e.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-resolver-util-1.1.1.jar
+					org.eclipse.m2e.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-settings-3.5.3.jar
+					org.eclipse.m2e.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-settings-builder-3.5.3.jar
+					org.eclipse.m2e.tests/target/work/plugins/org.eclipse.m2e.maven.runtime_1.10.0.20181127-2120/jars/maven-shared-utils-3.2.1.jar
+					-->
+				</classfiles>
+				<sourcefiles encoding="UTF-8">
+					<!-- Make sure the local source matches the version of Maven that's embedded in m2e during test execution -->
+					<dirset dir="/home/mistria/git/maven/"
+						includes="*/src/main/java" />
+				</sourcefiles>
+			</structure>
+
+			<html destdir="jacoco-reports" />
+		</jacoco:report>
+	</target>
+
+
+</project>

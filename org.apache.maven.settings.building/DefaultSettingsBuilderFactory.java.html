@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultSettingsBuilderFactory.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.settings.building</a> &gt; <span class="el_source">DefaultSettingsBuilderFactory.java</span></div><h1>DefaultSettingsBuilderFactory.java</h1><pre class="source lang-java linenums">package org.apache.maven.settings.building;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.maven.settings.io.DefaultSettingsReader;
+import org.apache.maven.settings.io.DefaultSettingsWriter;
+import org.apache.maven.settings.io.SettingsReader;
+import org.apache.maven.settings.io.SettingsWriter;
+import org.apache.maven.settings.validation.DefaultSettingsValidator;
+import org.apache.maven.settings.validation.SettingsValidator;
+
+/**
+ * A factory to create settings builder instances when no dependency injection is available. &lt;em&gt;Note:&lt;/em&gt; This class
+ * is only meant as a utility for developers that want to employ the settings builder outside of the Maven build system,
+ * Maven plugins should always acquire settings builder instances via dependency injection. Developers might want to
+ * subclass this factory to provide custom implementations for some of the components used by the settings builder.
+ *
+ * @author Benjamin Bentmann
+ */
+<span class="nc" id="L37">public class DefaultSettingsBuilderFactory</span>
+{
+
+    protected SettingsReader newSettingsReader()
+    {
+<span class="nc" id="L42">        return new DefaultSettingsReader();</span>
+    }
+
+    protected SettingsWriter newSettingsWriter()
+    {
+<span class="nc" id="L47">        return new DefaultSettingsWriter();</span>
+    }
+
+    protected SettingsValidator newSettingsValidator()
+    {
+<span class="nc" id="L52">        return new DefaultSettingsValidator();</span>
+    }
+
+    /**
+     * Creates a new settings builder instance.
+     *
+     * @return The new settings builder instance, never {@code null}.
+     */
+    public DefaultSettingsBuilder newInstance()
+    {
+<span class="nc" id="L62">        DefaultSettingsBuilder builder = new DefaultSettingsBuilder();</span>
+
+<span class="nc" id="L64">        builder.setSettingsReader( newSettingsReader() );</span>
+<span class="nc" id="L65">        builder.setSettingsWriter( newSettingsWriter() );</span>
+<span class="nc" id="L66">        builder.setSettingsValidator( newSettingsValidator() );</span>
+
+<span class="nc" id="L68">        return builder;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,198 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CLIReportingUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.cli</a> &gt; <span class="el_source">CLIReportingUtils.java</span></div><h1>CLIReportingUtils.java</h1><pre class="source lang-java linenums">package org.apache.maven.cli;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import static org.apache.maven.shared.utils.logging.MessageUtils.buffer;
+
+import java.io.IOException;
+import java.io.InputStream;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.Locale;
+import java.util.Properties;
+
+import org.apache.commons.lang3.StringUtils;
+import org.codehaus.plexus.util.Os;
+import org.slf4j.Logger;
+
+/**
+ * Utility class used to report errors, statistics, application version info, etc.
+ *
+ * @author jdcasey
+ */
+<span class="nc" id="L40">public final class CLIReportingUtils</span>
+{
+    // CHECKSTYLE_OFF: MagicNumber
+    public static final long MB = 1024 * 1024;
+
+    private static final long ONE_SECOND = 1000L;
+
+    private static final long ONE_MINUTE = 60 * ONE_SECOND;
+
+    private static final long ONE_HOUR = 60 * ONE_MINUTE;
+
+    private static final long ONE_DAY = 24 * ONE_HOUR;
+    // CHECKSTYLE_ON: MagicNumber
+
+    public static final String BUILD_VERSION_PROPERTY = &quot;version&quot;;
+
+    public static String showVersion()
+    {
+<span class="nc" id="L58">        final String ls = System.getProperty( &quot;line.separator&quot; );</span>
+<span class="nc" id="L59">        Properties properties = getBuildProperties();</span>
+<span class="nc" id="L60">        StringBuilder version = new StringBuilder( 256 );</span>
+<span class="nc" id="L61">        version.append( buffer().strong( createMavenVersionString( properties ) ) ).append( ls );</span>
+<span class="nc" id="L62">        version.append( reduce(</span>
+            properties.getProperty( &quot;distributionShortName&quot; ) + &quot; home: &quot; + System.getProperty( &quot;maven.home&quot;,
+                                                                                                &quot;&lt;unknown Maven &quot;
+                                                                                                    + &quot;home&gt;&quot; ) ) )
+            .append(
+            ls );
+<span class="nc" id="L68">        version.append( &quot;Java version: &quot; ).append(</span>
+            System.getProperty( &quot;java.version&quot;, &quot;&lt;unknown Java version&gt;&quot; ) ).append( &quot;, vendor: &quot; ).append(
+            System.getProperty( &quot;java.vendor&quot;, &quot;&lt;unknown vendor&gt;&quot; ) ).append( ls );
+<span class="nc" id="L71">        version.append( &quot;Java home: &quot; ).append( System.getProperty( &quot;java.home&quot;, &quot;&lt;unknown Java home&gt;&quot; ) ).append( ls );</span>
+<span class="nc" id="L72">        version.append( &quot;Default locale: &quot; ).append( Locale.getDefault() ).append( &quot;, platform encoding: &quot; ).append(</span>
+            System.getProperty( &quot;file.encoding&quot;, &quot;&lt;unknown encoding&gt;&quot; ) ).append( ls );
+<span class="nc" id="L74">        version.append( &quot;OS name: \&quot;&quot; ).append( Os.OS_NAME ).append( &quot;\&quot;, version: \&quot;&quot; ).append( Os.OS_VERSION ).append(</span>
+            &quot;\&quot;, arch: \&quot;&quot; ).append( Os.OS_ARCH ).append( &quot;\&quot;, family: \&quot;&quot; ).append( Os.OS_FAMILY ).append( '\&quot;' );
+<span class="nc" id="L76">        return version.toString();</span>
+    }
+
+    /**
+     * Create a human readable string containing the Maven version, buildnumber, and time of build
+     *
+     * @param buildProperties The build properties
+     * @return Readable build info
+     */
+    static String createMavenVersionString( Properties buildProperties )
+    {
+<span class="nc" id="L87">        String timestamp = reduce( buildProperties.getProperty( &quot;timestamp&quot; ) );</span>
+<span class="nc" id="L88">        String version = reduce( buildProperties.getProperty( BUILD_VERSION_PROPERTY ) );</span>
+<span class="nc" id="L89">        String rev = reduce( buildProperties.getProperty( &quot;buildNumber&quot; ) );</span>
+<span class="nc" id="L90">        String distributionName = reduce( buildProperties.getProperty( &quot;distributionName&quot; ) );</span>
+
+<span class="nc" id="L92">        String msg = distributionName + &quot; &quot;;</span>
+<span class="nc bnc" id="L93" title="All 2 branches missed.">        msg += ( version != null ? version : &quot;&lt;version unknown&gt;&quot; );</span>
+<span class="nc bnc" id="L94" title="All 4 branches missed.">        if ( rev != null || timestamp != null )</span>
+        {
+<span class="nc" id="L96">            msg += &quot; (&quot;;</span>
+<span class="nc bnc" id="L97" title="All 2 branches missed.">            msg += ( rev != null ? rev : &quot;&quot; );</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">            if ( StringUtils.isNotBlank( timestamp ) )</span>
+            {
+<span class="nc" id="L100">                String ts = formatTimestamp( Long.valueOf( timestamp ) );</span>
+<span class="nc bnc" id="L101" title="All 2 branches missed.">                msg += ( rev != null ? &quot;; &quot; : &quot;&quot; ) + ts;</span>
+            }
+<span class="nc" id="L103">            msg += &quot;)&quot;;</span>
+        }
+<span class="nc" id="L105">        return msg;</span>
+    }
+
+    private static String reduce( String s )
+    {
+<span class="nc bnc" id="L110" title="All 6 branches missed.">        return ( s != null ? ( s.startsWith( &quot;${&quot; ) &amp;&amp; s.endsWith( &quot;}&quot; ) ? null : s ) : null );</span>
+    }
+
+    static Properties getBuildProperties()
+    {
+<span class="nc" id="L115">        Properties properties = new Properties();</span>
+
+<span class="nc" id="L117">        try ( InputStream resourceAsStream = MavenCli.class.getResourceAsStream(</span>
+            &quot;/org/apache/maven/messages/build.properties&quot; ) )
+        {
+
+<span class="nc bnc" id="L121" title="All 2 branches missed.">            if ( resourceAsStream != null )</span>
+            {
+<span class="nc" id="L123">                properties.load( resourceAsStream );</span>
+            }
+        }
+<span class="nc" id="L126">        catch ( IOException e )</span>
+        {
+<span class="nc" id="L128">            System.err.println( &quot;Unable determine version from JAR file: &quot; + e.getMessage() );</span>
+<span class="nc" id="L129">        }</span>
+
+<span class="nc" id="L131">        return properties;</span>
+    }
+
+    public static void showError( Logger logger, String message, Throwable e, boolean showStackTrace )
+    {
+<span class="nc bnc" id="L136" title="All 2 branches missed.">        if ( showStackTrace )</span>
+        {
+<span class="nc" id="L138">            logger.error( message, e );</span>
+        }
+        else
+        {
+<span class="nc" id="L142">            logger.error( message );</span>
+
+<span class="nc bnc" id="L144" title="All 2 branches missed.">            if ( e != null )</span>
+            {
+<span class="nc" id="L146">                logger.error( e.getMessage() );</span>
+
+<span class="nc bnc" id="L148" title="All 2 branches missed.">                for ( Throwable cause = e.getCause(); cause != null; cause = cause.getCause() )</span>
+                {
+<span class="nc" id="L150">                    logger.error( &quot;Caused by: &quot; + cause.getMessage() );</span>
+                }
+            }
+        }
+<span class="nc" id="L154">    }</span>
+
+    public static String formatTimestamp( long timestamp )
+    {
+<span class="nc" id="L158">        SimpleDateFormat sdf = new SimpleDateFormat( &quot;yyyy-MM-dd'T'HH:mm:ssXXX&quot; );</span>
+<span class="nc" id="L159">        return sdf.format( new Date( timestamp ) );</span>
+    }
+
+    public static String formatDuration( long duration )
+    {
+        // CHECKSTYLE_OFF: MagicNumber
+<span class="nc" id="L165">        long ms = duration % 1000;</span>
+<span class="nc" id="L166">        long s = ( duration / ONE_SECOND ) % 60;</span>
+<span class="nc" id="L167">        long m = ( duration / ONE_MINUTE ) % 60;</span>
+<span class="nc" id="L168">        long h = ( duration / ONE_HOUR ) % 24;</span>
+<span class="nc" id="L169">        long d = duration / ONE_DAY;</span>
+        // CHECKSTYLE_ON: MagicNumber
+
+        String format;
+<span class="nc bnc" id="L173" title="All 2 branches missed.">        if ( d &gt; 0 )</span>
+        {
+            // Length 11+ chars
+<span class="nc" id="L176">            format = &quot;%d d %02d:%02d h&quot;;</span>
+        }
+<span class="nc bnc" id="L178" title="All 2 branches missed.">        else if ( h &gt; 0 )</span>
+        {
+            // Length 7 chars
+<span class="nc" id="L181">            format = &quot;%2$02d:%3$02d h&quot;;</span>
+        }
+<span class="nc bnc" id="L183" title="All 2 branches missed.">        else if ( m &gt; 0 )</span>
+        {
+            // Length 9 chars
+<span class="nc" id="L186">            format = &quot;%3$02d:%4$02d min&quot;;</span>
+        }
+        else
+        {
+            // Length 7-8 chars
+<span class="nc" id="L191">            format = &quot;%4$d.%5$03d s&quot;;</span>
+        }
+
+<span class="nc" id="L194">        return String.format( format, d, h, m, s, ms );</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

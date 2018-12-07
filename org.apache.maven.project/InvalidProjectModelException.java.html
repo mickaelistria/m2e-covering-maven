@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>InvalidProjectModelException.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.project</a> &gt; <span class="el_source">InvalidProjectModelException.java</span></div><h1>InvalidProjectModelException.java</h1><pre class="source lang-java linenums">package org.apache.maven.project;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+
+import org.apache.maven.project.validation.ModelValidationResult;
+
+/**
+ * InvalidProjectModelException
+ */
+@Deprecated
+public class InvalidProjectModelException
+    extends ProjectBuildingException
+{
+    private ModelValidationResult validationResult;
+
+    public InvalidProjectModelException( String projectId, String message, File pomLocation )
+    {
+<span class="nc" id="L37">        super( projectId, message, pomLocation );</span>
+<span class="nc" id="L38">    }</span>
+
+    /**
+     * @param projectId
+     * @param pomLocation      absolute path of the pom file
+     * @param message
+     * @param validationResult
+     * @deprecated use {@link File} constructor for pomLocation
+     */
+    public InvalidProjectModelException( String projectId, String pomLocation, String message,
+                                         ModelValidationResult validationResult )
+    {
+<span class="nc" id="L50">        this( projectId, message, new File( pomLocation ), validationResult );</span>
+<span class="nc" id="L51">    }</span>
+
+    public InvalidProjectModelException( String projectId, String message, File pomFile,
+                                         ModelValidationResult validationResult )
+    {
+<span class="nc" id="L56">        super( projectId, message, pomFile );</span>
+
+<span class="nc" id="L58">        this.validationResult = validationResult;</span>
+<span class="nc" id="L59">    }</span>
+
+    /**
+     * @param projectId
+     * @param pomLocation absolute path of the pom file
+     * @param message
+     * @deprecated use {@link File} constructor for pomLocation
+     */
+    public InvalidProjectModelException( String projectId, String pomLocation, String message )
+    {
+<span class="nc" id="L69">        this( projectId, message, new File( pomLocation ) );</span>
+<span class="nc" id="L70">    }</span>
+
+    public final ModelValidationResult getValidationResult()
+    {
+<span class="nc" id="L74">        return validationResult;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

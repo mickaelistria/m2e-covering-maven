@@ -1,0 +1,118 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SystemPropertyProfileActivator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.profiles.activation</a> &gt; <span class="el_source">SystemPropertyProfileActivator.java</span></div><h1>SystemPropertyProfileActivator.java</h1><pre class="source lang-java linenums">package org.apache.maven.profiles.activation;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.Properties;
+import org.apache.maven.model.Activation;
+import org.apache.maven.model.ActivationProperty;
+import org.apache.maven.model.Profile;
+import org.codehaus.plexus.context.Context;
+import org.codehaus.plexus.context.ContextException;
+import org.codehaus.plexus.personality.plexus.lifecycle.phase.Contextualizable;
+import org.codehaus.plexus.util.StringUtils;
+
+/**
+ * SystemPropertyProfileActivator
+ */
+@Deprecated
+<span class="nc" id="L35">public class SystemPropertyProfileActivator</span>
+    extends DetectedProfileActivator implements Contextualizable
+{
+    private Properties properties;
+
+    public void contextualize( Context context )
+        throws ContextException
+    {
+<span class="nc" id="L43">        properties = (Properties) context.get( &quot;SystemProperties&quot; );</span>
+<span class="nc" id="L44">    }</span>
+
+    protected boolean canDetectActivation( Profile profile )
+    {
+<span class="nc bnc" id="L48" title="All 4 branches missed.">        return profile.getActivation() != null &amp;&amp; profile.getActivation().getProperty() != null;</span>
+    }
+
+    public boolean isActive( Profile profile )
+        throws ProfileActivationException
+    {
+<span class="nc" id="L54">        Activation activation = profile.getActivation();</span>
+
+<span class="nc" id="L56">        ActivationProperty property = activation.getProperty();</span>
+
+<span class="nc bnc" id="L58" title="All 2 branches missed.">        if ( property != null )</span>
+        {
+<span class="nc" id="L60">            String name = property.getName();</span>
+<span class="nc" id="L61">            boolean reverseName = false;</span>
+
+<span class="nc bnc" id="L63" title="All 2 branches missed.">            if ( name == null )</span>
+            {
+<span class="nc" id="L65">                throw new ProfileActivationException( &quot;The property name is required to activate the profile '&quot;</span>
+                    + profile.getId() + &quot;'&quot; );
+            }
+
+<span class="nc bnc" id="L69" title="All 2 branches missed.">            if ( name.startsWith( &quot;!&quot; ) )</span>
+            {
+<span class="nc" id="L71">                reverseName = true;</span>
+<span class="nc" id="L72">                name = name.substring( 1 );</span>
+            }
+
+<span class="nc" id="L75">            String sysValue = properties.getProperty( name );</span>
+
+<span class="nc" id="L77">            String propValue = property.getValue();</span>
+<span class="nc bnc" id="L78" title="All 2 branches missed.">            if ( StringUtils.isNotEmpty( propValue ) )</span>
+            {
+<span class="nc" id="L80">                boolean reverseValue = false;</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">                if ( propValue.startsWith( &quot;!&quot; ) )</span>
+                {
+<span class="nc" id="L83">                    reverseValue = true;</span>
+<span class="nc" id="L84">                    propValue = propValue.substring( 1 );</span>
+                }
+
+                // we have a value, so it has to match the system value...
+<span class="nc" id="L88">                boolean result = propValue.equals( sysValue );</span>
+
+<span class="nc bnc" id="L90" title="All 2 branches missed.">                if ( reverseValue )</span>
+                {
+<span class="nc bnc" id="L92" title="All 2 branches missed.">                    return !result;</span>
+                }
+                else
+                {
+<span class="nc" id="L96">                    return result;</span>
+                }
+            }
+            else
+            {
+<span class="nc" id="L101">                boolean result = StringUtils.isNotEmpty( sysValue );</span>
+
+<span class="nc bnc" id="L103" title="All 2 branches missed.">                if ( reverseName )</span>
+                {
+<span class="nc bnc" id="L105" title="All 2 branches missed.">                    return !result;</span>
+                }
+                else
+                {
+<span class="nc" id="L109">                    return result;</span>
+                }
+            }
+        }
+
+<span class="nc" id="L114">        return false;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ModelValidationResult.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.project.validation</a> &gt; <span class="el_source">ModelValidationResult.java</span></div><h1>ModelValidationResult.java</h1><pre class="source lang-java linenums">package org.apache.maven.project.validation;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * @author &lt;a href=&quot;mailto:trygvis@inamo.no&quot;&gt;Trygve Laugst&amp;oslash;l&lt;/a&gt;
+ */
+public class ModelValidationResult
+{
+
+    /** */
+<span class="nc" id="L33">    private static final String NEWLINE = System.getProperty( &quot;line.separator&quot; );</span>
+
+    /** */
+    private List&lt;String&gt; messages;
+
+    public ModelValidationResult()
+<span class="nc" id="L39">    {</span>
+<span class="nc" id="L40">        messages = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L41">    }</span>
+
+    public int getMessageCount()
+    {
+<span class="nc" id="L45">        return messages.size();</span>
+    }
+
+    public String getMessage( int i )
+    {
+<span class="nc" id="L50">        return messages.get( i );</span>
+    }
+
+    public List&lt;String&gt; getMessages()
+    {
+<span class="nc" id="L55">        return Collections.unmodifiableList( messages );</span>
+    }
+
+    public void addMessage( String message )
+    {
+<span class="nc" id="L60">        messages.add( message );</span>
+<span class="nc" id="L61">    }</span>
+
+    public String toString()
+    {
+<span class="nc" id="L65">        return render( &quot;&quot; );</span>
+    }
+
+    public String render( String indentation )
+    {
+<span class="nc bnc" id="L70" title="All 2 branches missed.">        if ( messages.size() == 0 )</span>
+        {
+<span class="nc" id="L72">            return indentation + &quot;There were no validation errors.&quot;;</span>
+        }
+
+<span class="nc" id="L75">        StringBuilder message = new StringBuilder();</span>
+
+//        if ( messages.size() == 1 )
+//        {
+//            message.append( &quot;There was 1 validation error: &quot; );
+//        }
+//        else
+//        {
+//            message.append( &quot;There was &quot; + messages.size() + &quot; validation errors: &quot; + NEWLINE );
+//        }
+//
+<span class="nc bnc" id="L86" title="All 2 branches missed.">        for ( int i = 0; i &lt; messages.size(); i++ )</span>
+        {
+<span class="nc" id="L88">            message.append( indentation ).append( '[' ).append( i ).append( &quot;]  &quot; ).append( messages.get( i ) ).append(</span>
+                NEWLINE );
+        }
+
+<span class="nc" id="L92">        return message.toString();</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

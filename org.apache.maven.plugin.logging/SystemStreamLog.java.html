@@ -1,0 +1,197 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SystemStreamLog.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.plugin.logging</a> &gt; <span class="el_source">SystemStreamLog.java</span></div><h1>SystemStreamLog.java</h1><pre class="source lang-java linenums">package org.apache.maven.plugin.logging;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.PrintWriter;
+import java.io.StringWriter;
+
+/**
+ * Logger with &quot;standard&quot; output and error output stream.
+ *
+ * @author jdcasey
+ */
+<span class="nc" id="L30">public class SystemStreamLog</span>
+    implements Log
+{
+    /**
+     * @see org.apache.maven.plugin.logging.Log#debug(java.lang.CharSequence)
+     */
+    public void debug( CharSequence content )
+    {
+<span class="nc" id="L38">        print( &quot;debug&quot;, content );</span>
+<span class="nc" id="L39">    }</span>
+
+    /**
+     * @see org.apache.maven.plugin.logging.Log#debug(java.lang.CharSequence, java.lang.Throwable)
+     */
+    public void debug( CharSequence content, Throwable error )
+    {
+<span class="nc" id="L46">        print( &quot;debug&quot;, content, error );</span>
+<span class="nc" id="L47">    }</span>
+
+    /**
+     * @see org.apache.maven.plugin.logging.Log#debug(java.lang.Throwable)
+     */
+    public void debug( Throwable error )
+    {
+<span class="nc" id="L54">        print( &quot;debug&quot;, error );</span>
+<span class="nc" id="L55">    }</span>
+
+    /**
+     * @see org.apache.maven.plugin.logging.Log#info(java.lang.CharSequence)
+     */
+    public void info( CharSequence content )
+    {
+<span class="nc" id="L62">        print( &quot;info&quot;, content );</span>
+<span class="nc" id="L63">    }</span>
+
+    /**
+     * @see org.apache.maven.plugin.logging.Log#info(java.lang.CharSequence, java.lang.Throwable)
+     */
+    public void info( CharSequence content, Throwable error )
+    {
+<span class="nc" id="L70">        print( &quot;info&quot;, content, error );</span>
+<span class="nc" id="L71">    }</span>
+
+    /**
+     * @see org.apache.maven.plugin.logging.Log#info(java.lang.Throwable)
+     */
+    public void info( Throwable error )
+    {
+<span class="nc" id="L78">        print( &quot;info&quot;, error );</span>
+<span class="nc" id="L79">    }</span>
+
+    /**
+     * @see org.apache.maven.plugin.logging.Log#warn(java.lang.CharSequence)
+     */
+    public void warn( CharSequence content )
+    {
+<span class="nc" id="L86">        print( &quot;warn&quot;, content );</span>
+<span class="nc" id="L87">    }</span>
+
+    /**
+     * @see org.apache.maven.plugin.logging.Log#warn(java.lang.CharSequence, java.lang.Throwable)
+     */
+    public void warn( CharSequence content, Throwable error )
+    {
+<span class="nc" id="L94">        print( &quot;warn&quot;, content, error );</span>
+<span class="nc" id="L95">    }</span>
+
+    /**
+     * @see org.apache.maven.plugin.logging.Log#warn(java.lang.Throwable)
+     */
+    public void warn( Throwable error )
+    {
+<span class="nc" id="L102">        print( &quot;warn&quot;, error );</span>
+<span class="nc" id="L103">    }</span>
+
+    /**
+     * @see org.apache.maven.plugin.logging.Log#error(java.lang.CharSequence)
+     */
+    public void error( CharSequence content )
+    {
+<span class="nc" id="L110">        System.err.println( &quot;[error] &quot; + content.toString() );</span>
+<span class="nc" id="L111">    }</span>
+
+    /**
+     * @see org.apache.maven.plugin.logging.Log#error(java.lang.CharSequence, java.lang.Throwable)
+     */
+    public void error( CharSequence content, Throwable error )
+    {
+<span class="nc" id="L118">        StringWriter sWriter = new StringWriter();</span>
+<span class="nc" id="L119">        PrintWriter pWriter = new PrintWriter( sWriter );</span>
+
+<span class="nc" id="L121">        error.printStackTrace( pWriter );</span>
+
+<span class="nc" id="L123">        System.err.println( &quot;[error] &quot; + content.toString() + &quot;\n\n&quot; + sWriter.toString() );</span>
+<span class="nc" id="L124">    }</span>
+
+    /**
+     * @see org.apache.maven.plugin.logging.Log#error(java.lang.Throwable)
+     */
+    public void error( Throwable error )
+    {
+<span class="nc" id="L131">        StringWriter sWriter = new StringWriter();</span>
+<span class="nc" id="L132">        PrintWriter pWriter = new PrintWriter( sWriter );</span>
+
+<span class="nc" id="L134">        error.printStackTrace( pWriter );</span>
+
+<span class="nc" id="L136">        System.err.println( &quot;[error] &quot; + sWriter.toString() );</span>
+<span class="nc" id="L137">    }</span>
+
+    /**
+     * @see org.apache.maven.plugin.logging.Log#isDebugEnabled()
+     */
+    public boolean isDebugEnabled()
+    {
+        // TODO Not sure how best to set these for this implementation...
+<span class="nc" id="L145">        return false;</span>
+    }
+
+    /**
+     * @see org.apache.maven.plugin.logging.Log#isInfoEnabled()
+     */
+    public boolean isInfoEnabled()
+    {
+<span class="nc" id="L153">        return true;</span>
+    }
+
+    /**
+     * @see org.apache.maven.plugin.logging.Log#isWarnEnabled()
+     */
+    public boolean isWarnEnabled()
+    {
+<span class="nc" id="L161">        return true;</span>
+    }
+
+    /**
+     * @see org.apache.maven.plugin.logging.Log#isErrorEnabled()
+     */
+    public boolean isErrorEnabled()
+    {
+<span class="nc" id="L169">        return true;</span>
+    }
+
+    private void print( String prefix, CharSequence content )
+    {
+<span class="nc" id="L174">        System.out.println( &quot;[&quot; + prefix + &quot;] &quot; + content.toString() );</span>
+<span class="nc" id="L175">    }</span>
+
+    private void print( String prefix, Throwable error )
+    {
+<span class="nc" id="L179">        StringWriter sWriter = new StringWriter();</span>
+<span class="nc" id="L180">        PrintWriter pWriter = new PrintWriter( sWriter );</span>
+
+<span class="nc" id="L182">        error.printStackTrace( pWriter );</span>
+
+<span class="nc" id="L184">        System.out.println( &quot;[&quot; + prefix + &quot;] &quot; + sWriter.toString() );</span>
+<span class="nc" id="L185">    }</span>
+
+    private void print( String prefix, CharSequence content, Throwable error )
+    {
+<span class="nc" id="L189">        StringWriter sWriter = new StringWriter();</span>
+<span class="nc" id="L190">        PrintWriter pWriter = new PrintWriter( sWriter );</span>
+
+<span class="nc" id="L192">        error.printStackTrace( pWriter );</span>
+
+<span class="nc" id="L194">        System.out.println( &quot;[&quot; + prefix + &quot;] &quot; + content.toString() + &quot;\n\n&quot; + sWriter.toString() );</span>
+<span class="nc" id="L195">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

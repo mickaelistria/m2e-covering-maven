@@ -1,0 +1,117 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ArtifactResolver.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.artifact.resolver</a> &gt; <span class="el_source">ArtifactResolver.java</span></div><h1>ArtifactResolver.java</h1><pre class="source lang-java linenums">package org.apache.maven.artifact.resolver;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.metadata.ArtifactMetadataSource;
+import org.apache.maven.artifact.repository.ArtifactRepository;
+import org.apache.maven.artifact.resolver.filter.ArtifactFilter;
+import org.apache.maven.wagon.events.TransferListener;
+
+/**
+ * @author Jason van Zyl
+ */
+// Just hide the one method we want behind the RepositorySystem interface.
+public interface ArtifactResolver
+{
+
+    ArtifactResolutionResult resolve( ArtifactResolutionRequest request );
+
+    // The rest is deprecated
+    // USED BY MAVEN ASSEMBLY PLUGIN 2.2-beta-2
+    @Deprecated
+<span class="nc" id="L44">    String ROLE = ArtifactResolver.class.getName();</span>
+
+    // USED BY SUREFIRE, DEPENDENCY PLUGIN
+    @Deprecated
+    ArtifactResolutionResult resolveTransitively(
+        Set&lt;Artifact&gt; artifacts, Artifact originatingArtifact,
+        ArtifactRepository localRepository,
+        List&lt;ArtifactRepository&gt; remoteRepositories,
+        ArtifactMetadataSource source, ArtifactFilter filter )
+        throws ArtifactResolutionException, ArtifactNotFoundException;
+
+    // USED BY MAVEN ASSEMBLY PLUGIN
+    @Deprecated
+    ArtifactResolutionResult resolveTransitively(
+        Set&lt;Artifact&gt; artifacts, Artifact originatingArtifact,
+        Map&lt;String, Artifact&gt; managedVersions, ArtifactRepository localRepository,
+        List&lt;ArtifactRepository&gt; remoteRepositories,
+        ArtifactMetadataSource source )
+        throws ArtifactResolutionException, ArtifactNotFoundException;
+
+    // USED BY MAVEN ASSEMBLY PLUGIN
+    @Deprecated
+    ArtifactResolutionResult resolveTransitively(
+        Set&lt;Artifact&gt; artifacts, Artifact originatingArtifact,
+        Map&lt;String, Artifact&gt; managedVersions, ArtifactRepository localRepository,
+        List&lt;ArtifactRepository&gt; remoteRepositories,
+        ArtifactMetadataSource source, ArtifactFilter filter )
+        throws ArtifactResolutionException, ArtifactNotFoundException;
+
+    // USED BY INVOKER PLUGIN
+    @Deprecated
+    ArtifactResolutionResult resolveTransitively(
+        Set&lt;Artifact&gt; artifacts, Artifact originatingArtifact,
+        List&lt;ArtifactRepository&gt; remoteRepositories,
+        ArtifactRepository localRepository, ArtifactMetadataSource source )
+        throws ArtifactResolutionException, ArtifactNotFoundException;
+
+    @Deprecated
+    @SuppressWarnings( &quot;checkstyle:parameternumber&quot; )
+    ArtifactResolutionResult resolveTransitively(
+        Set&lt;Artifact&gt; artifacts, Artifact originatingArtifact,
+        Map&lt;String, Artifact&gt; managedVersions, ArtifactRepository localRepository,
+        List&lt;ArtifactRepository&gt; remoteRepositories,
+        ArtifactMetadataSource source, ArtifactFilter filter,
+        List&lt;ResolutionListener&gt; listeners )
+        throws ArtifactResolutionException, ArtifactNotFoundException;
+
+    @Deprecated
+    ArtifactResolutionResult resolveTransitively(
+        Set&lt;Artifact&gt; artifacts, Artifact originatingArtifact,
+        List&lt;ArtifactRepository&gt; remoteRepositories,
+        ArtifactRepository localRepository, ArtifactMetadataSource source,
+        List&lt;ResolutionListener&gt; listeners )
+        throws ArtifactResolutionException, ArtifactNotFoundException;
+
+    // USED BY REMOTE RESOURCES PLUGIN, DEPENDENCY PLUGIN, SHADE PLUGIN
+    @Deprecated
+    void resolve( Artifact artifact, List&lt;ArtifactRepository&gt; remoteRepositories, ArtifactRepository localRepository )
+        throws ArtifactResolutionException, ArtifactNotFoundException;
+
+    // USED BY REMOTE RESOURCES PLUGIN
+    @Deprecated
+    void resolve( Artifact artifact, List&lt;ArtifactRepository&gt; remoteRepositories, ArtifactRepository localRepository,
+                  TransferListener downloadMonitor )
+        throws ArtifactResolutionException, ArtifactNotFoundException;
+
+    // USED BY DEPENDENCY PLUGIN, ARCHETYPE DOWNLOADER
+    @Deprecated
+    void resolveAlways( Artifact artifact, List&lt;ArtifactRepository&gt; remoteRepositories,
+                        ArtifactRepository localRepository )
+        throws ArtifactResolutionException, ArtifactNotFoundException;
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

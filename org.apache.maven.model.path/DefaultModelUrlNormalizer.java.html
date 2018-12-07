@@ -1,0 +1,85 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultModelUrlNormalizer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.model.path</a> &gt; <span class="el_source">DefaultModelUrlNormalizer.java</span></div><h1>DefaultModelUrlNormalizer.java</h1><pre class="source lang-java linenums">package org.apache.maven.model.path;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.maven.model.DistributionManagement;
+import org.apache.maven.model.Model;
+import org.apache.maven.model.Scm;
+import org.apache.maven.model.Site;
+import org.apache.maven.model.building.ModelBuildingRequest;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
+
+/**
+ * Normalizes URLs to remove the ugly parent references &quot;../&quot; that got potentially inserted by URL adjustment during
+ * model inheritance.
+ *
+ * @author Benjamin Bentmann
+ */
+@Component( role = ModelUrlNormalizer.class )
+<span class="fc" id="L37">public class DefaultModelUrlNormalizer</span>
+    implements ModelUrlNormalizer
+{
+
+    @Requirement
+    private UrlNormalizer urlNormalizer;
+
+    public DefaultModelUrlNormalizer setUrlNormalizer( UrlNormalizer urlNormalizer )
+    {
+<span class="fc" id="L46">        this.urlNormalizer = urlNormalizer;</span>
+<span class="fc" id="L47">        return this;</span>
+    }
+
+    @Override
+    public void normalize( Model model, ModelBuildingRequest request )
+    {
+<span class="pc bpc" id="L53" title="1 of 2 branches missed.">        if ( model == null )</span>
+        {
+<span class="nc" id="L55">            return;</span>
+        }
+
+<span class="fc" id="L58">        model.setUrl( normalize( model.getUrl() ) );</span>
+
+<span class="fc" id="L60">        Scm scm = model.getScm();</span>
+<span class="fc bfc" id="L61" title="All 2 branches covered.">        if ( scm != null )</span>
+        {
+<span class="fc" id="L63">            scm.setUrl( normalize( scm.getUrl() ) );</span>
+<span class="fc" id="L64">            scm.setConnection( normalize( scm.getConnection() ) );</span>
+<span class="fc" id="L65">            scm.setDeveloperConnection( normalize( scm.getDeveloperConnection() ) );</span>
+        }
+
+<span class="fc" id="L68">        DistributionManagement dist = model.getDistributionManagement();</span>
+<span class="fc bfc" id="L69" title="All 2 branches covered.">        if ( dist != null )</span>
+        {
+<span class="fc" id="L71">            Site site = dist.getSite();</span>
+<span class="fc bfc" id="L72" title="All 2 branches covered.">            if ( site != null )</span>
+            {
+<span class="fc" id="L74">                site.setUrl( normalize( site.getUrl() ) );</span>
+            }
+        }
+<span class="fc" id="L77">    }</span>
+
+    private String normalize( String url )
+    {
+<span class="fc" id="L81">        return urlNormalizer.normalize( url );</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

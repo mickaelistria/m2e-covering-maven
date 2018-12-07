@@ -1,0 +1,246 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultProfileManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.profiles</a> &gt; <span class="el_source">DefaultProfileManager.java</span></div><h1>DefaultProfileManager.java</h1><pre class="source lang-java linenums">package org.apache.maven.profiles;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.maven.model.Activation;
+import org.apache.maven.model.Profile;
+import org.apache.maven.model.building.ModelProblem;
+import org.apache.maven.model.building.ModelProblemCollector;
+import org.apache.maven.model.profile.DefaultProfileActivationContext;
+import org.apache.maven.model.profile.ProfileSelector;
+import org.apache.maven.profiles.activation.ProfileActivationException;
+import org.codehaus.plexus.MutablePlexusContainer;
+import org.codehaus.plexus.PlexusContainer;
+import org.codehaus.plexus.component.annotations.Requirement;
+import org.codehaus.plexus.component.repository.exception.ComponentLookupException;
+import org.codehaus.plexus.logging.Logger;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+import org.apache.maven.model.building.ModelProblemCollectorRequest;
+
+/**
+ * DefaultProfileManager
+ */
+@Deprecated
+public class DefaultProfileManager
+    implements ProfileManager
+{
+
+    @Requirement
+    private Logger logger;
+
+    @Requirement
+    private ProfileSelector profileSelector;
+
+<span class="nc" id="L56">    private List&lt;String&gt; activatedIds = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L58">    private List&lt;String&gt; deactivatedIds = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L60">    private List&lt;String&gt; defaultIds = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L62">    private Map&lt;String, Profile&gt; profilesById = new LinkedHashMap&lt;&gt;();</span>
+
+    private Properties requestProperties;
+
+    /**
+     * @deprecated without passing in the system properties, the SystemPropertiesProfileActivator will not work
+     *             correctly in embedded environments.
+     */
+    public DefaultProfileManager( PlexusContainer container )
+    {
+<span class="nc" id="L72">        this( container, null );</span>
+<span class="nc" id="L73">    }</span>
+
+    /**
+     * the properties passed to the profile manager are the props that
+     * are passed to maven, possibly containing profile activator properties
+     *
+     */
+    public DefaultProfileManager( PlexusContainer container, Properties props )
+<span class="nc" id="L81">    {</span>
+        try
+        {
+<span class="nc" id="L84">            this.profileSelector = container.lookup( ProfileSelector.class );</span>
+<span class="nc" id="L85">            this.logger = ( (MutablePlexusContainer) container ).getLogger();</span>
+        }
+<span class="nc" id="L87">        catch ( ComponentLookupException e )</span>
+        {
+<span class="nc" id="L89">            throw new IllegalStateException( e );</span>
+<span class="nc" id="L90">        }</span>
+<span class="nc" id="L91">        this.requestProperties = props;</span>
+<span class="nc" id="L92">    }</span>
+
+    public Properties getRequestProperties()
+    {
+<span class="nc" id="L96">        return requestProperties;</span>
+    }
+
+    public Map&lt;String, Profile&gt; getProfilesById()
+    {
+<span class="nc" id="L101">        return profilesById;</span>
+    }
+
+    /* (non-Javadoc)
+    * @see org.apache.maven.profiles.ProfileManager#addProfile(org.apache.maven.model.Profile)
+    */
+    public void addProfile( Profile profile )
+    {
+<span class="nc" id="L109">        String profileId = profile.getId();</span>
+
+<span class="nc" id="L111">        Profile existing = profilesById.get( profileId );</span>
+<span class="nc bnc" id="L112" title="All 2 branches missed.">        if ( existing != null )</span>
+        {
+<span class="nc" id="L114">            logger.warn( &quot;Overriding profile: \'&quot; + profileId + &quot;\' (source: &quot; + existing.getSource()</span>
+                + &quot;) with new instance from source: &quot; + profile.getSource() );
+        }
+
+<span class="nc" id="L118">        profilesById.put( profile.getId(), profile );</span>
+
+<span class="nc" id="L120">        Activation activation = profile.getActivation();</span>
+
+<span class="nc bnc" id="L122" title="All 4 branches missed.">        if ( activation != null &amp;&amp; activation.isActiveByDefault() )</span>
+        {
+<span class="nc" id="L124">            activateAsDefault( profileId );</span>
+        }
+<span class="nc" id="L126">    }</span>
+
+    /* (non-Javadoc)
+    * @see org.apache.maven.profiles.ProfileManager#explicitlyActivate(java.lang.String)
+    */
+    public void explicitlyActivate( String profileId )
+    {
+<span class="nc bnc" id="L133" title="All 2 branches missed.">        if ( !activatedIds.contains( profileId ) )</span>
+        {
+<span class="nc" id="L135">            logger.debug( &quot;Profile with id: \'&quot; + profileId + &quot;\' has been explicitly activated.&quot; );</span>
+
+<span class="nc" id="L137">            activatedIds.add( profileId );</span>
+        }
+<span class="nc" id="L139">    }</span>
+
+    /* (non-Javadoc)
+    * @see org.apache.maven.profiles.ProfileManager#explicitlyActivate(java.util.List)
+    */
+    public void explicitlyActivate( List&lt;String&gt; profileIds )
+    {
+<span class="nc bnc" id="L146" title="All 2 branches missed.">        for ( String profileId1 : profileIds )</span>
+        {
+<span class="nc" id="L148">            explicitlyActivate( profileId1 );</span>
+<span class="nc" id="L149">        }</span>
+<span class="nc" id="L150">    }</span>
+
+    /* (non-Javadoc)
+    * @see org.apache.maven.profiles.ProfileManager#explicitlyDeactivate(java.lang.String)
+    */
+    public void explicitlyDeactivate( String profileId )
+    {
+<span class="nc bnc" id="L157" title="All 2 branches missed.">        if ( !deactivatedIds.contains( profileId ) )</span>
+        {
+<span class="nc" id="L159">            logger.debug( &quot;Profile with id: \'&quot; + profileId + &quot;\' has been explicitly deactivated.&quot; );</span>
+
+<span class="nc" id="L161">            deactivatedIds.add( profileId );</span>
+        }
+<span class="nc" id="L163">    }</span>
+
+    /* (non-Javadoc)
+    * @see org.apache.maven.profiles.ProfileManager#explicitlyDeactivate(java.util.List)
+    */
+    public void explicitlyDeactivate( List&lt;String&gt; profileIds )
+    {
+<span class="nc bnc" id="L170" title="All 2 branches missed.">        for ( String profileId1 : profileIds )</span>
+        {
+<span class="nc" id="L172">            explicitlyDeactivate( profileId1 );</span>
+<span class="nc" id="L173">        }</span>
+<span class="nc" id="L174">    }</span>
+
+    /* (non-Javadoc)
+    * @see org.apache.maven.profiles.ProfileManager#getActiveProfiles()
+    */
+    public List getActiveProfiles()
+        throws ProfileActivationException
+    {
+<span class="nc" id="L182">        DefaultProfileActivationContext context = new DefaultProfileActivationContext();</span>
+<span class="nc" id="L183">        context.setActiveProfileIds( activatedIds );</span>
+<span class="nc" id="L184">        context.setInactiveProfileIds( deactivatedIds );</span>
+<span class="nc" id="L185">        context.setSystemProperties( System.getProperties() );</span>
+<span class="nc" id="L186">        context.setUserProperties( requestProperties );</span>
+
+<span class="nc" id="L188">        final List&lt;ProfileActivationException&gt; errors = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L190">        List&lt;Profile&gt; profiles =</span>
+            profileSelector.getActiveProfiles( profilesById.values(), context, new ModelProblemCollector()
+<span class="nc" id="L192">            {</span>
+
+                public void add( ModelProblemCollectorRequest req )
+                {
+<span class="nc bnc" id="L196" title="All 2 branches missed.">                    if ( !ModelProblem.Severity.WARNING.equals( req.getSeverity() ) )</span>
+                    {
+<span class="nc" id="L198">                        errors.add( new ProfileActivationException( req.getMessage(), req.getException() ) );</span>
+                    }
+<span class="nc" id="L200">                }</span>
+            } );
+
+<span class="nc bnc" id="L203" title="All 2 branches missed.">        if ( !errors.isEmpty() )</span>
+        {
+<span class="nc" id="L205">            throw errors.get( 0 );</span>
+        }
+
+<span class="nc" id="L208">        return profiles;</span>
+    }
+
+    /* (non-Javadoc)
+     * @see org.apache.maven.profiles.ProfileManager#addProfiles(java.util.List)
+     */
+    public void addProfiles( List&lt;Profile&gt; profiles )
+    {
+<span class="nc bnc" id="L216" title="All 2 branches missed.">        for ( Profile profile1 : profiles )</span>
+        {
+<span class="nc" id="L218">            addProfile( profile1 );</span>
+<span class="nc" id="L219">        }</span>
+<span class="nc" id="L220">    }</span>
+
+    public void activateAsDefault( String profileId )
+    {
+<span class="nc bnc" id="L224" title="All 2 branches missed.">        if ( !defaultIds.contains( profileId ) )</span>
+        {
+<span class="nc" id="L226">            defaultIds.add( profileId );</span>
+        }
+<span class="nc" id="L228">    }</span>
+
+    public List&lt;String&gt; getExplicitlyActivatedIds()
+    {
+<span class="nc" id="L232">        return activatedIds;</span>
+    }
+
+    public List&lt;String&gt;  getExplicitlyDeactivatedIds()
+    {
+<span class="nc" id="L237">        return deactivatedIds;</span>
+    }
+
+    public List getIdsActivatedByDefault()
+    {
+<span class="nc" id="L242">        return defaultIds;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

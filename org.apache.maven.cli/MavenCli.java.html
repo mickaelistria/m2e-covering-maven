@@ -1,0 +1,1718 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MavenCli.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.cli</a> &gt; <span class="el_source">MavenCli.java</span></div><h1>MavenCli.java</h1><pre class="source lang-java linenums">package org.apache.maven.cli;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import com.google.inject.AbstractModule;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.ParseException;
+import org.apache.commons.cli.UnrecognizedOptionException;
+import org.apache.maven.BuildAbort;
+import org.apache.maven.InternalErrorException;
+import org.apache.maven.Maven;
+import org.apache.maven.building.FileSource;
+import org.apache.maven.building.Problem;
+import org.apache.maven.building.Source;
+import org.apache.maven.cli.configuration.ConfigurationProcessor;
+import org.apache.maven.cli.configuration.SettingsXmlConfigurationProcessor;
+import org.apache.maven.cli.event.DefaultEventSpyContext;
+import org.apache.maven.cli.event.ExecutionEventLogger;
+import org.apache.maven.cli.internal.BootstrapCoreExtensionManager;
+import org.apache.maven.cli.internal.extension.model.CoreExtension;
+import org.apache.maven.cli.internal.extension.model.io.xpp3.CoreExtensionsXpp3Reader;
+import org.apache.maven.cli.logging.Slf4jConfiguration;
+import org.apache.maven.cli.logging.Slf4jConfigurationFactory;
+import org.apache.maven.cli.logging.Slf4jLoggerManager;
+import org.apache.maven.cli.logging.Slf4jStdoutLogger;
+import org.apache.maven.cli.transfer.ConsoleMavenTransferListener;
+import org.apache.maven.cli.transfer.QuietMavenTransferListener;
+import org.apache.maven.cli.transfer.Slf4jMavenTransferListener;
+import org.apache.maven.eventspy.internal.EventSpyDispatcher;
+import org.apache.maven.exception.DefaultExceptionHandler;
+import org.apache.maven.exception.ExceptionHandler;
+import org.apache.maven.exception.ExceptionSummary;
+import org.apache.maven.execution.DefaultMavenExecutionRequest;
+import org.apache.maven.execution.ExecutionListener;
+import org.apache.maven.execution.MavenExecutionRequest;
+import org.apache.maven.execution.MavenExecutionRequestPopulationException;
+import org.apache.maven.execution.MavenExecutionRequestPopulator;
+import org.apache.maven.execution.MavenExecutionResult;
+import org.apache.maven.execution.scope.internal.MojoExecutionScopeModule;
+import org.apache.maven.extension.internal.CoreExports;
+import org.apache.maven.extension.internal.CoreExtensionEntry;
+import org.apache.maven.lifecycle.LifecycleExecutionException;
+import org.apache.maven.model.building.ModelProcessor;
+import org.apache.maven.project.MavenProject;
+import org.apache.maven.properties.internal.EnvironmentUtils;
+import org.apache.maven.properties.internal.SystemProperties;
+import org.apache.maven.session.scope.internal.SessionScopeModule;
+import org.apache.maven.shared.utils.logging.MessageBuilder;
+import org.apache.maven.shared.utils.logging.MessageUtils;
+import org.apache.maven.toolchain.building.DefaultToolchainsBuildingRequest;
+import org.apache.maven.toolchain.building.ToolchainsBuilder;
+import org.apache.maven.toolchain.building.ToolchainsBuildingResult;
+import org.codehaus.plexus.ContainerConfiguration;
+import org.codehaus.plexus.DefaultContainerConfiguration;
+import org.codehaus.plexus.DefaultPlexusContainer;
+import org.codehaus.plexus.PlexusConstants;
+import org.codehaus.plexus.PlexusContainer;
+import org.codehaus.plexus.classworlds.ClassWorld;
+import org.codehaus.plexus.classworlds.realm.ClassRealm;
+import org.codehaus.plexus.classworlds.realm.NoSuchRealmException;
+import org.codehaus.plexus.component.repository.exception.ComponentLookupException;
+import org.codehaus.plexus.logging.LoggerManager;
+import org.codehaus.plexus.util.StringUtils;
+import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
+import org.eclipse.aether.transfer.TransferListener;
+import org.slf4j.ILoggerFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.sonatype.plexus.components.cipher.DefaultPlexusCipher;
+import org.sonatype.plexus.components.sec.dispatcher.DefaultSecDispatcher;
+import org.sonatype.plexus.components.sec.dispatcher.SecDispatcher;
+import org.sonatype.plexus.components.sec.dispatcher.SecUtil;
+import org.sonatype.plexus.components.sec.dispatcher.model.SettingsSecurity;
+
+import java.io.BufferedInputStream;
+import java.io.Console;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.PrintStream;
+import java.nio.file.Files;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Properties;
+import java.util.Set;
+import java.util.StringTokenizer;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import static org.apache.maven.shared.utils.logging.MessageUtils.buffer;
+
+// TODO push all common bits back to plexus cli and prepare for transition to Guice. We don't need 50 ways to make CLIs
+
+/**
+ * @author Jason van Zyl
+ */
+public class MavenCli
+{
+    public static final String LOCAL_REPO_PROPERTY = &quot;maven.repo.local&quot;;
+
+    public static final String THREADS_DEPRECATED = &quot;maven.threads.experimental&quot;;
+
+    public static final String MULTIMODULE_PROJECT_DIRECTORY = &quot;maven.multiModuleProjectDirectory&quot;;
+
+<span class="nc" id="L131">    public static final String USER_HOME = System.getProperty( &quot;user.home&quot; );</span>
+
+<span class="nc" id="L133">    public static final File USER_MAVEN_CONFIGURATION_HOME = new File( USER_HOME, &quot;.m2&quot; );</span>
+
+<span class="nc" id="L135">    public static final File DEFAULT_USER_TOOLCHAINS_FILE = new File( USER_MAVEN_CONFIGURATION_HOME, &quot;toolchains.xml&quot; );</span>
+
+<span class="nc" id="L137">    public static final File DEFAULT_GLOBAL_TOOLCHAINS_FILE =</span>
+        new File( System.getProperty( &quot;maven.conf&quot; ), &quot;toolchains.xml&quot; );
+
+    private static final String EXT_CLASS_PATH = &quot;maven.ext.class.path&quot;;
+
+    private static final String EXTENSIONS_FILENAME = &quot;.mvn/extensions.xml&quot;;
+
+    private static final String MVN_MAVEN_CONFIG = &quot;.mvn/maven.config&quot;;
+
+    public static final String STYLE_COLOR_PROPERTY = &quot;style.color&quot;;
+
+    private ClassWorld classWorld;
+
+    private LoggerManager plexusLoggerManager;
+
+    private ILoggerFactory slf4jLoggerFactory;
+
+    private Logger slf4jLogger;
+
+    private EventSpyDispatcher eventSpyDispatcher;
+
+    private ModelProcessor modelProcessor;
+
+    private Maven maven;
+
+    private MavenExecutionRequestPopulator executionRequestPopulator;
+
+    private ToolchainsBuilder toolchainsBuilder;
+
+    private DefaultSecDispatcher dispatcher;
+
+    private Map&lt;String, ConfigurationProcessor&gt; configurationProcessors;
+
+    public MavenCli()
+    {
+<span class="nc" id="L172">        this( null );</span>
+<span class="nc" id="L173">    }</span>
+
+    // This supports painless invocation by the Verifier during embedded execution of the core ITs
+    public MavenCli( ClassWorld classWorld )
+<span class="nc" id="L177">    {</span>
+<span class="nc" id="L178">        this.classWorld = classWorld;</span>
+<span class="nc" id="L179">    }</span>
+
+    public static void main( String[] args )
+    {
+<span class="nc" id="L183">        int result = main( args, null );</span>
+
+<span class="nc" id="L185">        System.exit( result );</span>
+<span class="nc" id="L186">    }</span>
+
+    public static int main( String[] args, ClassWorld classWorld )
+    {
+<span class="nc" id="L190">        MavenCli cli = new MavenCli();</span>
+
+<span class="nc" id="L192">        MessageUtils.systemInstall();</span>
+<span class="nc" id="L193">        MessageUtils.registerShutdownHook();</span>
+<span class="nc" id="L194">        int result = cli.doMain( new CliRequest( args, classWorld ) );</span>
+<span class="nc" id="L195">        MessageUtils.systemUninstall();</span>
+
+<span class="nc" id="L197">        return result;</span>
+    }
+
+    // TODO need to externalize CliRequest
+    public static int doMain( String[] args, ClassWorld classWorld )
+    {
+<span class="nc" id="L203">        MavenCli cli = new MavenCli();</span>
+<span class="nc" id="L204">        return cli.doMain( new CliRequest( args, classWorld ) );</span>
+    }
+
+    /**
+     * This supports painless invocation by the Verifier during embedded execution of the core ITs.
+     * See &lt;a href=&quot;http://maven.apache.org/shared/maven-verifier/xref/org/apache/maven/it/Embedded3xLauncher.html&quot;&gt;
+     * &lt;code&gt;Embedded3xLauncher&lt;/code&gt; in &lt;code&gt;maven-verifier&lt;/code&gt;&lt;/a&gt;
+     */
+    public int doMain( String[] args, String workingDirectory, PrintStream stdout, PrintStream stderr )
+    {
+<span class="nc" id="L214">        PrintStream oldout = System.out;</span>
+<span class="nc" id="L215">        PrintStream olderr = System.err;</span>
+
+        final Set&lt;String&gt; realms;
+<span class="nc bnc" id="L218" title="All 2 branches missed.">        if ( classWorld != null )</span>
+        {
+<span class="nc" id="L220">            realms = new HashSet&lt;&gt;();</span>
+<span class="nc bnc" id="L221" title="All 2 branches missed.">            for ( ClassRealm realm : classWorld.getRealms() )</span>
+            {
+<span class="nc" id="L223">                realms.add( realm.getId() );</span>
+<span class="nc" id="L224">            }</span>
+        }
+        else
+        {
+<span class="nc" id="L228">            realms = Collections.emptySet();</span>
+        }
+
+        try
+        {
+<span class="nc bnc" id="L233" title="All 2 branches missed.">            if ( stdout != null )</span>
+            {
+<span class="nc" id="L235">                System.setOut( stdout );</span>
+            }
+<span class="nc bnc" id="L237" title="All 2 branches missed.">            if ( stderr != null )</span>
+            {
+<span class="nc" id="L239">                System.setErr( stderr );</span>
+            }
+
+<span class="nc" id="L242">            CliRequest cliRequest = new CliRequest( args, classWorld );</span>
+<span class="nc" id="L243">            cliRequest.workingDirectory = workingDirectory;</span>
+
+<span class="nc" id="L245">            return doMain( cliRequest );</span>
+        }
+        finally
+        {
+<span class="nc bnc" id="L249" title="All 2 branches missed.">            if ( classWorld != null )</span>
+            {
+<span class="nc bnc" id="L251" title="All 2 branches missed.">                for ( ClassRealm realm : new ArrayList&lt;&gt;( classWorld.getRealms() ) )</span>
+                {
+<span class="nc" id="L253">                    String realmId = realm.getId();</span>
+<span class="nc bnc" id="L254" title="All 2 branches missed.">                    if ( !realms.contains( realmId ) )</span>
+                    {
+                        try
+                        {
+<span class="nc" id="L258">                            classWorld.disposeRealm( realmId );</span>
+                        }
+<span class="nc" id="L260">                        catch ( NoSuchRealmException ignored )</span>
+                        {
+                            // can't happen
+<span class="nc" id="L263">                        }</span>
+                    }
+<span class="nc" id="L265">                }</span>
+            }
+<span class="nc" id="L267">            System.setOut( oldout );</span>
+<span class="nc" id="L268">            System.setErr( olderr );</span>
+        }
+    }
+
+    // TODO need to externalize CliRequest
+    public int doMain( CliRequest cliRequest )
+    {
+<span class="nc" id="L275">        PlexusContainer localContainer = null;</span>
+        try
+        {
+<span class="nc" id="L278">            initialize( cliRequest );</span>
+<span class="nc" id="L279">            cli( cliRequest );</span>
+<span class="nc" id="L280">            properties( cliRequest );</span>
+<span class="nc" id="L281">            logging( cliRequest );</span>
+<span class="nc" id="L282">            version( cliRequest );</span>
+<span class="nc" id="L283">            localContainer = container( cliRequest );</span>
+<span class="nc" id="L284">            commands( cliRequest );</span>
+<span class="nc" id="L285">            configure( cliRequest );</span>
+<span class="nc" id="L286">            toolchains( cliRequest );</span>
+<span class="nc" id="L287">            populateRequest( cliRequest );</span>
+<span class="nc" id="L288">            encryption( cliRequest );</span>
+<span class="nc" id="L289">            repository( cliRequest );</span>
+<span class="nc" id="L290">            return execute( cliRequest );</span>
+        }
+<span class="nc" id="L292">        catch ( ExitException e )</span>
+        {
+<span class="nc" id="L294">            return e.exitCode;</span>
+        }
+<span class="nc" id="L296">        catch ( UnrecognizedOptionException e )</span>
+        {
+            // pure user error, suppress stack trace
+<span class="nc" id="L299">            return 1;</span>
+        }
+<span class="nc" id="L301">        catch ( BuildAbort e )</span>
+        {
+<span class="nc" id="L303">            CLIReportingUtils.showError( slf4jLogger, &quot;ABORTED&quot;, e, cliRequest.showErrors );</span>
+
+<span class="nc" id="L305">            return 2;</span>
+        }
+<span class="nc" id="L307">        catch ( Exception e )</span>
+        {
+<span class="nc" id="L309">            CLIReportingUtils.showError( slf4jLogger, &quot;Error executing Maven.&quot;, e, cliRequest.showErrors );</span>
+
+<span class="nc" id="L311">            return 1;</span>
+        }
+        finally
+        {
+<span class="nc bnc" id="L315" title="All 2 branches missed.">            if ( localContainer != null )</span>
+            {
+<span class="nc" id="L317">                localContainer.dispose();</span>
+            }
+        }
+    }
+
+    void initialize( CliRequest cliRequest )
+        throws ExitException
+    {
+<span class="nc bnc" id="L325" title="All 2 branches missed.">        if ( cliRequest.workingDirectory == null )</span>
+        {
+<span class="nc" id="L327">            cliRequest.workingDirectory = System.getProperty( &quot;user.dir&quot; );</span>
+        }
+
+<span class="nc bnc" id="L330" title="All 2 branches missed.">        if ( cliRequest.multiModuleProjectDirectory == null )</span>
+        {
+<span class="nc" id="L332">            String basedirProperty = System.getProperty( MULTIMODULE_PROJECT_DIRECTORY );</span>
+<span class="nc bnc" id="L333" title="All 2 branches missed.">            if ( basedirProperty == null )</span>
+            {
+<span class="nc" id="L335">                System.err.format(</span>
+                    &quot;-D%s system property is not set.&quot;, MULTIMODULE_PROJECT_DIRECTORY );
+<span class="nc" id="L337">                throw new ExitException( 1 );</span>
+            }
+<span class="nc bnc" id="L339" title="All 2 branches missed.">            File basedir = basedirProperty != null ? new File( basedirProperty ) : new File( &quot;&quot; );</span>
+            try
+            {
+<span class="nc" id="L342">                cliRequest.multiModuleProjectDirectory = basedir.getCanonicalFile();</span>
+            }
+<span class="nc" id="L344">            catch ( IOException e )</span>
+            {
+<span class="nc" id="L346">                cliRequest.multiModuleProjectDirectory = basedir.getAbsoluteFile();</span>
+<span class="nc" id="L347">            }</span>
+        }
+
+        //
+        // Make sure the Maven home directory is an absolute path to save us from confusion with say drive-relative
+        // Windows paths.
+        //
+<span class="nc" id="L354">        String mavenHome = System.getProperty( &quot;maven.home&quot; );</span>
+
+<span class="nc bnc" id="L356" title="All 2 branches missed.">        if ( mavenHome != null )</span>
+        {
+<span class="nc" id="L358">            System.setProperty( &quot;maven.home&quot;, new File( mavenHome ).getAbsolutePath() );</span>
+        }
+<span class="nc" id="L360">    }</span>
+
+    void cli( CliRequest cliRequest )
+        throws Exception
+    {
+        //
+        // Parsing errors can happen during the processing of the arguments and we prefer not having to check if
+        // the logger is null and construct this so we can use an SLF4J logger everywhere.
+        //
+<span class="nc" id="L369">        slf4jLogger = new Slf4jStdoutLogger();</span>
+
+<span class="nc" id="L371">        CLIManager cliManager = new CLIManager();</span>
+
+<span class="nc" id="L373">        List&lt;String&gt; args = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L374">        CommandLine mavenConfig = null;</span>
+        try
+        {
+<span class="nc" id="L377">            File configFile = new File( cliRequest.multiModuleProjectDirectory, MVN_MAVEN_CONFIG );</span>
+
+<span class="nc bnc" id="L379" title="All 2 branches missed.">            if ( configFile.isFile() )</span>
+            {
+<span class="nc bnc" id="L381" title="All 2 branches missed.">                for ( String arg : new String( Files.readAllBytes( configFile.toPath() ) ).split( &quot;\\s+&quot; ) )</span>
+                {
+<span class="nc bnc" id="L383" title="All 2 branches missed.">                    if ( !arg.isEmpty() )</span>
+                    {
+<span class="nc" id="L385">                        args.add( arg );</span>
+                    }
+                }
+
+<span class="nc" id="L389">                mavenConfig = cliManager.parse( args.toArray( new String[args.size()] ) );</span>
+<span class="nc" id="L390">                List&lt;?&gt; unrecongized = mavenConfig.getArgList();</span>
+<span class="nc bnc" id="L391" title="All 2 branches missed.">                if ( !unrecongized.isEmpty() )</span>
+                {
+<span class="nc" id="L393">                    throw new ParseException( &quot;Unrecognized maven.config entries: &quot; + unrecongized );</span>
+                }
+            }
+        }
+<span class="nc" id="L397">        catch ( ParseException e )</span>
+        {
+<span class="nc" id="L399">            System.err.println( &quot;Unable to parse maven.config: &quot; + e.getMessage() );</span>
+<span class="nc" id="L400">            cliManager.displayHelp( System.out );</span>
+<span class="nc" id="L401">            throw e;</span>
+<span class="nc" id="L402">        }</span>
+
+        try
+        {
+<span class="nc bnc" id="L406" title="All 2 branches missed.">            if ( mavenConfig == null )</span>
+            {
+<span class="nc" id="L408">                cliRequest.commandLine = cliManager.parse( cliRequest.args );</span>
+            }
+            else
+            {
+<span class="nc" id="L412">                cliRequest.commandLine = cliMerge( cliManager.parse( cliRequest.args ), mavenConfig );</span>
+            }
+        }
+<span class="nc" id="L415">        catch ( ParseException e )</span>
+        {
+<span class="nc" id="L417">            System.err.println( &quot;Unable to parse command line options: &quot; + e.getMessage() );</span>
+<span class="nc" id="L418">            cliManager.displayHelp( System.out );</span>
+<span class="nc" id="L419">            throw e;</span>
+<span class="nc" id="L420">        }</span>
+
+<span class="nc bnc" id="L422" title="All 2 branches missed.">        if ( cliRequest.commandLine.hasOption( CLIManager.HELP ) )</span>
+        {
+<span class="nc" id="L424">            cliManager.displayHelp( System.out );</span>
+<span class="nc" id="L425">            throw new ExitException( 0 );</span>
+        }
+
+<span class="nc bnc" id="L428" title="All 2 branches missed.">        if ( cliRequest.commandLine.hasOption( CLIManager.VERSION ) )</span>
+        {
+<span class="nc" id="L430">            System.out.println( CLIReportingUtils.showVersion() );</span>
+<span class="nc" id="L431">            throw new ExitException( 0 );</span>
+        }
+<span class="nc" id="L433">    }</span>
+
+    private CommandLine cliMerge( CommandLine mavenArgs, CommandLine mavenConfig )
+    {
+<span class="nc" id="L437">        CommandLine.Builder commandLineBuilder = new CommandLine.Builder();</span>
+        
+        // the args are easy, cli first then config file
+<span class="nc bnc" id="L440" title="All 2 branches missed.">        for ( String arg : mavenArgs.getArgs() )</span>
+        {
+<span class="nc" id="L442">            commandLineBuilder.addArg( arg );</span>
+        }
+<span class="nc bnc" id="L444" title="All 2 branches missed.">        for ( String arg : mavenConfig.getArgs() )</span>
+        {
+<span class="nc" id="L446">            commandLineBuilder.addArg( arg );</span>
+        }
+        
+        // now add all options, except for -D with cli first then config file
+<span class="nc" id="L450">        List&lt;Option&gt; setPropertyOptions = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L451" title="All 2 branches missed.">        for ( Option opt : mavenArgs.getOptions() )</span>
+        {
+<span class="nc bnc" id="L453" title="All 2 branches missed.">            if ( String.valueOf( CLIManager.SET_SYSTEM_PROPERTY ).equals( opt.getOpt() ) )</span>
+            {
+<span class="nc" id="L455">                setPropertyOptions.add( opt );</span>
+            }
+            else
+            {
+<span class="nc" id="L459">                commandLineBuilder.addOption( opt );</span>
+            }
+        }
+<span class="nc bnc" id="L462" title="All 2 branches missed.">        for ( Option opt : mavenConfig.getOptions() )</span>
+        {
+<span class="nc" id="L464">            commandLineBuilder.addOption( opt );</span>
+        }
+        // finally add the CLI system properties
+<span class="nc bnc" id="L467" title="All 2 branches missed.">        for ( Option opt : setPropertyOptions )</span>
+        {
+<span class="nc" id="L469">            commandLineBuilder.addOption( opt );</span>
+<span class="nc" id="L470">        }</span>
+<span class="nc" id="L471">        return commandLineBuilder.build();</span>
+    }
+
+    /**
+     * configure logging
+     */
+    void logging( CliRequest cliRequest )
+    {
+        // LOG LEVEL
+<span class="nc" id="L480">        cliRequest.debug = cliRequest.commandLine.hasOption( CLIManager.DEBUG );</span>
+<span class="nc bnc" id="L481" title="All 4 branches missed.">        cliRequest.quiet = !cliRequest.debug &amp;&amp; cliRequest.commandLine.hasOption( CLIManager.QUIET );</span>
+<span class="nc bnc" id="L482" title="All 4 branches missed.">        cliRequest.showErrors = cliRequest.debug || cliRequest.commandLine.hasOption( CLIManager.ERRORS );</span>
+
+<span class="nc" id="L484">        slf4jLoggerFactory = LoggerFactory.getILoggerFactory();</span>
+<span class="nc" id="L485">        Slf4jConfiguration slf4jConfiguration = Slf4jConfigurationFactory.getConfiguration( slf4jLoggerFactory );</span>
+
+<span class="nc bnc" id="L487" title="All 2 branches missed.">        if ( cliRequest.debug )</span>
+        {
+<span class="nc" id="L489">            cliRequest.request.setLoggingLevel( MavenExecutionRequest.LOGGING_LEVEL_DEBUG );</span>
+<span class="nc" id="L490">            slf4jConfiguration.setRootLoggerLevel( Slf4jConfiguration.Level.DEBUG );</span>
+        }
+<span class="nc bnc" id="L492" title="All 2 branches missed.">        else if ( cliRequest.quiet )</span>
+        {
+<span class="nc" id="L494">            cliRequest.request.setLoggingLevel( MavenExecutionRequest.LOGGING_LEVEL_ERROR );</span>
+<span class="nc" id="L495">            slf4jConfiguration.setRootLoggerLevel( Slf4jConfiguration.Level.ERROR );</span>
+        }
+        // else fall back to default log level specified in conf
+        // see https://issues.apache.org/jira/browse/MNG-2570
+
+        // LOG COLOR
+<span class="nc" id="L501">        String styleColor = cliRequest.getUserProperties().getProperty( STYLE_COLOR_PROPERTY, &quot;auto&quot; );</span>
+<span class="nc bnc" id="L502" title="All 2 branches missed.">        if ( &quot;always&quot;.equals( styleColor ) )</span>
+        {
+<span class="nc" id="L504">            MessageUtils.setColorEnabled( true );</span>
+        }
+<span class="nc bnc" id="L506" title="All 2 branches missed.">        else if ( &quot;never&quot;.equals( styleColor ) )</span>
+        {
+<span class="nc" id="L508">            MessageUtils.setColorEnabled( false );</span>
+        }
+<span class="nc bnc" id="L510" title="All 2 branches missed.">        else if ( !&quot;auto&quot;.equals( styleColor ) )</span>
+        {
+<span class="nc" id="L512">            throw new IllegalArgumentException( &quot;Invalid color configuration option [&quot; + styleColor</span>
+                + &quot;]. Supported values are (auto|always|never).&quot; );
+        }
+<span class="nc bnc" id="L515" title="All 4 branches missed.">        else if ( cliRequest.commandLine.hasOption( CLIManager.BATCH_MODE )</span>
+            || cliRequest.commandLine.hasOption( CLIManager.LOG_FILE ) )
+        {
+<span class="nc" id="L518">            MessageUtils.setColorEnabled( false );</span>
+        }
+        
+        // LOG STREAMS
+<span class="nc bnc" id="L522" title="All 2 branches missed.">        if ( cliRequest.commandLine.hasOption( CLIManager.LOG_FILE ) )</span>
+        {
+<span class="nc" id="L524">            File logFile = new File( cliRequest.commandLine.getOptionValue( CLIManager.LOG_FILE ) );</span>
+<span class="nc" id="L525">            logFile = resolveFile( logFile, cliRequest.workingDirectory );</span>
+
+            // redirect stdout and stderr to file
+            try
+            {
+<span class="nc" id="L530">                PrintStream ps = new PrintStream( new FileOutputStream( logFile ) );</span>
+<span class="nc" id="L531">                System.setOut( ps );</span>
+<span class="nc" id="L532">                System.setErr( ps );</span>
+            }
+<span class="nc" id="L534">            catch ( FileNotFoundException e )</span>
+            {
+                //
+                // Ignore
+                //
+<span class="nc" id="L539">            }</span>
+        }
+
+<span class="nc" id="L542">        slf4jConfiguration.activate();</span>
+
+<span class="nc" id="L544">        plexusLoggerManager = new Slf4jLoggerManager();</span>
+<span class="nc" id="L545">        slf4jLogger = slf4jLoggerFactory.getLogger( this.getClass().getName() );</span>
+<span class="nc" id="L546">    }</span>
+
+    private void version( CliRequest cliRequest )
+    {
+<span class="nc bnc" id="L550" title="All 4 branches missed.">        if ( cliRequest.debug || cliRequest.commandLine.hasOption( CLIManager.SHOW_VERSION ) )</span>
+        {
+<span class="nc" id="L552">            System.out.println( CLIReportingUtils.showVersion() );</span>
+        }
+<span class="nc" id="L554">    }</span>
+
+    private void commands( CliRequest cliRequest )
+    {
+<span class="nc bnc" id="L558" title="All 2 branches missed.">        if ( cliRequest.showErrors )</span>
+        {
+<span class="nc" id="L560">            slf4jLogger.info( &quot;Error stacktraces are turned on.&quot; );</span>
+        }
+
+<span class="nc bnc" id="L563" title="All 2 branches missed.">        if ( MavenExecutionRequest.CHECKSUM_POLICY_WARN.equals( cliRequest.request.getGlobalChecksumPolicy() ) )</span>
+        {
+<span class="nc" id="L565">            slf4jLogger.info( &quot;Disabling strict checksum verification on all artifact downloads.&quot; );</span>
+        }
+<span class="nc bnc" id="L567" title="All 2 branches missed.">        else if ( MavenExecutionRequest.CHECKSUM_POLICY_FAIL.equals( cliRequest.request.getGlobalChecksumPolicy() ) )</span>
+        {
+<span class="nc" id="L569">            slf4jLogger.info( &quot;Enabling strict checksum verification on all artifact downloads.&quot; );</span>
+        }
+
+<span class="nc bnc" id="L572" title="All 2 branches missed.">        if ( slf4jLogger.isDebugEnabled() )</span>
+        {
+<span class="nc bnc" id="L574" title="All 2 branches missed.">            slf4jLogger.debug( &quot;Message scheme: &quot; + ( MessageUtils.isColorEnabled() ? &quot;color&quot; : &quot;plain&quot; ) );</span>
+<span class="nc bnc" id="L575" title="All 2 branches missed.">            if ( MessageUtils.isColorEnabled() )</span>
+            {
+<span class="nc" id="L577">                MessageBuilder buff = MessageUtils.buffer();</span>
+<span class="nc" id="L578">                buff.a( &quot;Message styles: &quot; );</span>
+<span class="nc" id="L579">                buff.a( MessageUtils.level().debug( &quot;debug&quot; ) ).a( ' ' );</span>
+<span class="nc" id="L580">                buff.a( MessageUtils.level().info( &quot;info&quot; ) ).a( ' ' );</span>
+<span class="nc" id="L581">                buff.a( MessageUtils.level().warning( &quot;warning&quot; ) ).a( ' ' );</span>
+<span class="nc" id="L582">                buff.a( MessageUtils.level().error( &quot;error&quot; ) ).a( ' ' );</span>
+
+<span class="nc" id="L584">                buff.success( &quot;success&quot; ).a( ' ' );</span>
+<span class="nc" id="L585">                buff.failure( &quot;failure&quot; ).a( ' ' );</span>
+<span class="nc" id="L586">                buff.strong( &quot;strong&quot; ).a( ' ' );</span>
+<span class="nc" id="L587">                buff.mojo( &quot;mojo&quot; ).a( ' ' );</span>
+<span class="nc" id="L588">                buff.project( &quot;project&quot; );</span>
+<span class="nc" id="L589">                slf4jLogger.debug( buff.toString() );</span>
+            }
+        }
+<span class="nc" id="L592">    }</span>
+
+    //Needed to make this method package visible to make writing a unit test possible
+    //Maybe it's better to move some of those methods to separate class (SoC).
+    void properties( CliRequest cliRequest )
+    {
+<span class="nc" id="L598">        populateProperties( cliRequest.commandLine, cliRequest.systemProperties, cliRequest.userProperties );</span>
+<span class="nc" id="L599">    }</span>
+
+    private PlexusContainer container( CliRequest cliRequest )
+        throws Exception
+    {
+<span class="nc bnc" id="L604" title="All 2 branches missed.">        if ( cliRequest.classWorld == null )</span>
+        {
+<span class="nc" id="L606">            cliRequest.classWorld = new ClassWorld( &quot;plexus.core&quot;, Thread.currentThread().getContextClassLoader() );</span>
+        }
+
+<span class="nc" id="L609">        ClassRealm coreRealm = cliRequest.classWorld.getClassRealm( &quot;plexus.core&quot; );</span>
+<span class="nc bnc" id="L610" title="All 2 branches missed.">        if ( coreRealm == null )</span>
+        {
+<span class="nc" id="L612">            coreRealm = cliRequest.classWorld.getRealms().iterator().next();</span>
+        }
+
+<span class="nc" id="L615">        List&lt;File&gt; extClassPath = parseExtClasspath( cliRequest );</span>
+
+<span class="nc" id="L617">        CoreExtensionEntry coreEntry = CoreExtensionEntry.discoverFrom( coreRealm );</span>
+<span class="nc" id="L618">        List&lt;CoreExtensionEntry&gt; extensions =</span>
+            loadCoreExtensions( cliRequest, coreRealm, coreEntry.getExportedArtifacts() );
+
+<span class="nc" id="L621">        ClassRealm containerRealm = setupContainerRealm( cliRequest.classWorld, coreRealm, extClassPath, extensions );</span>
+
+<span class="nc" id="L623">        ContainerConfiguration cc = new DefaultContainerConfiguration().setClassWorld( cliRequest.classWorld )</span>
+            .setRealm( containerRealm ).setClassPathScanning( PlexusConstants.SCANNING_INDEX ).setAutoWiring( true )
+            .setJSR250Lifecycle( true ).setName( &quot;maven&quot; );
+
+<span class="nc" id="L627">        Set&lt;String&gt; exportedArtifacts = new HashSet&lt;&gt;( coreEntry.getExportedArtifacts() );</span>
+<span class="nc" id="L628">        Set&lt;String&gt; exportedPackages = new HashSet&lt;&gt;( coreEntry.getExportedPackages() );</span>
+<span class="nc bnc" id="L629" title="All 2 branches missed.">        for ( CoreExtensionEntry extension : extensions )</span>
+        {
+<span class="nc" id="L631">            exportedArtifacts.addAll( extension.getExportedArtifacts() );</span>
+<span class="nc" id="L632">            exportedPackages.addAll( extension.getExportedPackages() );</span>
+<span class="nc" id="L633">        }</span>
+
+<span class="nc" id="L635">        final CoreExports exports = new CoreExports( containerRealm, exportedArtifacts, exportedPackages );</span>
+
+<span class="nc" id="L637">        DefaultPlexusContainer container = new DefaultPlexusContainer( cc, new AbstractModule()</span>
+<span class="nc" id="L638">        {</span>
+            @Override
+            protected void configure()
+            {
+<span class="nc" id="L642">                bind( ILoggerFactory.class ).toInstance( slf4jLoggerFactory );</span>
+<span class="nc" id="L643">                bind( CoreExports.class ).toInstance( exports );</span>
+<span class="nc" id="L644">            }</span>
+        } );
+
+        // NOTE: To avoid inconsistencies, we'll use the TCCL exclusively for lookups
+<span class="nc" id="L648">        container.setLookupRealm( null );</span>
+<span class="nc" id="L649">        Thread.currentThread().setContextClassLoader( container.getContainerRealm() );</span>
+
+<span class="nc" id="L651">        container.setLoggerManager( plexusLoggerManager );</span>
+
+<span class="nc bnc" id="L653" title="All 2 branches missed.">        for ( CoreExtensionEntry extension : extensions )</span>
+        {
+<span class="nc" id="L655">            container.discoverComponents( extension.getClassRealm(), new SessionScopeModule( container ),</span>
+                                          new MojoExecutionScopeModule( container ) );
+<span class="nc" id="L657">        }</span>
+
+<span class="nc" id="L659">        customizeContainer( container );</span>
+
+<span class="nc" id="L661">        container.getLoggerManager().setThresholds( cliRequest.request.getLoggingLevel() );</span>
+
+<span class="nc" id="L663">        eventSpyDispatcher = container.lookup( EventSpyDispatcher.class );</span>
+
+<span class="nc" id="L665">        DefaultEventSpyContext eventSpyContext = new DefaultEventSpyContext();</span>
+<span class="nc" id="L666">        Map&lt;String, Object&gt; data = eventSpyContext.getData();</span>
+<span class="nc" id="L667">        data.put( &quot;plexus&quot;, container );</span>
+<span class="nc" id="L668">        data.put( &quot;workingDirectory&quot;, cliRequest.workingDirectory );</span>
+<span class="nc" id="L669">        data.put( &quot;systemProperties&quot;, cliRequest.systemProperties );</span>
+<span class="nc" id="L670">        data.put( &quot;userProperties&quot;, cliRequest.userProperties );</span>
+<span class="nc" id="L671">        data.put( &quot;versionProperties&quot;, CLIReportingUtils.getBuildProperties() );</span>
+<span class="nc" id="L672">        eventSpyDispatcher.init( eventSpyContext );</span>
+
+        // refresh logger in case container got customized by spy
+<span class="nc" id="L675">        slf4jLogger = slf4jLoggerFactory.getLogger( this.getClass().getName() );</span>
+
+<span class="nc" id="L677">        maven = container.lookup( Maven.class );</span>
+
+<span class="nc" id="L679">        executionRequestPopulator = container.lookup( MavenExecutionRequestPopulator.class );</span>
+
+<span class="nc" id="L681">        modelProcessor = createModelProcessor( container );</span>
+
+<span class="nc" id="L683">        configurationProcessors = container.lookupMap( ConfigurationProcessor.class );</span>
+
+<span class="nc" id="L685">        toolchainsBuilder = container.lookup( ToolchainsBuilder.class );</span>
+
+<span class="nc" id="L687">        dispatcher = (DefaultSecDispatcher) container.lookup( SecDispatcher.class, &quot;maven&quot; );</span>
+
+<span class="nc" id="L689">        return container;</span>
+    }
+
+    private List&lt;CoreExtensionEntry&gt; loadCoreExtensions( CliRequest cliRequest, ClassRealm containerRealm,
+                                                         Set&lt;String&gt; providedArtifacts )
+    {
+<span class="nc bnc" id="L695" title="All 2 branches missed.">        if ( cliRequest.multiModuleProjectDirectory == null )</span>
+        {
+<span class="nc" id="L697">            return Collections.emptyList();</span>
+        }
+
+<span class="nc" id="L700">        File extensionsFile = new File( cliRequest.multiModuleProjectDirectory, EXTENSIONS_FILENAME );</span>
+<span class="nc bnc" id="L701" title="All 2 branches missed.">        if ( !extensionsFile.isFile() )</span>
+        {
+<span class="nc" id="L703">            return Collections.emptyList();</span>
+        }
+
+        try
+        {
+<span class="nc" id="L708">            List&lt;CoreExtension&gt; extensions = readCoreExtensionsDescriptor( extensionsFile );</span>
+<span class="nc bnc" id="L709" title="All 2 branches missed.">            if ( extensions.isEmpty() )</span>
+            {
+<span class="nc" id="L711">                return Collections.emptyList();</span>
+            }
+
+<span class="nc" id="L714">            ContainerConfiguration cc = new DefaultContainerConfiguration() //</span>
+                .setClassWorld( cliRequest.classWorld ) //
+                .setRealm( containerRealm ) //
+                .setClassPathScanning( PlexusConstants.SCANNING_INDEX ) //
+                .setAutoWiring( true ) //
+                .setJSR250Lifecycle( true ) //
+                .setName( &quot;maven&quot; );
+
+<span class="nc" id="L722">            DefaultPlexusContainer container = new DefaultPlexusContainer( cc, new AbstractModule()</span>
+<span class="nc" id="L723">            {</span>
+                @Override
+                protected void configure()
+                {
+<span class="nc" id="L727">                    bind( ILoggerFactory.class ).toInstance( slf4jLoggerFactory );</span>
+<span class="nc" id="L728">                }</span>
+            } );
+
+            try
+            {
+<span class="nc" id="L733">                container.setLookupRealm( null );</span>
+
+<span class="nc" id="L735">                container.setLoggerManager( plexusLoggerManager );</span>
+
+<span class="nc" id="L737">                container.getLoggerManager().setThresholds( cliRequest.request.getLoggingLevel() );</span>
+
+<span class="nc" id="L739">                Thread.currentThread().setContextClassLoader( container.getContainerRealm() );</span>
+
+<span class="nc" id="L741">                executionRequestPopulator = container.lookup( MavenExecutionRequestPopulator.class );</span>
+
+<span class="nc" id="L743">                configurationProcessors = container.lookupMap( ConfigurationProcessor.class );</span>
+
+<span class="nc" id="L745">                configure( cliRequest );</span>
+
+<span class="nc" id="L747">                MavenExecutionRequest request = DefaultMavenExecutionRequest.copy( cliRequest.request );</span>
+
+<span class="nc" id="L749">                request = populateRequest( cliRequest, request );</span>
+
+<span class="nc" id="L751">                request = executionRequestPopulator.populateDefaults( request );</span>
+
+<span class="nc" id="L753">                BootstrapCoreExtensionManager resolver = container.lookup( BootstrapCoreExtensionManager.class );</span>
+
+<span class="nc" id="L755">                return resolver.loadCoreExtensions( request, providedArtifacts, extensions );</span>
+            }
+            finally
+            {
+<span class="nc" id="L759">                executionRequestPopulator = null;</span>
+<span class="nc" id="L760">                container.dispose();</span>
+            }
+        }
+<span class="nc" id="L763">        catch ( RuntimeException e )</span>
+        {
+            // runtime exceptions are most likely bugs in maven, let them bubble up to the user
+<span class="nc" id="L766">            throw e;</span>
+        }
+<span class="nc" id="L768">        catch ( Exception e )</span>
+        {
+<span class="nc" id="L770">            slf4jLogger.warn( &quot;Failed to read extensions descriptor &quot; + extensionsFile + &quot;: &quot; + e.getMessage() );</span>
+        }
+<span class="nc" id="L772">        return Collections.emptyList();</span>
+    }
+
+    private List&lt;CoreExtension&gt; readCoreExtensionsDescriptor( File extensionsFile )
+        throws IOException, XmlPullParserException
+    {
+<span class="nc" id="L778">        CoreExtensionsXpp3Reader parser = new CoreExtensionsXpp3Reader();</span>
+
+<span class="nc" id="L780">        try ( InputStream is = new BufferedInputStream( new FileInputStream( extensionsFile ) ) )</span>
+        {
+
+<span class="nc" id="L783">            return parser.read( is ).getExtensions();</span>
+<span class="nc" id="L784">        }</span>
+
+    }
+
+    private ClassRealm setupContainerRealm( ClassWorld classWorld, ClassRealm coreRealm, List&lt;File&gt; extClassPath,
+                                            List&lt;CoreExtensionEntry&gt; extensions )
+        throws Exception
+    {
+<span class="nc bnc" id="L792" title="All 4 branches missed.">        if ( !extClassPath.isEmpty() || !extensions.isEmpty() )</span>
+        {
+<span class="nc" id="L794">            ClassRealm extRealm = classWorld.newRealm( &quot;maven.ext&quot;, null );</span>
+
+<span class="nc" id="L796">            extRealm.setParentRealm( coreRealm );</span>
+
+<span class="nc" id="L798">            slf4jLogger.debug( &quot;Populating class realm &quot; + extRealm.getId() );</span>
+
+<span class="nc bnc" id="L800" title="All 2 branches missed.">            for ( File file : extClassPath )</span>
+            {
+<span class="nc" id="L802">                slf4jLogger.debug( &quot;  Included &quot; + file );</span>
+
+<span class="nc" id="L804">                extRealm.addURL( file.toURI().toURL() );</span>
+<span class="nc" id="L805">            }</span>
+
+<span class="nc bnc" id="L807" title="All 2 branches missed.">            for ( CoreExtensionEntry entry : reverse( extensions ) )</span>
+            {
+<span class="nc" id="L809">                Set&lt;String&gt; exportedPackages = entry.getExportedPackages();</span>
+<span class="nc" id="L810">                ClassRealm realm = entry.getClassRealm();</span>
+<span class="nc bnc" id="L811" title="All 2 branches missed.">                for ( String exportedPackage : exportedPackages )</span>
+                {
+<span class="nc" id="L813">                    extRealm.importFrom( realm, exportedPackage );</span>
+<span class="nc" id="L814">                }</span>
+<span class="nc bnc" id="L815" title="All 2 branches missed.">                if ( exportedPackages.isEmpty() )</span>
+                {
+                    // sisu uses realm imports to establish component visibility
+<span class="nc" id="L818">                    extRealm.importFrom( realm, realm.getId() );</span>
+                }
+<span class="nc" id="L820">            }</span>
+
+<span class="nc" id="L822">            return extRealm;</span>
+        }
+
+<span class="nc" id="L825">        return coreRealm;</span>
+    }
+
+    private static &lt;T&gt; List&lt;T&gt; reverse( List&lt;T&gt; list )
+    {
+<span class="nc" id="L830">        List&lt;T&gt; copy = new ArrayList&lt;&gt;( list );</span>
+<span class="nc" id="L831">        Collections.reverse( copy );</span>
+<span class="nc" id="L832">        return copy;</span>
+    }
+
+    private List&lt;File&gt; parseExtClasspath( CliRequest cliRequest )
+    {
+<span class="nc" id="L837">        String extClassPath = cliRequest.userProperties.getProperty( EXT_CLASS_PATH );</span>
+<span class="nc bnc" id="L838" title="All 2 branches missed.">        if ( extClassPath == null )</span>
+        {
+<span class="nc" id="L840">            extClassPath = cliRequest.systemProperties.getProperty( EXT_CLASS_PATH );</span>
+        }
+
+<span class="nc" id="L843">        List&lt;File&gt; jars = new ArrayList&lt;&gt;();</span>
+
+<span class="nc bnc" id="L845" title="All 2 branches missed.">        if ( StringUtils.isNotEmpty( extClassPath ) )</span>
+        {
+<span class="nc bnc" id="L847" title="All 2 branches missed.">            for ( String jar : StringUtils.split( extClassPath, File.pathSeparator ) )</span>
+            {
+<span class="nc" id="L849">                File file = resolveFile( new File( jar ), cliRequest.workingDirectory );</span>
+
+<span class="nc" id="L851">                slf4jLogger.debug( &quot;  Included &quot; + file );</span>
+
+<span class="nc" id="L853">                jars.add( file );</span>
+            }
+        }
+
+<span class="nc" id="L857">        return jars;</span>
+    }
+
+    //
+    // This should probably be a separate tool and not be baked into Maven.
+    //
+    private void encryption( CliRequest cliRequest )
+        throws Exception
+    {
+<span class="nc bnc" id="L866" title="All 2 branches missed.">        if ( cliRequest.commandLine.hasOption( CLIManager.ENCRYPT_MASTER_PASSWORD ) )</span>
+        {
+<span class="nc" id="L868">            String passwd = cliRequest.commandLine.getOptionValue( CLIManager.ENCRYPT_MASTER_PASSWORD );</span>
+
+<span class="nc bnc" id="L870" title="All 2 branches missed.">            if ( passwd == null )</span>
+            {
+<span class="nc" id="L872">                Console cons = System.console();</span>
+<span class="nc bnc" id="L873" title="All 2 branches missed.">                char[] password = ( cons == null ) ? null : cons.readPassword( &quot;Master password: &quot; );</span>
+<span class="nc bnc" id="L874" title="All 2 branches missed.">                if ( password != null )</span>
+                {
+                    // Cipher uses Strings
+<span class="nc" id="L877">                    passwd = String.copyValueOf( password );</span>
+
+                    // Sun/Oracle advises to empty the char array
+<span class="nc" id="L880">                    java.util.Arrays.fill( password, ' ' );</span>
+                }
+            }
+
+<span class="nc" id="L884">            DefaultPlexusCipher cipher = new DefaultPlexusCipher();</span>
+
+<span class="nc" id="L886">            System.out.println(</span>
+                cipher.encryptAndDecorate( passwd, DefaultSecDispatcher.SYSTEM_PROPERTY_SEC_LOCATION ) );
+
+<span class="nc" id="L889">            throw new ExitException( 0 );</span>
+        }
+<span class="nc bnc" id="L891" title="All 2 branches missed.">        else if ( cliRequest.commandLine.hasOption( CLIManager.ENCRYPT_PASSWORD ) )</span>
+        {
+<span class="nc" id="L893">            String passwd = cliRequest.commandLine.getOptionValue( CLIManager.ENCRYPT_PASSWORD );</span>
+
+<span class="nc bnc" id="L895" title="All 2 branches missed.">            if ( passwd == null )</span>
+            {
+<span class="nc" id="L897">                Console cons = System.console();</span>
+<span class="nc bnc" id="L898" title="All 2 branches missed.">                char[] password = ( cons == null ) ? null : cons.readPassword( &quot;Password: &quot; );</span>
+<span class="nc bnc" id="L899" title="All 2 branches missed.">                if ( password != null )</span>
+                {
+                    // Cipher uses Strings
+<span class="nc" id="L902">                    passwd = String.copyValueOf( password );</span>
+
+                    // Sun/Oracle advises to empty the char array
+<span class="nc" id="L905">                    java.util.Arrays.fill( password, ' ' );</span>
+                }
+            }
+
+<span class="nc" id="L909">            String configurationFile = dispatcher.getConfigurationFile();</span>
+
+<span class="nc bnc" id="L911" title="All 2 branches missed.">            if ( configurationFile.startsWith( &quot;~&quot; ) )</span>
+            {
+<span class="nc" id="L913">                configurationFile = System.getProperty( &quot;user.home&quot; ) + configurationFile.substring( 1 );</span>
+            }
+
+<span class="nc" id="L916">            String file = System.getProperty( DefaultSecDispatcher.SYSTEM_PROPERTY_SEC_LOCATION, configurationFile );</span>
+
+<span class="nc" id="L918">            String master = null;</span>
+
+<span class="nc" id="L920">            SettingsSecurity sec = SecUtil.read( file, true );</span>
+<span class="nc bnc" id="L921" title="All 2 branches missed.">            if ( sec != null )</span>
+            {
+<span class="nc" id="L923">                master = sec.getMaster();</span>
+            }
+
+<span class="nc bnc" id="L926" title="All 2 branches missed.">            if ( master == null )</span>
+            {
+<span class="nc" id="L928">                throw new IllegalStateException( &quot;Master password is not set in the setting security file: &quot; + file );</span>
+            }
+
+<span class="nc" id="L931">            DefaultPlexusCipher cipher = new DefaultPlexusCipher();</span>
+<span class="nc" id="L932">            String masterPasswd = cipher.decryptDecorated( master, DefaultSecDispatcher.SYSTEM_PROPERTY_SEC_LOCATION );</span>
+<span class="nc" id="L933">            System.out.println( cipher.encryptAndDecorate( passwd, masterPasswd ) );</span>
+
+<span class="nc" id="L935">            throw new ExitException( 0 );</span>
+        }
+<span class="nc" id="L937">    }</span>
+
+    private void repository( CliRequest cliRequest )
+        throws Exception
+    {
+<span class="nc bnc" id="L942" title="All 4 branches missed.">        if ( cliRequest.commandLine.hasOption( CLIManager.LEGACY_LOCAL_REPOSITORY ) || Boolean.getBoolean(</span>
+            &quot;maven.legacyLocalRepo&quot; ) )
+        {
+<span class="nc" id="L945">            cliRequest.request.setUseLegacyLocalRepository( true );</span>
+        }
+<span class="nc" id="L947">    }</span>
+
+    private int execute( CliRequest cliRequest )
+        throws MavenExecutionRequestPopulationException
+    {
+<span class="nc" id="L952">        MavenExecutionRequest request = executionRequestPopulator.populateDefaults( cliRequest.request );</span>
+
+<span class="nc" id="L954">        eventSpyDispatcher.onEvent( request );</span>
+
+<span class="nc" id="L956">        MavenExecutionResult result = maven.execute( request );</span>
+
+<span class="nc" id="L958">        eventSpyDispatcher.onEvent( result );</span>
+
+<span class="nc" id="L960">        eventSpyDispatcher.close();</span>
+
+<span class="nc bnc" id="L962" title="All 2 branches missed.">        if ( result.hasExceptions() )</span>
+        {
+<span class="nc" id="L964">            ExceptionHandler handler = new DefaultExceptionHandler();</span>
+
+<span class="nc" id="L966">            Map&lt;String, String&gt; references = new LinkedHashMap&lt;&gt;();</span>
+
+<span class="nc" id="L968">            MavenProject project = null;</span>
+
+<span class="nc bnc" id="L970" title="All 2 branches missed.">            for ( Throwable exception : result.getExceptions() )</span>
+            {
+<span class="nc" id="L972">                ExceptionSummary summary = handler.handleException( exception );</span>
+
+<span class="nc" id="L974">                logSummary( summary, references, &quot;&quot;, cliRequest.showErrors );</span>
+
+<span class="nc bnc" id="L976" title="All 4 branches missed.">                if ( project == null &amp;&amp; exception instanceof LifecycleExecutionException )</span>
+                {
+<span class="nc" id="L978">                    project = ( (LifecycleExecutionException) exception ).getProject();</span>
+                }
+<span class="nc" id="L980">            }</span>
+
+<span class="nc" id="L982">            slf4jLogger.error( &quot;&quot; );</span>
+
+<span class="nc bnc" id="L984" title="All 2 branches missed.">            if ( !cliRequest.showErrors )</span>
+            {
+<span class="nc" id="L986">                slf4jLogger.error( &quot;To see the full stack trace of the errors, re-run Maven with the &quot;</span>
+                    + buffer().strong( &quot;-e&quot; ) + &quot; switch.&quot; );
+            }
+<span class="nc bnc" id="L989" title="All 2 branches missed.">            if ( !slf4jLogger.isDebugEnabled() )</span>
+            {
+<span class="nc" id="L991">                slf4jLogger.error( &quot;Re-run Maven using the &quot; + buffer().strong( &quot;-X&quot; )</span>
+                    + &quot; switch to enable full debug logging.&quot; );
+            }
+
+<span class="nc bnc" id="L995" title="All 2 branches missed.">            if ( !references.isEmpty() )</span>
+            {
+<span class="nc" id="L997">                slf4jLogger.error( &quot;&quot; );</span>
+<span class="nc" id="L998">                slf4jLogger.error( &quot;For more information about the errors and possible solutions&quot;</span>
+                                       + &quot;, please read the following articles:&quot; );
+
+<span class="nc bnc" id="L1001" title="All 2 branches missed.">                for ( Map.Entry&lt;String, String&gt; entry : references.entrySet() )</span>
+                {
+<span class="nc" id="L1003">                    slf4jLogger.error( buffer().strong( entry.getValue() ) + &quot; &quot; + entry.getKey() );</span>
+<span class="nc" id="L1004">                }</span>
+            }
+
+<span class="nc bnc" id="L1007" title="All 4 branches missed.">            if ( project != null &amp;&amp; !project.equals( result.getTopologicallySortedProjects().get( 0 ) ) )</span>
+            {
+<span class="nc" id="L1009">                slf4jLogger.error( &quot;&quot; );</span>
+<span class="nc" id="L1010">                slf4jLogger.error( &quot;After correcting the problems, you can resume the build with the command&quot; );</span>
+<span class="nc" id="L1011">                slf4jLogger.error( buffer().a( &quot;  &quot; ).strong( &quot;mvn &lt;goals&gt; -rf :&quot;</span>
+                                + project.getArtifactId() ).toString() );
+            }
+
+<span class="nc bnc" id="L1015" title="All 2 branches missed.">            if ( MavenExecutionRequest.REACTOR_FAIL_NEVER.equals( cliRequest.request.getReactorFailureBehavior() ) )</span>
+            {
+<span class="nc" id="L1017">                slf4jLogger.info( &quot;Build failures were ignored.&quot; );</span>
+
+<span class="nc" id="L1019">                return 0;</span>
+            }
+            else
+            {
+<span class="nc" id="L1023">                return 1;</span>
+            }
+        }
+        else
+        {
+<span class="nc" id="L1028">            return 0;</span>
+        }
+    }
+
+    private void logSummary( ExceptionSummary summary, Map&lt;String, String&gt; references, String indent,
+                             boolean showErrors )
+    {
+<span class="nc" id="L1035">        String referenceKey = &quot;&quot;;</span>
+
+<span class="nc bnc" id="L1037" title="All 2 branches missed.">        if ( StringUtils.isNotEmpty( summary.getReference() ) )</span>
+        {
+<span class="nc" id="L1039">            referenceKey = references.get( summary.getReference() );</span>
+<span class="nc bnc" id="L1040" title="All 2 branches missed.">            if ( referenceKey == null )</span>
+            {
+<span class="nc" id="L1042">                referenceKey = &quot;[Help &quot; + ( references.size() + 1 ) + &quot;]&quot;;</span>
+<span class="nc" id="L1043">                references.put( summary.getReference(), referenceKey );</span>
+            }
+        }
+
+<span class="nc" id="L1047">        String msg = summary.getMessage();</span>
+
+<span class="nc bnc" id="L1049" title="All 2 branches missed.">        if ( StringUtils.isNotEmpty( referenceKey ) )</span>
+        {
+<span class="nc bnc" id="L1051" title="All 2 branches missed.">            if ( msg.indexOf( '\n' ) &lt; 0 )</span>
+            {
+<span class="nc" id="L1053">                msg += &quot; -&gt; &quot; + buffer().strong( referenceKey );</span>
+            }
+            else
+            {
+<span class="nc" id="L1057">                msg += &quot;\n-&gt; &quot; + buffer().strong( referenceKey );</span>
+            }
+        }
+
+<span class="nc" id="L1061">        String[] lines = msg.split( &quot;(\r\n)|(\r)|(\n)&quot; );</span>
+<span class="nc" id="L1062">        String currentColor = &quot;&quot;;</span>
+
+<span class="nc bnc" id="L1064" title="All 2 branches missed.">        for ( int i = 0; i &lt; lines.length; i++ )</span>
+        {
+            // add eventual current color inherited from previous line 
+<span class="nc" id="L1067">            String line = currentColor + lines[i];</span>
+
+            // look for last ANSI escape sequence to check if nextColor
+<span class="nc" id="L1070">            Matcher matcher = LAST_ANSI_SEQUENCE.matcher( line );</span>
+<span class="nc" id="L1071">            String nextColor = &quot;&quot;;</span>
+<span class="nc bnc" id="L1072" title="All 2 branches missed.">            if ( matcher.find() )</span>
+            {
+<span class="nc" id="L1074">                nextColor = matcher.group( 1 );</span>
+<span class="nc bnc" id="L1075" title="All 2 branches missed.">                if ( ANSI_RESET.equals( nextColor ) )</span>
+                {
+                    // last ANSI escape code is reset: no next color
+<span class="nc" id="L1078">                    nextColor = &quot;&quot;;</span>
+                }
+            }
+
+            // effective line, with indent and reset if end is colored
+<span class="nc bnc" id="L1083" title="All 2 branches missed.">            line = indent + line + ( &quot;&quot;.equals( nextColor ) ? &quot;&quot; : ANSI_RESET );</span>
+
+<span class="nc bnc" id="L1085" title="All 6 branches missed.">            if ( ( i == lines.length - 1 ) &amp;&amp; ( showErrors</span>
+                || ( summary.getException() instanceof InternalErrorException ) ) )
+            {
+<span class="nc" id="L1088">                slf4jLogger.error( line, summary.getException() );</span>
+            }
+            else
+            {
+<span class="nc" id="L1092">                slf4jLogger.error( line );</span>
+            }
+
+<span class="nc" id="L1095">            currentColor = nextColor;</span>
+        }
+
+<span class="nc" id="L1098">        indent += &quot;  &quot;;</span>
+
+<span class="nc bnc" id="L1100" title="All 2 branches missed.">        for ( ExceptionSummary child : summary.getChildren() )</span>
+        {
+<span class="nc" id="L1102">            logSummary( child, references, indent, showErrors );</span>
+<span class="nc" id="L1103">        }</span>
+<span class="nc" id="L1104">    }</span>
+
+<span class="nc" id="L1106">    private static final Pattern LAST_ANSI_SEQUENCE = Pattern.compile( &quot;(\u001B\\[[;\\d]*[ -/]*[@-~])[^\u001B]*$&quot; );</span>
+
+    private static final String ANSI_RESET = &quot;\u001B\u005Bm&quot;;
+
+    private void configure( CliRequest cliRequest )
+        throws Exception
+    {
+        //
+        // This is not ideal but there are events specifically for configuration from the CLI which I don't
+        // believe are really valid but there are ITs which assert the right events are published so this
+        // needs to be supported so the EventSpyDispatcher needs to be put in the CliRequest so that
+        // it can be accessed by configuration processors.
+        //
+<span class="nc" id="L1119">        cliRequest.request.setEventSpyDispatcher( eventSpyDispatcher );</span>
+
+        //
+        // We expect at most 2 implementations to be available. The SettingsXmlConfigurationProcessor implementation
+        // is always available in the core and likely always will be, but we may have another ConfigurationProcessor
+        // present supplied by the user. The rule is that we only allow the execution of one ConfigurationProcessor.
+        // If there is more than one then we execute the one supplied by the user, otherwise we execute the
+        // the default SettingsXmlConfigurationProcessor.
+        //
+<span class="nc" id="L1128">        int userSuppliedConfigurationProcessorCount = configurationProcessors.size() - 1;</span>
+
+<span class="nc bnc" id="L1130" title="All 2 branches missed.">        if ( userSuppliedConfigurationProcessorCount == 0 )</span>
+        {
+            //
+            // Our settings.xml source is historically how we have configured Maven from the CLI so we are going to
+            // have to honour its existence forever. So let's run it.
+            //
+<span class="nc" id="L1136">            configurationProcessors.get( SettingsXmlConfigurationProcessor.HINT ).process( cliRequest );</span>
+        }
+<span class="nc bnc" id="L1138" title="All 2 branches missed.">        else if ( userSuppliedConfigurationProcessorCount == 1 )</span>
+        {
+            //
+            // Run the user supplied ConfigurationProcessor
+            //
+<span class="nc bnc" id="L1143" title="All 2 branches missed.">            for ( Entry&lt;String, ConfigurationProcessor&gt; entry : configurationProcessors.entrySet() )</span>
+            {
+<span class="nc" id="L1145">                String hint = entry.getKey();</span>
+<span class="nc bnc" id="L1146" title="All 2 branches missed.">                if ( !hint.equals( SettingsXmlConfigurationProcessor.HINT ) )</span>
+                {
+<span class="nc" id="L1148">                    ConfigurationProcessor configurationProcessor = entry.getValue();</span>
+<span class="nc" id="L1149">                    configurationProcessor.process( cliRequest );</span>
+                }
+<span class="nc" id="L1151">            }</span>
+        }
+<span class="nc bnc" id="L1153" title="All 2 branches missed.">        else if ( userSuppliedConfigurationProcessorCount &gt; 1 )</span>
+        {
+            //
+            // There are too many ConfigurationProcessors so we don't know which one to run so report the error.
+            //
+<span class="nc" id="L1158">            StringBuilder sb = new StringBuilder(</span>
+                String.format( &quot;\nThere can only be one user supplied ConfigurationProcessor, there are %s:\n\n&quot;,
+                               userSuppliedConfigurationProcessorCount ) );
+<span class="nc bnc" id="L1161" title="All 2 branches missed.">            for ( Entry&lt;String, ConfigurationProcessor&gt; entry : configurationProcessors.entrySet() )</span>
+            {
+<span class="nc" id="L1163">                String hint = entry.getKey();</span>
+<span class="nc bnc" id="L1164" title="All 2 branches missed.">                if ( !hint.equals( SettingsXmlConfigurationProcessor.HINT ) )</span>
+                {
+<span class="nc" id="L1166">                    ConfigurationProcessor configurationProcessor = entry.getValue();</span>
+<span class="nc" id="L1167">                    sb.append( String.format( &quot;%s\n&quot;, configurationProcessor.getClass().getName() ) );</span>
+                }
+<span class="nc" id="L1169">            }</span>
+<span class="nc" id="L1170">            sb.append( String.format( &quot;\n&quot; ) );</span>
+<span class="nc" id="L1171">            throw new Exception( sb.toString() );</span>
+        }
+<span class="nc" id="L1173">    }</span>
+
+    private void toolchains( CliRequest cliRequest )
+        throws Exception
+    {
+        File userToolchainsFile;
+
+<span class="nc bnc" id="L1180" title="All 2 branches missed.">        if ( cliRequest.commandLine.hasOption( CLIManager.ALTERNATE_USER_TOOLCHAINS ) )</span>
+        {
+<span class="nc" id="L1182">            userToolchainsFile =</span>
+                new File( cliRequest.commandLine.getOptionValue( CLIManager.ALTERNATE_USER_TOOLCHAINS ) );
+<span class="nc" id="L1184">            userToolchainsFile = resolveFile( userToolchainsFile, cliRequest.workingDirectory );</span>
+
+<span class="nc bnc" id="L1186" title="All 2 branches missed.">            if ( !userToolchainsFile.isFile() )</span>
+            {
+<span class="nc" id="L1188">                throw new FileNotFoundException(</span>
+                    &quot;The specified user toolchains file does not exist: &quot; + userToolchainsFile );
+            }
+        }
+        else
+        {
+<span class="nc" id="L1194">            userToolchainsFile = DEFAULT_USER_TOOLCHAINS_FILE;</span>
+        }
+
+        File globalToolchainsFile;
+
+<span class="nc bnc" id="L1199" title="All 2 branches missed.">        if ( cliRequest.commandLine.hasOption( CLIManager.ALTERNATE_GLOBAL_TOOLCHAINS ) )</span>
+        {
+<span class="nc" id="L1201">            globalToolchainsFile =</span>
+                new File( cliRequest.commandLine.getOptionValue( CLIManager.ALTERNATE_GLOBAL_TOOLCHAINS ) );
+<span class="nc" id="L1203">            globalToolchainsFile = resolveFile( globalToolchainsFile, cliRequest.workingDirectory );</span>
+
+<span class="nc bnc" id="L1205" title="All 2 branches missed.">            if ( !globalToolchainsFile.isFile() )</span>
+            {
+<span class="nc" id="L1207">                throw new FileNotFoundException(</span>
+                    &quot;The specified global toolchains file does not exist: &quot; + globalToolchainsFile );
+            }
+        }
+        else
+        {
+<span class="nc" id="L1213">            globalToolchainsFile = DEFAULT_GLOBAL_TOOLCHAINS_FILE;</span>
+        }
+
+<span class="nc" id="L1216">        cliRequest.request.setGlobalToolchainsFile( globalToolchainsFile );</span>
+<span class="nc" id="L1217">        cliRequest.request.setUserToolchainsFile( userToolchainsFile );</span>
+
+<span class="nc" id="L1219">        DefaultToolchainsBuildingRequest toolchainsRequest = new DefaultToolchainsBuildingRequest();</span>
+<span class="nc bnc" id="L1220" title="All 2 branches missed.">        if ( globalToolchainsFile.isFile() )</span>
+        {
+<span class="nc" id="L1222">            toolchainsRequest.setGlobalToolchainsSource( new FileSource( globalToolchainsFile ) );</span>
+        }
+<span class="nc bnc" id="L1224" title="All 2 branches missed.">        if ( userToolchainsFile.isFile() )</span>
+        {
+<span class="nc" id="L1226">            toolchainsRequest.setUserToolchainsSource( new FileSource( userToolchainsFile ) );</span>
+        }
+
+<span class="nc" id="L1229">        eventSpyDispatcher.onEvent( toolchainsRequest );</span>
+
+<span class="nc" id="L1231">        slf4jLogger.debug(</span>
+            &quot;Reading global toolchains from &quot; + getLocation( toolchainsRequest.getGlobalToolchainsSource(),
+                                                             globalToolchainsFile ) );
+<span class="nc" id="L1234">        slf4jLogger.debug( &quot;Reading user toolchains from &quot; + getLocation( toolchainsRequest.getUserToolchainsSource(),</span>
+                                                                          userToolchainsFile ) );
+
+<span class="nc" id="L1237">        ToolchainsBuildingResult toolchainsResult = toolchainsBuilder.build( toolchainsRequest );</span>
+
+<span class="nc" id="L1239">        eventSpyDispatcher.onEvent( toolchainsRequest );</span>
+
+<span class="nc" id="L1241">        executionRequestPopulator.populateFromToolchains( cliRequest.request,</span>
+                                                          toolchainsResult.getEffectiveToolchains() );
+
+<span class="nc bnc" id="L1244" title="All 4 branches missed.">        if ( !toolchainsResult.getProblems().isEmpty() &amp;&amp; slf4jLogger.isWarnEnabled() )</span>
+        {
+<span class="nc" id="L1246">            slf4jLogger.warn( &quot;&quot; );</span>
+<span class="nc" id="L1247">            slf4jLogger.warn( &quot;Some problems were encountered while building the effective toolchains&quot; );</span>
+
+<span class="nc bnc" id="L1249" title="All 2 branches missed.">            for ( Problem problem : toolchainsResult.getProblems() )</span>
+            {
+<span class="nc" id="L1251">                slf4jLogger.warn( problem.getMessage() + &quot; @ &quot; + problem.getLocation() );</span>
+<span class="nc" id="L1252">            }</span>
+
+<span class="nc" id="L1254">            slf4jLogger.warn( &quot;&quot; );</span>
+        }
+<span class="nc" id="L1256">    }</span>
+
+    private Object getLocation( Source source, File defaultLocation )
+    {
+<span class="nc bnc" id="L1260" title="All 2 branches missed.">        if ( source != null )</span>
+        {
+<span class="nc" id="L1262">            return source.getLocation();</span>
+        }
+<span class="nc" id="L1264">        return defaultLocation;</span>
+    }
+
+    private MavenExecutionRequest populateRequest( CliRequest cliRequest )
+    {
+<span class="nc" id="L1269">        return populateRequest( cliRequest, cliRequest.request );</span>
+    }
+
+    @SuppressWarnings( &quot;checkstyle:methodlength&quot; )
+    private MavenExecutionRequest populateRequest( CliRequest cliRequest, MavenExecutionRequest request )
+    {
+<span class="nc" id="L1275">        CommandLine commandLine = cliRequest.commandLine;</span>
+<span class="nc" id="L1276">        String workingDirectory = cliRequest.workingDirectory;</span>
+<span class="nc" id="L1277">        boolean quiet = cliRequest.quiet;</span>
+<span class="nc" id="L1278">        boolean showErrors = cliRequest.showErrors;</span>
+
+<span class="nc" id="L1280">        String[] deprecatedOptions = { &quot;up&quot;, &quot;npu&quot;, &quot;cpu&quot;, &quot;npr&quot; };</span>
+<span class="nc bnc" id="L1281" title="All 2 branches missed.">        for ( String deprecatedOption : deprecatedOptions )</span>
+        {
+<span class="nc bnc" id="L1283" title="All 2 branches missed.">            if ( commandLine.hasOption( deprecatedOption ) )</span>
+            {
+<span class="nc" id="L1285">                slf4jLogger.warn( &quot;Command line option -&quot; + deprecatedOption</span>
+                                      + &quot; is deprecated and will be removed in future Maven versions.&quot; );
+            }
+        }
+
+        // ----------------------------------------------------------------------
+        // Now that we have everything that we need we will fire up plexus and
+        // bring the maven component to life for use.
+        // ----------------------------------------------------------------------
+
+<span class="nc bnc" id="L1295" title="All 2 branches missed.">        if ( commandLine.hasOption( CLIManager.BATCH_MODE ) )</span>
+        {
+<span class="nc" id="L1297">            request.setInteractiveMode( false );</span>
+        }
+
+<span class="nc" id="L1300">        boolean noSnapshotUpdates = false;</span>
+<span class="nc bnc" id="L1301" title="All 2 branches missed.">        if ( commandLine.hasOption( CLIManager.SUPRESS_SNAPSHOT_UPDATES ) )</span>
+        {
+<span class="nc" id="L1303">            noSnapshotUpdates = true;</span>
+        }
+
+        // ----------------------------------------------------------------------
+        //
+        // ----------------------------------------------------------------------
+
+<span class="nc" id="L1310">        List&lt;String&gt; goals = commandLine.getArgList();</span>
+
+<span class="nc" id="L1312">        boolean recursive = true;</span>
+
+        // this is the default behavior.
+<span class="nc" id="L1315">        String reactorFailureBehaviour = MavenExecutionRequest.REACTOR_FAIL_FAST;</span>
+
+<span class="nc bnc" id="L1317" title="All 2 branches missed.">        if ( commandLine.hasOption( CLIManager.NON_RECURSIVE ) )</span>
+        {
+<span class="nc" id="L1319">            recursive = false;</span>
+        }
+
+<span class="nc bnc" id="L1322" title="All 2 branches missed.">        if ( commandLine.hasOption( CLIManager.FAIL_FAST ) )</span>
+        {
+<span class="nc" id="L1324">            reactorFailureBehaviour = MavenExecutionRequest.REACTOR_FAIL_FAST;</span>
+        }
+<span class="nc bnc" id="L1326" title="All 2 branches missed.">        else if ( commandLine.hasOption( CLIManager.FAIL_AT_END ) )</span>
+        {
+<span class="nc" id="L1328">            reactorFailureBehaviour = MavenExecutionRequest.REACTOR_FAIL_AT_END;</span>
+        }
+<span class="nc bnc" id="L1330" title="All 2 branches missed.">        else if ( commandLine.hasOption( CLIManager.FAIL_NEVER ) )</span>
+        {
+<span class="nc" id="L1332">            reactorFailureBehaviour = MavenExecutionRequest.REACTOR_FAIL_NEVER;</span>
+        }
+
+<span class="nc bnc" id="L1335" title="All 2 branches missed.">        if ( commandLine.hasOption( CLIManager.OFFLINE ) )</span>
+        {
+<span class="nc" id="L1337">            request.setOffline( true );</span>
+        }
+
+<span class="nc" id="L1340">        boolean updateSnapshots = false;</span>
+
+<span class="nc bnc" id="L1342" title="All 2 branches missed.">        if ( commandLine.hasOption( CLIManager.UPDATE_SNAPSHOTS ) )</span>
+        {
+<span class="nc" id="L1344">            updateSnapshots = true;</span>
+        }
+
+<span class="nc" id="L1347">        String globalChecksumPolicy = null;</span>
+
+<span class="nc bnc" id="L1349" title="All 2 branches missed.">        if ( commandLine.hasOption( CLIManager.CHECKSUM_FAILURE_POLICY ) )</span>
+        {
+<span class="nc" id="L1351">            globalChecksumPolicy = MavenExecutionRequest.CHECKSUM_POLICY_FAIL;</span>
+        }
+<span class="nc bnc" id="L1353" title="All 2 branches missed.">        else if ( commandLine.hasOption( CLIManager.CHECKSUM_WARNING_POLICY ) )</span>
+        {
+<span class="nc" id="L1355">            globalChecksumPolicy = MavenExecutionRequest.CHECKSUM_POLICY_WARN;</span>
+        }
+
+<span class="nc" id="L1358">        File baseDirectory = new File( workingDirectory, &quot;&quot; ).getAbsoluteFile();</span>
+
+        // ----------------------------------------------------------------------
+        // Profile Activation
+        // ----------------------------------------------------------------------
+
+<span class="nc" id="L1364">        List&lt;String&gt; activeProfiles = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L1366">        List&lt;String&gt; inactiveProfiles = new ArrayList&lt;&gt;();</span>
+
+<span class="nc bnc" id="L1368" title="All 2 branches missed.">        if ( commandLine.hasOption( CLIManager.ACTIVATE_PROFILES ) )</span>
+        {
+<span class="nc" id="L1370">            String[] profileOptionValues = commandLine.getOptionValues( CLIManager.ACTIVATE_PROFILES );</span>
+<span class="nc bnc" id="L1371" title="All 2 branches missed.">            if ( profileOptionValues != null )</span>
+            {
+<span class="nc bnc" id="L1373" title="All 2 branches missed.">                for ( String profileOptionValue : profileOptionValues )</span>
+                {
+<span class="nc" id="L1375">                    StringTokenizer profileTokens = new StringTokenizer( profileOptionValue, &quot;,&quot; );</span>
+
+<span class="nc bnc" id="L1377" title="All 2 branches missed.">                    while ( profileTokens.hasMoreTokens() )</span>
+                    {
+<span class="nc" id="L1379">                        String profileAction = profileTokens.nextToken().trim();</span>
+
+<span class="nc bnc" id="L1381" title="All 4 branches missed.">                        if ( profileAction.startsWith( &quot;-&quot; ) || profileAction.startsWith( &quot;!&quot; ) )</span>
+                        {
+<span class="nc" id="L1383">                            inactiveProfiles.add( profileAction.substring( 1 ) );</span>
+                        }
+<span class="nc bnc" id="L1385" title="All 2 branches missed.">                        else if ( profileAction.startsWith( &quot;+&quot; ) )</span>
+                        {
+<span class="nc" id="L1387">                            activeProfiles.add( profileAction.substring( 1 ) );</span>
+                        }
+                        else
+                        {
+<span class="nc" id="L1391">                            activeProfiles.add( profileAction );</span>
+                        }
+<span class="nc" id="L1393">                    }</span>
+                }
+            }
+        }
+
+        TransferListener transferListener;
+
+<span class="nc bnc" id="L1400" title="All 2 branches missed.">        if ( quiet )</span>
+        {
+<span class="nc" id="L1402">            transferListener = new QuietMavenTransferListener();</span>
+        }
+<span class="nc bnc" id="L1404" title="All 4 branches missed.">        else if ( request.isInteractiveMode() &amp;&amp; !cliRequest.commandLine.hasOption( CLIManager.LOG_FILE ) )</span>
+        {
+            //
+            // If we're logging to a file then we don't want the console transfer listener as it will spew
+            // download progress all over the place
+            //
+<span class="nc" id="L1410">            transferListener = getConsoleTransferListener( cliRequest.commandLine.hasOption( CLIManager.DEBUG ) );</span>
+        }
+        else
+        {
+<span class="nc" id="L1414">            transferListener = getBatchTransferListener();</span>
+        }
+
+<span class="nc" id="L1417">        ExecutionListener executionListener = new ExecutionEventLogger();</span>
+<span class="nc bnc" id="L1418" title="All 2 branches missed.">        if ( eventSpyDispatcher != null )</span>
+        {
+<span class="nc" id="L1420">            executionListener = eventSpyDispatcher.chainListener( executionListener );</span>
+        }
+
+<span class="nc" id="L1423">        String alternatePomFile = null;</span>
+<span class="nc bnc" id="L1424" title="All 2 branches missed.">        if ( commandLine.hasOption( CLIManager.ALTERNATE_POM_FILE ) )</span>
+        {
+<span class="nc" id="L1426">            alternatePomFile = commandLine.getOptionValue( CLIManager.ALTERNATE_POM_FILE );</span>
+        }
+
+<span class="nc" id="L1429">        request.setBaseDirectory( baseDirectory ).setGoals( goals ).setSystemProperties(</span>
+            cliRequest.systemProperties ).setUserProperties( cliRequest.userProperties ).setReactorFailureBehavior(
+            reactorFailureBehaviour ) // default: fail fast
+            .setRecursive( recursive ) // default: true
+            .setShowErrors( showErrors ) // default: false
+            .addActiveProfiles( activeProfiles ) // optional
+            .addInactiveProfiles( inactiveProfiles ) // optional
+            .setExecutionListener( executionListener ).setTransferListener(
+            transferListener ) // default: batch mode which goes along with interactive
+            .setUpdateSnapshots( updateSnapshots ) // default: false
+            .setNoSnapshotUpdates( noSnapshotUpdates ) // default: false
+            .setGlobalChecksumPolicy( globalChecksumPolicy ) // default: warn
+            .setMultiModuleProjectDirectory( cliRequest.multiModuleProjectDirectory );
+
+<span class="nc bnc" id="L1443" title="All 2 branches missed.">        if ( alternatePomFile != null )</span>
+        {
+<span class="nc" id="L1445">            File pom = resolveFile( new File( alternatePomFile ), workingDirectory );</span>
+<span class="nc bnc" id="L1446" title="All 2 branches missed.">            if ( pom.isDirectory() )</span>
+            {
+<span class="nc" id="L1448">                pom = new File( pom, &quot;pom.xml&quot; );</span>
+            }
+
+<span class="nc" id="L1451">            request.setPom( pom );</span>
+<span class="nc" id="L1452">        }</span>
+<span class="nc bnc" id="L1453" title="All 2 branches missed.">        else if ( modelProcessor != null )</span>
+        {
+<span class="nc" id="L1455">            File pom = modelProcessor.locatePom( baseDirectory );</span>
+
+<span class="nc bnc" id="L1457" title="All 2 branches missed.">            if ( pom.isFile() )</span>
+            {
+<span class="nc" id="L1459">                request.setPom( pom );</span>
+            }
+        }
+
+<span class="nc bnc" id="L1463" title="All 4 branches missed.">        if ( ( request.getPom() != null ) &amp;&amp; ( request.getPom().getParentFile() != null ) )</span>
+        {
+<span class="nc" id="L1465">            request.setBaseDirectory( request.getPom().getParentFile() );</span>
+        }
+
+<span class="nc bnc" id="L1468" title="All 2 branches missed.">        if ( commandLine.hasOption( CLIManager.RESUME_FROM ) )</span>
+        {
+<span class="nc" id="L1470">            request.setResumeFrom( commandLine.getOptionValue( CLIManager.RESUME_FROM ) );</span>
+        }
+
+<span class="nc bnc" id="L1473" title="All 2 branches missed.">        if ( commandLine.hasOption( CLIManager.PROJECT_LIST ) )</span>
+        {
+<span class="nc" id="L1475">            String[] projectOptionValues = commandLine.getOptionValues( CLIManager.PROJECT_LIST );</span>
+
+<span class="nc" id="L1477">            List&lt;String&gt; inclProjects = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L1478">            List&lt;String&gt; exclProjects = new ArrayList&lt;&gt;();</span>
+
+<span class="nc bnc" id="L1480" title="All 2 branches missed.">            if ( projectOptionValues != null )</span>
+            {
+<span class="nc bnc" id="L1482" title="All 2 branches missed.">                for ( String projectOptionValue : projectOptionValues )</span>
+                {
+<span class="nc" id="L1484">                    StringTokenizer projectTokens = new StringTokenizer( projectOptionValue, &quot;,&quot; );</span>
+
+<span class="nc bnc" id="L1486" title="All 2 branches missed.">                    while ( projectTokens.hasMoreTokens() )</span>
+                    {
+<span class="nc" id="L1488">                        String projectAction = projectTokens.nextToken().trim();</span>
+
+<span class="nc bnc" id="L1490" title="All 4 branches missed.">                        if ( projectAction.startsWith( &quot;-&quot; ) || projectAction.startsWith( &quot;!&quot; ) )</span>
+                        {
+<span class="nc" id="L1492">                            exclProjects.add( projectAction.substring( 1 ) );</span>
+                        }
+<span class="nc bnc" id="L1494" title="All 2 branches missed.">                        else if ( projectAction.startsWith( &quot;+&quot; ) )</span>
+                        {
+<span class="nc" id="L1496">                            inclProjects.add( projectAction.substring( 1 ) );</span>
+                        }
+                        else
+                        {
+<span class="nc" id="L1500">                            inclProjects.add( projectAction );</span>
+                        }
+<span class="nc" id="L1502">                    }</span>
+                }
+            }
+
+<span class="nc" id="L1506">            request.setSelectedProjects( inclProjects );</span>
+<span class="nc" id="L1507">            request.setExcludedProjects( exclProjects );</span>
+        }
+
+<span class="nc bnc" id="L1510" title="All 4 branches missed.">        if ( commandLine.hasOption( CLIManager.ALSO_MAKE ) &amp;&amp; !commandLine.hasOption(</span>
+            CLIManager.ALSO_MAKE_DEPENDENTS ) )
+        {
+<span class="nc" id="L1513">            request.setMakeBehavior( MavenExecutionRequest.REACTOR_MAKE_UPSTREAM );</span>
+        }
+<span class="nc bnc" id="L1515" title="All 4 branches missed.">        else if ( !commandLine.hasOption( CLIManager.ALSO_MAKE ) &amp;&amp; commandLine.hasOption(</span>
+            CLIManager.ALSO_MAKE_DEPENDENTS ) )
+        {
+<span class="nc" id="L1518">            request.setMakeBehavior( MavenExecutionRequest.REACTOR_MAKE_DOWNSTREAM );</span>
+        }
+<span class="nc bnc" id="L1520" title="All 4 branches missed.">        else if ( commandLine.hasOption( CLIManager.ALSO_MAKE ) &amp;&amp; commandLine.hasOption(</span>
+            CLIManager.ALSO_MAKE_DEPENDENTS ) )
+        {
+<span class="nc" id="L1523">            request.setMakeBehavior( MavenExecutionRequest.REACTOR_MAKE_BOTH );</span>
+        }
+
+<span class="nc" id="L1526">        String localRepoProperty = request.getUserProperties().getProperty( MavenCli.LOCAL_REPO_PROPERTY );</span>
+
+<span class="nc bnc" id="L1528" title="All 2 branches missed.">        if ( localRepoProperty == null )</span>
+        {
+<span class="nc" id="L1530">            localRepoProperty = request.getSystemProperties().getProperty( MavenCli.LOCAL_REPO_PROPERTY );</span>
+        }
+
+<span class="nc bnc" id="L1533" title="All 2 branches missed.">        if ( localRepoProperty != null )</span>
+        {
+<span class="nc" id="L1535">            request.setLocalRepositoryPath( localRepoProperty );</span>
+        }
+
+<span class="nc" id="L1538">        request.setCacheNotFound( true );</span>
+<span class="nc" id="L1539">        request.setCacheTransferError( false );</span>
+
+        //
+        // Builder, concurrency and parallelism
+        //
+        // We preserve the existing methods for builder selection which is to look for various inputs in the threading
+        // configuration. We don't have an easy way to allow a pluggable builder to provide its own configuration
+        // parameters but this is sufficient for now. Ultimately we want components like Builders to provide a way to
+        // extend the command line to accept its own configuration parameters.
+        //
+<span class="nc bnc" id="L1549" title="All 2 branches missed.">        final String threadConfiguration = commandLine.hasOption( CLIManager.THREADS )</span>
+            ? commandLine.getOptionValue( CLIManager.THREADS )
+            : request.getSystemProperties().getProperty(
+                MavenCli.THREADS_DEPRECATED ); // TODO Remove this setting. Note that the int-tests use it
+
+<span class="nc bnc" id="L1554" title="All 2 branches missed.">        if ( threadConfiguration != null )</span>
+        {
+            //
+            // Default to the standard multithreaded builder
+            //
+<span class="nc" id="L1559">            request.setBuilderId( &quot;multithreaded&quot; );</span>
+
+<span class="nc bnc" id="L1561" title="All 2 branches missed.">            if ( threadConfiguration.contains( &quot;C&quot; ) )</span>
+            {
+<span class="nc" id="L1563">                request.setDegreeOfConcurrency( calculateDegreeOfConcurrencyWithCoreMultiplier( threadConfiguration ) );</span>
+            }
+            else
+            {
+<span class="nc" id="L1567">                request.setDegreeOfConcurrency( Integer.valueOf( threadConfiguration ) );</span>
+            }
+        }
+
+        //
+        // Allow the builder to be overridden by the user if requested. The builders are now pluggable.
+        //
+<span class="nc bnc" id="L1574" title="All 2 branches missed.">        if ( commandLine.hasOption( CLIManager.BUILDER ) )</span>
+        {
+<span class="nc" id="L1576">            request.setBuilderId( commandLine.getOptionValue( CLIManager.BUILDER ) );</span>
+        }
+
+<span class="nc" id="L1579">        return request;</span>
+    }
+
+    int calculateDegreeOfConcurrencyWithCoreMultiplier( String threadConfiguration )
+    {
+<span class="nc" id="L1584">        int procs = Runtime.getRuntime().availableProcessors();</span>
+<span class="nc" id="L1585">        return (int) ( Float.valueOf( threadConfiguration.replace( &quot;C&quot;, &quot;&quot; ) ) * procs );</span>
+    }
+
+    static File resolveFile( File file, String workingDirectory )
+    {
+<span class="nc bnc" id="L1590" title="All 2 branches missed.">        if ( file == null )</span>
+        {
+<span class="nc" id="L1592">            return null;</span>
+        }
+<span class="nc bnc" id="L1594" title="All 2 branches missed.">        else if ( file.isAbsolute() )</span>
+        {
+<span class="nc" id="L1596">            return file;</span>
+        }
+<span class="nc bnc" id="L1598" title="All 2 branches missed.">        else if ( file.getPath().startsWith( File.separator ) )</span>
+        {
+            // drive-relative Windows path
+<span class="nc" id="L1601">            return file.getAbsoluteFile();</span>
+        }
+        else
+        {
+<span class="nc" id="L1605">            return new File( workingDirectory, file.getPath() ).getAbsoluteFile();</span>
+        }
+    }
+
+    // ----------------------------------------------------------------------
+    // System properties handling
+    // ----------------------------------------------------------------------
+
+    static void populateProperties( CommandLine commandLine, Properties systemProperties, Properties userProperties )
+    {
+<span class="nc" id="L1615">        EnvironmentUtils.addEnvVars( systemProperties );</span>
+
+        // ----------------------------------------------------------------------
+        // Options that are set on the command line become system properties
+        // and therefore are set in the session properties. System properties
+        // are most dominant.
+        // ----------------------------------------------------------------------
+
+<span class="nc bnc" id="L1623" title="All 2 branches missed.">        if ( commandLine.hasOption( CLIManager.SET_SYSTEM_PROPERTY ) )</span>
+        {
+<span class="nc" id="L1625">            String[] defStrs = commandLine.getOptionValues( CLIManager.SET_SYSTEM_PROPERTY );</span>
+            
+<span class="nc bnc" id="L1627" title="All 2 branches missed.">            if ( defStrs != null )</span>
+            {
+<span class="nc bnc" id="L1629" title="All 2 branches missed.">                for ( String defStr : defStrs )</span>
+                {
+<span class="nc" id="L1631">                    setCliProperty( defStr, userProperties );</span>
+                }
+            }
+        }
+
+<span class="nc" id="L1636">        SystemProperties.addSystemProperties( systemProperties );</span>
+
+        // ----------------------------------------------------------------------
+        // Properties containing info about the currently running version of Maven
+        // These override any corresponding properties set on the command line
+        // ----------------------------------------------------------------------
+
+<span class="nc" id="L1643">        Properties buildProperties = CLIReportingUtils.getBuildProperties();</span>
+
+<span class="nc" id="L1645">        String mavenVersion = buildProperties.getProperty( CLIReportingUtils.BUILD_VERSION_PROPERTY );</span>
+<span class="nc" id="L1646">        systemProperties.setProperty( &quot;maven.version&quot;, mavenVersion );</span>
+
+<span class="nc" id="L1648">        String mavenBuildVersion = CLIReportingUtils.createMavenVersionString( buildProperties );</span>
+<span class="nc" id="L1649">        systemProperties.setProperty( &quot;maven.build.version&quot;, mavenBuildVersion );</span>
+<span class="nc" id="L1650">    }</span>
+
+    private static void setCliProperty( String property, Properties properties )
+    {
+        String name;
+
+        String value;
+
+<span class="nc" id="L1658">        int i = property.indexOf( '=' );</span>
+
+<span class="nc bnc" id="L1660" title="All 2 branches missed.">        if ( i &lt;= 0 )</span>
+        {
+<span class="nc" id="L1662">            name = property.trim();</span>
+
+<span class="nc" id="L1664">            value = &quot;true&quot;;</span>
+        }
+        else
+        {
+<span class="nc" id="L1668">            name = property.substring( 0, i ).trim();</span>
+
+<span class="nc" id="L1670">            value = property.substring( i + 1 );</span>
+        }
+
+<span class="nc" id="L1673">        properties.setProperty( name, value );</span>
+
+        // ----------------------------------------------------------------------
+        // I'm leaving the setting of system properties here as not to break
+        // the SystemPropertyProfileActivator. This won't harm embedding. jvz.
+        // ----------------------------------------------------------------------
+
+<span class="nc" id="L1680">        System.setProperty( name, value );</span>
+<span class="nc" id="L1681">    }</span>
+
+    static class ExitException
+        extends Exception
+    {
+        int exitCode;
+
+        ExitException( int exitCode )
+<span class="nc" id="L1689">        {</span>
+<span class="nc" id="L1690">            this.exitCode = exitCode;</span>
+<span class="nc" id="L1691">        }</span>
+    }
+
+    //
+    // Customizations available via the CLI
+    //
+
+    protected TransferListener getConsoleTransferListener( boolean printResourceNames )
+    {
+<span class="nc" id="L1700">        return new ConsoleMavenTransferListener( System.out, printResourceNames );</span>
+    }
+
+    protected TransferListener getBatchTransferListener()
+    {
+<span class="nc" id="L1705">        return new Slf4jMavenTransferListener();</span>
+    }
+
+    protected void customizeContainer( PlexusContainer container )
+    {
+<span class="nc" id="L1710">    }</span>
+
+    protected ModelProcessor createModelProcessor( PlexusContainer container )
+        throws ComponentLookupException
+    {
+<span class="nc" id="L1715">        return container.lookup( ModelProcessor.class );</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

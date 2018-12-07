@@ -1,0 +1,192 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MetadataGraphEdge.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository.metadata</a> &gt; <span class="el_source">MetadataGraphEdge.java</span></div><h1>MetadataGraphEdge.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository.metadata;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.maven.artifact.ArtifactScopeEnum;
+
+/**
+ * metadata graph edge - combination of version, scope and depth define
+ * an edge in the graph
+ *
+ * @author &lt;a href=&quot;oleg@codehaus.org&quot;&gt;Oleg Gusakov&lt;/a&gt;
+ *
+ */
+
+public class MetadataGraphEdge
+{
+    String            version;
+    ArtifactScopeEnum scope;
+<span class="nc" id="L36">    int               depth = -1;</span>
+<span class="nc" id="L37">    int               pomOrder = -1;</span>
+<span class="nc" id="L38">    boolean           resolved = true;</span>
+    String            artifactUri;
+
+    /**
+     * capturing where this link came from
+     * and where it is linked to.
+     *
+     *   In the first implementation only source used for explanatory function
+     */
+    MetadataGraphVertex  source;
+    MetadataGraphVertex  target;
+
+    //----------------------------------------------------------------------------
+    public MetadataGraphEdge( String version, boolean resolved, ArtifactScopeEnum scope, String artifactUri, int depth,
+                              int pomOrder )
+    {
+<span class="nc" id="L54">        super();</span>
+<span class="nc" id="L55">        this.version = version;</span>
+<span class="nc" id="L56">        this.scope = scope;</span>
+<span class="nc" id="L57">        this.artifactUri = artifactUri;</span>
+<span class="nc" id="L58">        this.depth = depth;</span>
+<span class="nc" id="L59">        this.resolved = resolved;</span>
+<span class="nc" id="L60">        this.pomOrder = pomOrder;</span>
+<span class="nc" id="L61">    }</span>
+    //----------------------------------------------------------------------------
+    /**
+     * helper for equals
+     */
+    private static boolean objectsEqual( Object o1, Object o2 )
+    {
+<span class="nc bnc" id="L68" title="All 4 branches missed.">        if ( o1 == null &amp;&amp; o2 == null )</span>
+        {
+<span class="nc" id="L70">            return true;</span>
+        }
+<span class="nc bnc" id="L72" title="All 4 branches missed.">        if ( o1 == null || o2 == null )</span>
+        {
+<span class="nc" id="L74">            return false; // as they are not both null</span>
+        }
+<span class="nc" id="L76">        return o1.equals( o2 );</span>
+    }
+
+    //----------------------------------------------------------------------------
+    /**
+     * used to eliminate exact duplicates in the edge list
+     */
+    @Override
+    @SuppressWarnings( &quot;checkstyle:equalshashcode&quot; )
+    public boolean equals( Object o )
+    {
+<span class="nc bnc" id="L87" title="All 2 branches missed.">        if ( o instanceof MetadataGraphEdge )</span>
+        {
+<span class="nc" id="L89">            MetadataGraphEdge e = (MetadataGraphEdge) o;</span>
+
+<span class="nc bnc" id="L91" title="All 6 branches missed.">            return objectsEqual( version, e.version )</span>
+                &amp;&amp; ArtifactScopeEnum.checkScope( scope ).getScope().
+                    equals( ArtifactScopeEnum.checkScope( e.scope ).getScope() )
+                &amp;&amp; depth == e.depth;
+        }
+<span class="nc" id="L96">        return false;</span>
+    }
+
+    //----------------------------------------------------------------------------
+    public String getVersion()
+    {
+<span class="nc" id="L102">        return version;</span>
+    }
+
+    public void setVersion( String version )
+    {
+<span class="nc" id="L107">        this.version = version;</span>
+<span class="nc" id="L108">    }</span>
+
+    public ArtifactScopeEnum getScope()
+    {
+<span class="nc" id="L112">        return scope;</span>
+    }
+
+    public void setScope( ArtifactScopeEnum scope )
+    {
+<span class="nc" id="L117">        this.scope = scope;</span>
+<span class="nc" id="L118">    }</span>
+
+    public int getDepth()
+    {
+<span class="nc" id="L122">        return depth;</span>
+    }
+
+    public void setDepth( int depth )
+    {
+<span class="nc" id="L127">        this.depth = depth;</span>
+<span class="nc" id="L128">    }</span>
+
+    public boolean isResolved()
+    {
+<span class="nc" id="L132">        return resolved;</span>
+    }
+
+    public void setResolved( boolean resolved )
+    {
+<span class="nc" id="L137">        this.resolved = resolved;</span>
+<span class="nc" id="L138">    }</span>
+
+    public int getPomOrder()
+    {
+<span class="nc" id="L142">        return pomOrder;</span>
+    }
+
+    public void setPomOrder( int pomOrder )
+    {
+<span class="nc" id="L147">        this.pomOrder = pomOrder;</span>
+<span class="nc" id="L148">    }</span>
+
+    public String getArtifactUri()
+    {
+<span class="nc" id="L152">        return artifactUri;</span>
+    }
+
+    public void setArtifactUri( String artifactUri )
+    {
+<span class="nc" id="L157">        this.artifactUri = artifactUri;</span>
+<span class="nc" id="L158">    }</span>
+
+    public MetadataGraphVertex getSource()
+    {
+<span class="nc" id="L162">        return source;</span>
+    }
+
+    public void setSource( MetadataGraphVertex source )
+    {
+<span class="nc" id="L167">        this.source = source;</span>
+<span class="nc" id="L168">    }</span>
+
+    public MetadataGraphVertex getTarget()
+    {
+<span class="nc" id="L172">        return target;</span>
+    }
+
+    public void setTarget( MetadataGraphVertex target )
+    {
+<span class="nc" id="L177">        this.target = target;</span>
+<span class="nc" id="L178">    }</span>
+
+    @Override
+    public String toString()
+    {
+<span class="nc bnc" id="L183" title="All 10 branches missed.">        return &quot;[ &quot; + &quot;FROM:(&quot;</span>
+            + ( source == null ? &quot;no source&quot; : ( source.md == null ? &quot;no source MD&quot; : source.md.toString() ) ) + &quot;) &quot;
+            + &quot;TO:(&quot; + ( target == null ? &quot;no target&quot; : ( target.md == null ? &quot;no target MD&quot; : target.md.toString() ) )
+            + &quot;) &quot; + &quot;version=&quot; + version + &quot;, scope=&quot; + ( scope == null ? &quot;null&quot; : scope.getScope() ) + &quot;, depth=&quot;
+            + depth + &quot;]&quot;;
+    }
+    //----------------------------------------------------------------------------
+    //----------------------------------------------------------------------------
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>JdkPrefixProfileActivator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.profiles.activation</a> &gt; <span class="el_source">JdkPrefixProfileActivator.java</span></div><h1>JdkPrefixProfileActivator.java</h1><pre class="source lang-java linenums">package org.apache.maven.profiles.activation;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
+import org.apache.maven.artifact.versioning.InvalidVersionSpecificationException;
+import org.apache.maven.artifact.versioning.VersionRange;
+import org.apache.maven.model.Activation;
+import org.apache.maven.model.Profile;
+import org.codehaus.plexus.util.StringUtils;
+
+/**
+ * JdkPrefixProfileActivator
+ */
+@Deprecated
+<span class="nc" id="L33">public class JdkPrefixProfileActivator</span>
+    extends DetectedProfileActivator
+{
+<span class="nc" id="L36">    private static final String JDK_VERSION = System.getProperty( &quot;java.version&quot; );</span>
+
+    public boolean isActive( Profile profile )
+        throws ProfileActivationException
+    {
+<span class="nc" id="L41">        Activation activation = profile.getActivation();</span>
+
+<span class="nc" id="L43">        String jdk = activation.getJdk();</span>
+
+        // null case is covered by canDetermineActivation(), so we can do a straight startsWith() here.
+<span class="nc bnc" id="L46" title="All 4 branches missed.">        if ( jdk.startsWith( &quot;[&quot; ) || jdk.startsWith( &quot;(&quot; ) )</span>
+        {
+            try
+            {
+<span class="nc" id="L50">                return matchJdkVersionRange( jdk );</span>
+            }
+<span class="nc" id="L52">            catch ( InvalidVersionSpecificationException e )</span>
+            {
+<span class="nc" id="L54">                throw new ProfileActivationException( &quot;Invalid JDK version in profile '&quot; + profile.getId() + &quot;': &quot;</span>
+                    + e.getMessage() );
+            }
+        }
+
+<span class="nc" id="L59">        boolean reverse = false;</span>
+
+<span class="nc bnc" id="L61" title="All 2 branches missed.">        if ( jdk.startsWith( &quot;!&quot; ) )</span>
+        {
+<span class="nc" id="L63">            reverse = true;</span>
+<span class="nc" id="L64">            jdk = jdk.substring( 1 );</span>
+        }
+
+<span class="nc bnc" id="L67" title="All 2 branches missed.">        if ( getJdkVersion().startsWith( jdk ) )</span>
+        {
+<span class="nc bnc" id="L69" title="All 2 branches missed.">            return !reverse;</span>
+        }
+        else
+        {
+<span class="nc" id="L73">            return reverse;</span>
+        }
+    }
+
+    private boolean matchJdkVersionRange( String jdk )
+        throws InvalidVersionSpecificationException
+    {
+<span class="nc" id="L80">        VersionRange jdkVersionRange = VersionRange.createFromVersionSpec( convertJdkToMavenVersion( jdk ) );</span>
+<span class="nc" id="L81">        DefaultArtifactVersion jdkVersion = new DefaultArtifactVersion( convertJdkToMavenVersion( getJdkVersion() ) );</span>
+<span class="nc" id="L82">        return jdkVersionRange.containsVersion( jdkVersion );</span>
+    }
+
+    private String convertJdkToMavenVersion( String jdk )
+    {
+<span class="nc" id="L87">        return jdk.replaceAll( &quot;_&quot;, &quot;-&quot; );</span>
+    }
+
+    protected String getJdkVersion()
+    {
+<span class="nc" id="L92">        return JDK_VERSION;</span>
+    }
+
+    protected boolean canDetectActivation( Profile profile )
+    {
+<span class="nc bnc" id="L97" title="All 4 branches missed.">        return profile.getActivation() != null &amp;&amp; StringUtils.isNotEmpty( profile.getActivation().getJdk() );</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

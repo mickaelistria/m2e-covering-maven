@@ -1,0 +1,410 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultArtifactDescriptorReader.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository.internal</a> &gt; <span class="el_source">DefaultArtifactDescriptorReader.java</span></div><h1>DefaultArtifactDescriptorReader.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository.internal;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.Properties;
+import java.util.Set;
+
+import javax.inject.Inject;
+import javax.inject.Named;
+import javax.inject.Singleton;
+
+import org.apache.commons.lang3.Validate;
+import org.apache.maven.model.DistributionManagement;
+import org.apache.maven.model.Model;
+import org.apache.maven.model.Relocation;
+import org.apache.maven.model.building.DefaultModelBuilderFactory;
+import org.apache.maven.model.building.DefaultModelBuildingRequest;
+import org.apache.maven.model.building.FileModelSource;
+import org.apache.maven.model.building.ModelBuilder;
+import org.apache.maven.model.building.ModelBuildingException;
+import org.apache.maven.model.building.ModelBuildingRequest;
+import org.apache.maven.model.building.ModelProblem;
+import org.apache.maven.model.resolution.UnresolvableModelException;
+import org.eclipse.aether.RepositoryEvent;
+import org.eclipse.aether.RepositoryEvent.EventType;
+import org.eclipse.aether.RepositoryException;
+import org.eclipse.aether.RepositorySystemSession;
+import org.eclipse.aether.RequestTrace;
+import org.eclipse.aether.artifact.Artifact;
+import org.eclipse.aether.impl.ArtifactDescriptorReader;
+import org.eclipse.aether.impl.ArtifactResolver;
+import org.eclipse.aether.impl.RemoteRepositoryManager;
+import org.eclipse.aether.impl.RepositoryEventDispatcher;
+import org.eclipse.aether.impl.VersionRangeResolver;
+import org.eclipse.aether.impl.VersionResolver;
+import org.eclipse.aether.repository.WorkspaceReader;
+import org.eclipse.aether.repository.WorkspaceRepository;
+import org.eclipse.aether.resolution.ArtifactDescriptorException;
+import org.eclipse.aether.resolution.ArtifactDescriptorPolicy;
+import org.eclipse.aether.resolution.ArtifactDescriptorPolicyRequest;
+import org.eclipse.aether.resolution.ArtifactDescriptorRequest;
+import org.eclipse.aether.resolution.ArtifactDescriptorResult;
+import org.eclipse.aether.resolution.ArtifactRequest;
+import org.eclipse.aether.resolution.ArtifactResolutionException;
+import org.eclipse.aether.resolution.ArtifactResult;
+import org.eclipse.aether.resolution.VersionRequest;
+import org.eclipse.aether.resolution.VersionResolutionException;
+import org.eclipse.aether.resolution.VersionResult;
+import org.eclipse.aether.spi.locator.Service;
+import org.eclipse.aether.spi.locator.ServiceLocator;
+import org.eclipse.aether.spi.log.Logger;
+import org.eclipse.aether.spi.log.LoggerFactory;
+import org.eclipse.aether.spi.log.NullLoggerFactory;
+import org.eclipse.aether.transfer.ArtifactNotFoundException;
+
+/**
+ * @author Benjamin Bentmann
+ */
+@Named
+@Singleton
+public class DefaultArtifactDescriptorReader
+    implements ArtifactDescriptorReader, Service
+{
+
+<span class="pc" id="L84">    @SuppressWarnings( &quot;unused&quot; )</span>
+    private Logger logger = NullLoggerFactory.LOGGER;
+
+    private RemoteRepositoryManager remoteRepositoryManager;
+
+    private VersionResolver versionResolver;
+
+    private VersionRangeResolver versionRangeResolver;
+
+    private ArtifactResolver artifactResolver;
+
+    private RepositoryEventDispatcher repositoryEventDispatcher;
+
+    private ModelBuilder modelBuilder;
+
+    public DefaultArtifactDescriptorReader()
+<span class="nc" id="L100">    {</span>
+        // enable no-arg constructor
+<span class="nc" id="L102">    }</span>
+
+    @Inject
+    DefaultArtifactDescriptorReader( RemoteRepositoryManager remoteRepositoryManager, VersionResolver versionResolver,
+                                     VersionRangeResolver versionRangeResolver, ArtifactResolver artifactResolver,
+                                     ModelBuilder modelBuilder, RepositoryEventDispatcher repositoryEventDispatcher,
+                                     LoggerFactory loggerFactory )
+<span class="fc" id="L109">    {</span>
+<span class="fc" id="L110">        setRemoteRepositoryManager( remoteRepositoryManager );</span>
+<span class="fc" id="L111">        setVersionResolver( versionResolver );</span>
+<span class="fc" id="L112">        setVersionRangeResolver( versionRangeResolver );</span>
+<span class="fc" id="L113">        setArtifactResolver( artifactResolver );</span>
+<span class="fc" id="L114">        setModelBuilder( modelBuilder );</span>
+<span class="fc" id="L115">        setLoggerFactory( loggerFactory );</span>
+<span class="fc" id="L116">        setRepositoryEventDispatcher( repositoryEventDispatcher );</span>
+<span class="fc" id="L117">    }</span>
+
+    public void initService( ServiceLocator locator )
+    {
+<span class="nc" id="L121">        setRemoteRepositoryManager( locator.getService( RemoteRepositoryManager.class ) );</span>
+<span class="nc" id="L122">        setVersionResolver( locator.getService( VersionResolver.class ) );</span>
+<span class="nc" id="L123">        setVersionRangeResolver( locator.getService( VersionRangeResolver.class ) );</span>
+<span class="nc" id="L124">        setArtifactResolver( locator.getService( ArtifactResolver.class ) );</span>
+<span class="nc" id="L125">        modelBuilder = locator.getService( ModelBuilder.class );</span>
+<span class="nc bnc" id="L126" title="All 2 branches missed.">        if ( modelBuilder == null )</span>
+        {
+<span class="nc" id="L128">            setModelBuilder( new DefaultModelBuilderFactory().newInstance() );</span>
+        }
+<span class="nc" id="L130">        setRepositoryEventDispatcher( locator.getService( RepositoryEventDispatcher.class ) );</span>
+<span class="nc" id="L131">        setLoggerFactory( locator.getService( LoggerFactory.class ) );</span>
+<span class="nc" id="L132">    }</span>
+
+    public DefaultArtifactDescriptorReader setLoggerFactory( LoggerFactory loggerFactory )
+    {
+<span class="fc" id="L136">        this.logger = NullLoggerFactory.getSafeLogger( loggerFactory, getClass() );</span>
+<span class="fc" id="L137">        return this;</span>
+    }
+
+    void setLogger( LoggerFactory loggerFactory )
+    {
+        // plexus support
+<span class="nc" id="L143">        setLoggerFactory( loggerFactory );</span>
+<span class="nc" id="L144">    }</span>
+
+    public DefaultArtifactDescriptorReader setRemoteRepositoryManager( RemoteRepositoryManager remoteRepositoryManager )
+    {
+<span class="fc" id="L148">        this.remoteRepositoryManager = Validate.notNull( remoteRepositoryManager,</span>
+            &quot;remoteRepositoryManager cannot be null&quot; );
+<span class="fc" id="L150">        return this;</span>
+    }
+
+    public DefaultArtifactDescriptorReader setVersionResolver( VersionResolver versionResolver )
+    {
+<span class="fc" id="L155">        this.versionResolver = Validate.notNull( versionResolver, &quot;versionResolver cannot be null&quot; );</span>
+<span class="fc" id="L156">        return this;</span>
+    }
+
+    /** @since 3.2.2 */
+    public DefaultArtifactDescriptorReader setVersionRangeResolver( VersionRangeResolver versionRangeResolver )
+    {
+<span class="fc" id="L162">        this.versionRangeResolver = Validate.notNull( versionRangeResolver, &quot;versionRangeResolver cannot be null&quot; );</span>
+<span class="fc" id="L163">        return this;</span>
+    }
+
+    public DefaultArtifactDescriptorReader setArtifactResolver( ArtifactResolver artifactResolver )
+    {
+<span class="fc" id="L168">        this.artifactResolver = Validate.notNull( artifactResolver, &quot;artifactResolver cannot be null&quot; );</span>
+<span class="fc" id="L169">        return this;</span>
+    }
+
+    public DefaultArtifactDescriptorReader setRepositoryEventDispatcher(
+        RepositoryEventDispatcher repositoryEventDispatcher )
+    {
+<span class="fc" id="L175">        this.repositoryEventDispatcher = Validate.notNull( repositoryEventDispatcher,</span>
+            &quot;repositoryEventDispatcher cannot be null&quot; );
+<span class="fc" id="L177">        return this;</span>
+    }
+
+    public DefaultArtifactDescriptorReader setModelBuilder( ModelBuilder modelBuilder )
+    {
+<span class="fc" id="L182">        this.modelBuilder = Validate.notNull( modelBuilder, &quot;modelBuilder cannot be null&quot; );</span>
+<span class="fc" id="L183">        return this;</span>
+    }
+
+    public ArtifactDescriptorResult readArtifactDescriptor( RepositorySystemSession session,
+                                                            ArtifactDescriptorRequest request )
+        throws ArtifactDescriptorException
+    {
+<span class="fc" id="L190">        ArtifactDescriptorResult result = new ArtifactDescriptorResult( request );</span>
+
+<span class="fc" id="L192">        Model model = loadPom( session, request, result );</span>
+<span class="fc bfc" id="L193" title="All 2 branches covered.">        if ( model != null )</span>
+        {
+<span class="fc" id="L195">            Map&lt;String, Object&gt; config = session.getConfigProperties();</span>
+<span class="fc" id="L196">            ArtifactDescriptorReaderDelegate delegate =</span>
+                (ArtifactDescriptorReaderDelegate) config.get( ArtifactDescriptorReaderDelegate.class.getName() );
+
+<span class="pc bpc" id="L199" title="1 of 2 branches missed.">            if ( delegate == null )</span>
+            {
+<span class="fc" id="L201">                delegate = new ArtifactDescriptorReaderDelegate();</span>
+            }
+
+<span class="fc" id="L204">            delegate.populateResult( session, result, model );</span>
+        }
+
+<span class="fc" id="L207">        return result;</span>
+    }
+
+    private Model loadPom( RepositorySystemSession session, ArtifactDescriptorRequest request,
+                           ArtifactDescriptorResult result )
+        throws ArtifactDescriptorException
+    {
+<span class="fc" id="L214">        RequestTrace trace = RequestTrace.newChild( request.getTrace(), request );</span>
+
+<span class="fc" id="L216">        Set&lt;String&gt; visited = new LinkedHashSet&lt;&gt;();</span>
+<span class="fc" id="L217">        for ( Artifact a = request.getArtifact();; )</span>
+        {
+<span class="fc" id="L219">            Artifact pomArtifact = ArtifactDescriptorUtils.toPomArtifact( a );</span>
+            try
+            {
+<span class="fc" id="L222">                VersionRequest versionRequest =</span>
+                    new VersionRequest( a, request.getRepositories(), request.getRequestContext() );
+<span class="fc" id="L224">                versionRequest.setTrace( trace );</span>
+<span class="fc" id="L225">                VersionResult versionResult = versionResolver.resolveVersion( session, versionRequest );</span>
+
+<span class="fc" id="L227">                a = a.setVersion( versionResult.getVersion() );</span>
+
+<span class="fc" id="L229">                versionRequest =</span>
+                    new VersionRequest( pomArtifact, request.getRepositories(), request.getRequestContext() );
+<span class="fc" id="L231">                versionRequest.setTrace( trace );</span>
+<span class="fc" id="L232">                versionResult = versionResolver.resolveVersion( session, versionRequest );</span>
+
+<span class="fc" id="L234">                pomArtifact = pomArtifact.setVersion( versionResult.getVersion() );</span>
+            }
+<span class="nc" id="L236">            catch ( VersionResolutionException e )</span>
+            {
+<span class="nc" id="L238">                result.addException( e );</span>
+<span class="nc" id="L239">                throw new ArtifactDescriptorException( result );</span>
+<span class="fc" id="L240">            }</span>
+
+<span class="pc bpc" id="L242" title="1 of 2 branches missed.">            if ( !visited.add( a.getGroupId() + ':' + a.getArtifactId() + ':' + a.getBaseVersion() ) )</span>
+            {
+<span class="nc" id="L244">                RepositoryException exception =</span>
+                    new RepositoryException( &quot;Artifact relocations form a cycle: &quot; + visited );
+<span class="nc" id="L246">                invalidDescriptor( session, trace, a, exception );</span>
+<span class="nc bnc" id="L247" title="All 2 branches missed.">                if ( ( getPolicy( session, a, request ) &amp; ArtifactDescriptorPolicy.IGNORE_INVALID ) != 0 )</span>
+                {
+<span class="nc" id="L249">                    return null;</span>
+                }
+<span class="nc" id="L251">                result.addException( exception );</span>
+<span class="nc" id="L252">                throw new ArtifactDescriptorException( result );</span>
+            }
+
+            ArtifactResult resolveResult;
+            try
+            {
+<span class="fc" id="L258">                ArtifactRequest resolveRequest =</span>
+                    new ArtifactRequest( pomArtifact, request.getRepositories(), request.getRequestContext() );
+<span class="fc" id="L260">                resolveRequest.setTrace( trace );</span>
+<span class="fc" id="L261">                resolveResult = artifactResolver.resolveArtifact( session, resolveRequest );</span>
+<span class="fc" id="L262">                pomArtifact = resolveResult.getArtifact();</span>
+<span class="fc" id="L263">                result.setRepository( resolveResult.getRepository() );</span>
+            }
+<span class="fc" id="L265">            catch ( ArtifactResolutionException e )</span>
+            {
+<span class="fc bfc" id="L267" title="All 2 branches covered.">                if ( e.getCause() instanceof ArtifactNotFoundException )</span>
+                {
+<span class="fc" id="L269">                    missingDescriptor( session, trace, a, (Exception) e.getCause() );</span>
+<span class="pc bpc" id="L270" title="1 of 2 branches missed.">                    if ( ( getPolicy( session, a, request ) &amp; ArtifactDescriptorPolicy.IGNORE_MISSING ) != 0 )</span>
+                    {
+<span class="fc" id="L272">                        return null;</span>
+                    }
+                }
+<span class="fc" id="L275">                result.addException( e );</span>
+<span class="fc" id="L276">                throw new ArtifactDescriptorException( result );</span>
+<span class="fc" id="L277">            }</span>
+
+            Model model;
+
+            // hack: don't rebuild model if it was already loaded during reactor resolution
+<span class="fc" id="L282">            final WorkspaceReader workspace = session.getWorkspaceReader();</span>
+<span class="pc bpc" id="L283" title="1 of 2 branches missed.">            if ( workspace instanceof MavenWorkspaceReader )</span>
+            {
+<span class="nc" id="L285">                model = ( (MavenWorkspaceReader) workspace ).findModel( pomArtifact );</span>
+<span class="nc bnc" id="L286" title="All 2 branches missed.">                if ( model != null )</span>
+                {
+<span class="nc" id="L288">                    return model;</span>
+                }
+            }
+
+            try
+            {
+<span class="fc" id="L294">                ModelBuildingRequest modelRequest = new DefaultModelBuildingRequest();</span>
+<span class="fc" id="L295">                modelRequest.setValidationLevel( ModelBuildingRequest.VALIDATION_LEVEL_MINIMAL );</span>
+<span class="fc" id="L296">                modelRequest.setProcessPlugins( false );</span>
+<span class="fc" id="L297">                modelRequest.setTwoPhaseBuilding( false );</span>
+<span class="fc" id="L298">                modelRequest.setSystemProperties( toProperties( session.getUserProperties(),</span>
+                                                                session.getSystemProperties() ) );
+<span class="fc" id="L300">                modelRequest.setModelCache( DefaultModelCache.newInstance( session ) );</span>
+<span class="fc" id="L301">                modelRequest.setModelResolver( new DefaultModelResolver( session, trace.newChild( modelRequest ),</span>
+                                                                         request.getRequestContext(), artifactResolver,
+                                                                         versionRangeResolver, remoteRepositoryManager,
+                                                                         request.getRepositories() ) );
+<span class="fc bfc" id="L305" title="All 2 branches covered.">                if ( resolveResult.getRepository() instanceof WorkspaceRepository )</span>
+                {
+<span class="fc" id="L307">                    modelRequest.setPomFile( pomArtifact.getFile() );</span>
+                }
+                else
+                {
+<span class="fc" id="L311">                    modelRequest.setModelSource( new FileModelSource( pomArtifact.getFile() ) );</span>
+                }
+
+<span class="fc" id="L314">                model = modelBuilder.build( modelRequest ).getEffectiveModel();</span>
+            }
+<span class="nc" id="L316">            catch ( ModelBuildingException e )</span>
+            {
+<span class="nc bnc" id="L318" title="All 2 branches missed.">                for ( ModelProblem problem : e.getProblems() )</span>
+                {
+<span class="nc bnc" id="L320" title="All 2 branches missed.">                    if ( problem.getException() instanceof UnresolvableModelException )</span>
+                    {
+<span class="nc" id="L322">                        result.addException( problem.getException() );</span>
+<span class="nc" id="L323">                        throw new ArtifactDescriptorException( result );</span>
+                    }
+<span class="nc" id="L325">                }</span>
+<span class="nc" id="L326">                invalidDescriptor( session, trace, a, e );</span>
+<span class="nc bnc" id="L327" title="All 2 branches missed.">                if ( ( getPolicy( session, a, request ) &amp; ArtifactDescriptorPolicy.IGNORE_INVALID ) != 0 )</span>
+                {
+<span class="nc" id="L329">                    return null;</span>
+                }
+<span class="nc" id="L331">                result.addException( e );</span>
+<span class="nc" id="L332">                throw new ArtifactDescriptorException( result );</span>
+<span class="fc" id="L333">            }</span>
+
+<span class="fc" id="L335">            Relocation relocation = getRelocation( model );</span>
+
+<span class="pc bpc" id="L337" title="1 of 2 branches missed.">            if ( relocation != null )</span>
+            {
+<span class="nc" id="L339">                result.addRelocation( a );</span>
+<span class="nc" id="L340">                a =</span>
+                    new RelocatedArtifact( a, relocation.getGroupId(), relocation.getArtifactId(),
+                                           relocation.getVersion() );
+<span class="nc" id="L343">                result.setArtifact( a );</span>
+            }
+            else
+            {
+<span class="fc" id="L347">                return model;</span>
+            }
+<span class="nc" id="L349">        }</span>
+    }
+
+    private Properties toProperties( Map&lt;String, String&gt; dominant, Map&lt;String, String&gt; recessive )
+    {
+<span class="fc" id="L354">        Properties props = new Properties();</span>
+<span class="pc bpc" id="L355" title="1 of 2 branches missed.">        if ( recessive != null )</span>
+        {
+<span class="fc" id="L357">            props.putAll( recessive );</span>
+        }
+<span class="pc bpc" id="L359" title="1 of 2 branches missed.">        if ( dominant != null )</span>
+        {
+<span class="fc" id="L361">            props.putAll( dominant );</span>
+        }
+<span class="fc" id="L363">        return props;</span>
+    }
+
+    private Relocation getRelocation( Model model )
+    {
+<span class="fc" id="L368">        Relocation relocation = null;</span>
+<span class="fc" id="L369">        DistributionManagement distMgmt = model.getDistributionManagement();</span>
+<span class="fc bfc" id="L370" title="All 2 branches covered.">        if ( distMgmt != null )</span>
+        {
+<span class="fc" id="L372">            relocation = distMgmt.getRelocation();</span>
+        }
+<span class="fc" id="L374">        return relocation;</span>
+    }
+
+    private void missingDescriptor( RepositorySystemSession session, RequestTrace trace, Artifact artifact,
+                                    Exception exception )
+    {
+<span class="fc" id="L380">        RepositoryEvent.Builder event = new RepositoryEvent.Builder( session, EventType.ARTIFACT_DESCRIPTOR_MISSING );</span>
+<span class="fc" id="L381">        event.setTrace( trace );</span>
+<span class="fc" id="L382">        event.setArtifact( artifact );</span>
+<span class="fc" id="L383">        event.setException( exception );</span>
+
+<span class="fc" id="L385">        repositoryEventDispatcher.dispatch( event.build() );</span>
+<span class="fc" id="L386">    }</span>
+
+    private void invalidDescriptor( RepositorySystemSession session, RequestTrace trace, Artifact artifact,
+                                    Exception exception )
+    {
+<span class="nc" id="L391">        RepositoryEvent.Builder event = new RepositoryEvent.Builder( session, EventType.ARTIFACT_DESCRIPTOR_INVALID );</span>
+<span class="nc" id="L392">        event.setTrace( trace );</span>
+<span class="nc" id="L393">        event.setArtifact( artifact );</span>
+<span class="nc" id="L394">        event.setException( exception );</span>
+
+<span class="nc" id="L396">        repositoryEventDispatcher.dispatch( event.build() );</span>
+<span class="nc" id="L397">    }</span>
+
+    private int getPolicy( RepositorySystemSession session, Artifact a, ArtifactDescriptorRequest request )
+    {
+<span class="fc" id="L401">        ArtifactDescriptorPolicy policy = session.getArtifactDescriptorPolicy();</span>
+<span class="pc bpc" id="L402" title="1 of 2 branches missed.">        if ( policy == null )</span>
+        {
+<span class="nc" id="L404">            return ArtifactDescriptorPolicy.STRICT;</span>
+        }
+<span class="fc" id="L406">        return policy.getPolicy( session, new ArtifactDescriptorPolicyRequest( a, request.getRequestContext() ) );</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

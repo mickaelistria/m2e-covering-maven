@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GroupRepositoryMetadata.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.artifact.repository.metadata</a> &gt; <span class="el_source">GroupRepositoryMetadata.java</span></div><h1>GroupRepositoryMetadata.java</h1><pre class="source lang-java linenums">package org.apache.maven.artifact.repository.metadata;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.maven.artifact.repository.ArtifactRepository;
+
+import java.util.Iterator;
+import java.util.List;
+
+/**
+ * Metadata for the group directory of the repository.
+ *
+ * @author &lt;a href=&quot;mailto:brett@apache.org&quot;&gt;Brett Porter&lt;/a&gt;
+ */
+public class GroupRepositoryMetadata
+    extends AbstractRepositoryMetadata
+{
+    private final String groupId;
+
+    public GroupRepositoryMetadata( String groupId )
+    {
+<span class="nc" id="L39">        super( new Metadata() );</span>
+<span class="nc" id="L40">        this.groupId = groupId;</span>
+<span class="nc" id="L41">    }</span>
+
+    public boolean storedInGroupDirectory()
+    {
+<span class="nc" id="L45">        return true;</span>
+    }
+
+    public boolean storedInArtifactVersionDirectory()
+    {
+<span class="nc" id="L50">        return false;</span>
+    }
+
+    public String getGroupId()
+    {
+<span class="nc" id="L55">        return groupId;</span>
+    }
+
+    public String getArtifactId()
+    {
+<span class="nc" id="L60">        return null;</span>
+    }
+
+    public String getBaseVersion()
+    {
+<span class="nc" id="L65">        return null;</span>
+    }
+
+    public void addPluginMapping( String goalPrefix,
+                                  String artifactId )
+    {
+<span class="nc" id="L71">        addPluginMapping( goalPrefix, artifactId, artifactId );</span>
+<span class="nc" id="L72">    }</span>
+
+    public void addPluginMapping( String goalPrefix,
+                                  String artifactId,
+                                  String name )
+    {
+<span class="nc" id="L78">        List&lt;Plugin&gt; plugins = getMetadata().getPlugins();</span>
+<span class="nc" id="L79">        boolean found = false;</span>
+<span class="nc bnc" id="L80" title="All 4 branches missed.">        for ( Iterator&lt;Plugin&gt; i = plugins.iterator(); i.hasNext() &amp;&amp; !found; )</span>
+        {
+<span class="nc" id="L82">            Plugin plugin = i.next();</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">            if ( plugin.getPrefix().equals( goalPrefix ) )</span>
+            {
+<span class="nc" id="L85">                found = true;</span>
+            }
+<span class="nc" id="L87">        }</span>
+<span class="nc bnc" id="L88" title="All 2 branches missed.">        if ( !found )</span>
+        {
+<span class="nc" id="L90">            Plugin plugin = new Plugin();</span>
+<span class="nc" id="L91">            plugin.setPrefix( goalPrefix );</span>
+<span class="nc" id="L92">            plugin.setArtifactId( artifactId );</span>
+<span class="nc" id="L93">            plugin.setName( name );</span>
+
+
+<span class="nc" id="L96">            getMetadata().addPlugin( plugin );</span>
+        }
+<span class="nc" id="L98">    }</span>
+
+    public Object getKey()
+    {
+<span class="nc" id="L102">        return groupId;</span>
+    }
+
+    public boolean isSnapshot()
+    {
+<span class="nc" id="L107">        return false;</span>
+    }
+
+    public ArtifactRepository getRepository()
+    {
+<span class="nc" id="L112">        return null;</span>
+    }
+
+    public void setRepository( ArtifactRepository remoteRepository )
+    {
+        // intentionally blank
+<span class="nc" id="L118">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

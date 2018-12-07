@@ -1,0 +1,467 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultGraphBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.graph</a> &gt; <span class="el_source">DefaultGraphBuilder.java</span></div><h1>DefaultGraphBuilder.java</h1><pre class="source lang-java linenums">package org.apache.maven.graph;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.maven.DefaultMaven;
+import org.apache.maven.MavenExecutionException;
+import org.apache.maven.ProjectCycleException;
+import org.apache.maven.artifact.ArtifactUtils;
+import org.apache.maven.execution.MavenExecutionRequest;
+import org.apache.maven.execution.MavenSession;
+import org.apache.maven.execution.ProjectDependencyGraph;
+import org.apache.maven.model.Plugin;
+import org.apache.maven.model.building.DefaultModelProblem;
+import org.apache.maven.model.building.ModelProblem;
+import org.apache.maven.model.building.ModelProblemUtils;
+import org.apache.maven.model.building.ModelSource;
+import org.apache.maven.model.building.Result;
+import org.apache.maven.model.building.UrlModelSource;
+import org.apache.maven.project.DuplicateProjectException;
+import org.apache.maven.project.MavenProject;
+import org.apache.maven.project.ProjectBuilder;
+import org.apache.maven.project.ProjectBuildingException;
+import org.apache.maven.project.ProjectBuildingRequest;
+import org.apache.maven.project.ProjectBuildingResult;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
+import org.codehaus.plexus.logging.Logger;
+import org.codehaus.plexus.util.StringUtils;
+import org.codehaus.plexus.util.dag.CycleDetectedException;
+
+/**
+ * Builds the {@link ProjectDependencyGraph inter-dependencies graph} between projects in the reactor.
+ */
+@Component( role = GraphBuilder.class, hint = GraphBuilder.HINT )
+<span class="fc" id="L62">public class DefaultGraphBuilder</span>
+    implements GraphBuilder
+{
+
+    @Requirement
+    private Logger logger;
+
+    @Requirement
+    protected ProjectBuilder projectBuilder;
+
+    @Override
+    public Result&lt;ProjectDependencyGraph&gt; build( MavenSession session )
+    {
+        try
+        {
+<span class="nc" id="L77">            Result&lt;ProjectDependencyGraph&gt; result = sessionDependencyGraph( session );</span>
+
+<span class="nc bnc" id="L79" title="All 2 branches missed.">            if ( result == null )</span>
+            {
+<span class="nc" id="L81">                final List&lt;MavenProject&gt; projects = getProjectsForMavenReactor( session );</span>
+<span class="nc" id="L82">                validateProjects( projects );</span>
+<span class="nc" id="L83">                result = reactorDependencyGraph( session, projects );</span>
+            }
+
+<span class="nc" id="L86">            return result;</span>
+        }
+<span class="nc" id="L88">        catch ( final ProjectBuildingException | DuplicateProjectException | MavenExecutionException e )</span>
+        {
+<span class="nc" id="L90">            return Result.error( Collections.singletonList</span>
+                    ( new DefaultModelProblem ( null, null, null, null, 0, 0, e ) ) );
+        }
+<span class="nc" id="L93">        catch ( final CycleDetectedException e )</span>
+        {
+<span class="nc" id="L95">            String message = &quot;The projects in the reactor contain a cyclic reference: &quot; + e.getMessage();</span>
+<span class="nc" id="L96">            ProjectCycleException error = new ProjectCycleException( message, e );</span>
+<span class="nc" id="L97">            return Result.error( Collections.singletonList(</span>
+                    new DefaultModelProblem( null, null, null, null, 0, 0, error ) ) );
+        }
+    }
+
+    private Result&lt;ProjectDependencyGraph&gt; sessionDependencyGraph( final MavenSession session )
+        throws CycleDetectedException, DuplicateProjectException
+    {
+<span class="nc" id="L105">        Result&lt;ProjectDependencyGraph&gt; result = null;</span>
+
+<span class="nc bnc" id="L107" title="All 4 branches missed.">        if ( session.getProjectDependencyGraph() != null || session.getProjects() != null )</span>
+        {
+<span class="nc" id="L109">            final ProjectDependencyGraph graph =</span>
+                new DefaultProjectDependencyGraph( session.getAllProjects(), session.getProjects() );
+
+<span class="nc" id="L112">            result = Result.success( graph );</span>
+        }
+
+<span class="nc" id="L115">        return result;</span>
+    }
+
+    private Result&lt;ProjectDependencyGraph&gt; reactorDependencyGraph( MavenSession session, List&lt;MavenProject&gt; projects )
+        throws CycleDetectedException, DuplicateProjectException, MavenExecutionException
+    {
+<span class="nc" id="L121">        ProjectDependencyGraph projectDependencyGraph = new DefaultProjectDependencyGraph( projects );</span>
+<span class="nc" id="L122">        List&lt;MavenProject&gt; activeProjects = projectDependencyGraph.getSortedProjects();</span>
+<span class="nc" id="L123">        activeProjects = trimSelectedProjects( activeProjects, projectDependencyGraph, session.getRequest() );</span>
+<span class="nc" id="L124">        activeProjects = trimExcludedProjects( activeProjects, session.getRequest() );</span>
+<span class="nc" id="L125">        activeProjects = trimResumedProjects( activeProjects, session.getRequest() );</span>
+
+<span class="nc bnc" id="L127" title="All 2 branches missed.">        if ( activeProjects.size() != projectDependencyGraph.getSortedProjects().size() )</span>
+        {
+<span class="nc" id="L129">            projectDependencyGraph = new FilteredProjectDependencyGraph( projectDependencyGraph, activeProjects );</span>
+        }
+
+<span class="nc" id="L132">        return Result.success( projectDependencyGraph );</span>
+    }
+
+    private List&lt;MavenProject&gt; trimSelectedProjects( List&lt;MavenProject&gt; projects, ProjectDependencyGraph graph,
+                                                     MavenExecutionRequest request )
+        throws MavenExecutionException
+    {
+<span class="nc" id="L139">        List&lt;MavenProject&gt; result = projects;</span>
+
+<span class="nc bnc" id="L141" title="All 2 branches missed.">        if ( !request.getSelectedProjects().isEmpty() )</span>
+        {
+<span class="nc" id="L143">            File reactorDirectory = null;</span>
+<span class="nc bnc" id="L144" title="All 2 branches missed.">            if ( request.getBaseDirectory() != null )</span>
+            {
+<span class="nc" id="L146">                reactorDirectory = new File( request.getBaseDirectory() );</span>
+            }
+
+<span class="nc" id="L149">            Collection&lt;MavenProject&gt; selectedProjects = new LinkedHashSet&lt;&gt;( projects.size() );</span>
+
+<span class="nc bnc" id="L151" title="All 2 branches missed.">            for ( String selector : request.getSelectedProjects() )</span>
+            {
+<span class="nc" id="L153">                MavenProject selectedProject = null;</span>
+
+<span class="nc bnc" id="L155" title="All 2 branches missed.">                for ( MavenProject project : projects )</span>
+                {
+<span class="nc bnc" id="L157" title="All 2 branches missed.">                    if ( isMatchingProject( project, selector, reactorDirectory ) )</span>
+                    {
+<span class="nc" id="L159">                        selectedProject = project;</span>
+<span class="nc" id="L160">                        break;</span>
+                    }
+<span class="nc" id="L162">                }</span>
+
+<span class="nc bnc" id="L164" title="All 2 branches missed.">                if ( selectedProject != null )</span>
+                {
+<span class="nc" id="L166">                    selectedProjects.add( selectedProject );</span>
+                }
+                else
+                {
+<span class="nc" id="L170">                    throw new MavenExecutionException( &quot;Could not find the selected project in the reactor: &quot;</span>
+                        + selector, request.getPom() );
+                }
+<span class="nc" id="L173">            }</span>
+
+<span class="nc" id="L175">            boolean makeUpstream = false;</span>
+<span class="nc" id="L176">            boolean makeDownstream = false;</span>
+
+<span class="nc bnc" id="L178" title="All 2 branches missed.">            if ( MavenExecutionRequest.REACTOR_MAKE_UPSTREAM.equals( request.getMakeBehavior() ) )</span>
+            {
+<span class="nc" id="L180">                makeUpstream = true;</span>
+            }
+<span class="nc bnc" id="L182" title="All 2 branches missed.">            else if ( MavenExecutionRequest.REACTOR_MAKE_DOWNSTREAM.equals( request.getMakeBehavior() ) )</span>
+            {
+<span class="nc" id="L184">                makeDownstream = true;</span>
+            }
+<span class="nc bnc" id="L186" title="All 2 branches missed.">            else if ( MavenExecutionRequest.REACTOR_MAKE_BOTH.equals( request.getMakeBehavior() ) )</span>
+            {
+<span class="nc" id="L188">                makeUpstream = true;</span>
+<span class="nc" id="L189">                makeDownstream = true;</span>
+            }
+<span class="nc bnc" id="L191" title="All 2 branches missed.">            else if ( StringUtils.isNotEmpty( request.getMakeBehavior() ) )</span>
+            {
+<span class="nc" id="L193">                throw new MavenExecutionException( &quot;Invalid reactor make behavior: &quot; + request.getMakeBehavior(),</span>
+                                                   request.getPom() );
+            }
+
+<span class="nc bnc" id="L197" title="All 4 branches missed.">            if ( makeUpstream || makeDownstream )</span>
+            {
+<span class="nc bnc" id="L199" title="All 2 branches missed.">                for ( MavenProject selectedProject : new ArrayList&lt;&gt;( selectedProjects ) )</span>
+                {
+<span class="nc bnc" id="L201" title="All 2 branches missed.">                    if ( makeUpstream )</span>
+                    {
+<span class="nc" id="L203">                        selectedProjects.addAll( graph.getUpstreamProjects( selectedProject, true ) );</span>
+                    }
+<span class="nc bnc" id="L205" title="All 2 branches missed.">                    if ( makeDownstream )</span>
+                    {
+<span class="nc" id="L207">                        selectedProjects.addAll( graph.getDownstreamProjects( selectedProject, true ) );</span>
+                    }
+<span class="nc" id="L209">                }</span>
+            }
+
+<span class="nc" id="L212">            result = new ArrayList&lt;&gt;( selectedProjects.size() );</span>
+
+<span class="nc bnc" id="L214" title="All 2 branches missed.">            for ( MavenProject project : projects )</span>
+            {
+<span class="nc bnc" id="L216" title="All 2 branches missed.">                if ( selectedProjects.contains( project ) )</span>
+                {
+<span class="nc" id="L218">                    result.add( project );</span>
+                }
+<span class="nc" id="L220">            }</span>
+        }
+
+<span class="nc" id="L223">        return result;</span>
+    }
+
+    private List&lt;MavenProject&gt; trimExcludedProjects( List&lt;MavenProject&gt; projects, MavenExecutionRequest request )
+        throws MavenExecutionException
+    {
+<span class="nc" id="L229">        List&lt;MavenProject&gt; result = projects;</span>
+
+<span class="nc bnc" id="L231" title="All 2 branches missed.">        if ( !request.getExcludedProjects().isEmpty() )</span>
+        {
+<span class="nc" id="L233">            File reactorDirectory = null;</span>
+
+<span class="nc bnc" id="L235" title="All 2 branches missed.">            if ( request.getBaseDirectory() != null )</span>
+            {
+<span class="nc" id="L237">                reactorDirectory = new File( request.getBaseDirectory() );</span>
+            }
+
+<span class="nc" id="L240">            Collection&lt;MavenProject&gt; excludedProjects = new LinkedHashSet&lt;&gt;( projects.size() );</span>
+
+<span class="nc bnc" id="L242" title="All 2 branches missed.">            for ( String selector : request.getExcludedProjects() )</span>
+            {
+<span class="nc" id="L244">                MavenProject excludedProject = null;</span>
+
+<span class="nc bnc" id="L246" title="All 2 branches missed.">                for ( MavenProject project : projects )</span>
+                {
+<span class="nc bnc" id="L248" title="All 2 branches missed.">                    if ( isMatchingProject( project, selector, reactorDirectory ) )</span>
+                    {
+<span class="nc" id="L250">                        excludedProject = project;</span>
+<span class="nc" id="L251">                        break;</span>
+                    }
+<span class="nc" id="L253">                }</span>
+
+<span class="nc bnc" id="L255" title="All 2 branches missed.">                if ( excludedProject != null )</span>
+                {
+<span class="nc" id="L257">                    excludedProjects.add( excludedProject );</span>
+                }
+                else
+                {
+<span class="nc" id="L261">                    throw new MavenExecutionException( &quot;Could not find the selected project in the reactor: &quot;</span>
+                        + selector, request.getPom() );
+                }
+<span class="nc" id="L264">            }</span>
+
+<span class="nc" id="L266">            result = new ArrayList&lt;&gt;( projects.size() );</span>
+<span class="nc bnc" id="L267" title="All 2 branches missed.">            for ( MavenProject project : projects )</span>
+            {
+<span class="nc bnc" id="L269" title="All 2 branches missed.">                if ( !excludedProjects.contains( project ) )</span>
+                {
+<span class="nc" id="L271">                    result.add( project );</span>
+                }
+<span class="nc" id="L273">            }</span>
+        }
+
+<span class="nc" id="L276">        return result;</span>
+    }
+
+    private List&lt;MavenProject&gt; trimResumedProjects( List&lt;MavenProject&gt; projects, MavenExecutionRequest request )
+        throws MavenExecutionException
+    {
+<span class="nc" id="L282">        List&lt;MavenProject&gt; result = projects;</span>
+
+<span class="nc bnc" id="L284" title="All 2 branches missed.">        if ( StringUtils.isNotEmpty( request.getResumeFrom() ) )</span>
+        {
+<span class="nc" id="L286">            File reactorDirectory = null;</span>
+<span class="nc bnc" id="L287" title="All 2 branches missed.">            if ( request.getBaseDirectory() != null )</span>
+            {
+<span class="nc" id="L289">                reactorDirectory = new File( request.getBaseDirectory() );</span>
+            }
+
+<span class="nc" id="L292">            String selector = request.getResumeFrom();</span>
+
+<span class="nc" id="L294">            result = new ArrayList&lt;&gt;( projects.size() );</span>
+
+<span class="nc" id="L296">            boolean resumed = false;</span>
+
+<span class="nc bnc" id="L298" title="All 2 branches missed.">            for ( MavenProject project : projects )</span>
+            {
+<span class="nc bnc" id="L300" title="All 4 branches missed.">                if ( !resumed &amp;&amp; isMatchingProject( project, selector, reactorDirectory ) )</span>
+                {
+<span class="nc" id="L302">                    resumed = true;</span>
+                }
+
+<span class="nc bnc" id="L305" title="All 2 branches missed.">                if ( resumed )</span>
+                {
+<span class="nc" id="L307">                    result.add( project );</span>
+                }
+<span class="nc" id="L309">            }</span>
+
+<span class="nc bnc" id="L311" title="All 2 branches missed.">            if ( !resumed )</span>
+            {
+<span class="nc" id="L313">                throw new MavenExecutionException( &quot;Could not find project to resume reactor build from: &quot; + selector</span>
+                    + &quot; vs &quot; + projects, request.getPom() );
+            }
+        }
+
+<span class="nc" id="L318">        return result;</span>
+    }
+
+    private boolean isMatchingProject( MavenProject project, String selector, File reactorDirectory )
+    {
+        // [groupId]:artifactId
+<span class="nc bnc" id="L324" title="All 2 branches missed.">        if ( selector.indexOf( ':' ) &gt;= 0 )</span>
+        {
+<span class="nc" id="L326">            String id = ':' + project.getArtifactId();</span>
+
+<span class="nc bnc" id="L328" title="All 2 branches missed.">            if ( id.equals( selector ) )</span>
+            {
+<span class="nc" id="L330">                return true;</span>
+            }
+
+<span class="nc" id="L333">            id = project.getGroupId() + id;</span>
+
+<span class="nc bnc" id="L335" title="All 2 branches missed.">            if ( id.equals( selector ) )</span>
+            {
+<span class="nc" id="L337">                return true;</span>
+            }
+<span class="nc" id="L339">        }</span>
+
+        // relative path, e.g. &quot;sub&quot;, &quot;../sub&quot; or &quot;.&quot;
+<span class="nc bnc" id="L342" title="All 2 branches missed.">        else if ( reactorDirectory != null )</span>
+        {
+<span class="nc" id="L344">            File selectedProject = new File( new File( reactorDirectory, selector ).toURI().normalize() );</span>
+
+<span class="nc bnc" id="L346" title="All 2 branches missed.">            if ( selectedProject.isFile() )</span>
+            {
+<span class="nc" id="L348">                return selectedProject.equals( project.getFile() );</span>
+            }
+<span class="nc bnc" id="L350" title="All 2 branches missed.">            else if ( selectedProject.isDirectory() )</span>
+            {
+<span class="nc" id="L352">                return selectedProject.equals( project.getBasedir() );</span>
+            }
+        }
+
+<span class="nc" id="L356">        return false;</span>
+    }
+
+    // ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //
+    // Project collection
+    //
+    // ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    private List&lt;MavenProject&gt; getProjectsForMavenReactor( MavenSession session )
+        throws ProjectBuildingException
+    {
+<span class="nc" id="L368">        MavenExecutionRequest request = session.getRequest();</span>
+
+<span class="nc" id="L370">        request.getProjectBuildingRequest().setRepositorySession( session.getRepositorySession() );</span>
+
+<span class="nc" id="L372">        List&lt;MavenProject&gt; projects = new ArrayList&lt;&gt;();</span>
+
+        // We have no POM file.
+        //
+<span class="nc bnc" id="L376" title="All 2 branches missed.">        if ( request.getPom() == null )</span>
+        {
+<span class="nc" id="L378">            ModelSource modelSource = new UrlModelSource( DefaultMaven.class.getResource( &quot;project/standalone.xml&quot; ) );</span>
+<span class="nc" id="L379">            MavenProject project = projectBuilder.build( modelSource, request.getProjectBuildingRequest() )</span>
+                .getProject();
+<span class="nc" id="L381">            project.setExecutionRoot( true );</span>
+<span class="nc" id="L382">            projects.add( project );</span>
+<span class="nc" id="L383">            request.setProjectPresent( false );</span>
+<span class="nc" id="L384">            return projects;</span>
+        }
+
+<span class="nc" id="L387">        List&lt;File&gt; files = Arrays.asList( request.getPom().getAbsoluteFile() );</span>
+<span class="nc" id="L388">        collectProjects( projects, files, request );</span>
+<span class="nc" id="L389">        return projects;</span>
+    }
+
+    private void collectProjects( List&lt;MavenProject&gt; projects, List&lt;File&gt; files, MavenExecutionRequest request )
+        throws ProjectBuildingException
+    {
+<span class="nc" id="L395">        ProjectBuildingRequest projectBuildingRequest = request.getProjectBuildingRequest();</span>
+
+<span class="nc" id="L397">        List&lt;ProjectBuildingResult&gt; results = projectBuilder.build( files, request.isRecursive(),</span>
+                                                                    projectBuildingRequest );
+
+<span class="nc" id="L400">        boolean problems = false;</span>
+
+<span class="nc bnc" id="L402" title="All 2 branches missed.">        for ( ProjectBuildingResult result : results )</span>
+        {
+<span class="nc" id="L404">            projects.add( result.getProject() );</span>
+
+<span class="nc bnc" id="L406" title="All 4 branches missed.">            if ( !result.getProblems().isEmpty() &amp;&amp; logger.isWarnEnabled() )</span>
+            {
+<span class="nc" id="L408">                logger.warn( &quot;&quot; );</span>
+<span class="nc" id="L409">                logger.warn( &quot;Some problems were encountered while building the effective model for &quot;</span>
+                    + result.getProject().getId() );
+
+<span class="nc bnc" id="L412" title="All 2 branches missed.">                for ( ModelProblem problem : result.getProblems() )</span>
+                {
+<span class="nc" id="L414">                    String loc = ModelProblemUtils.formatLocation( problem, result.getProjectId() );</span>
+<span class="nc bnc" id="L415" title="All 2 branches missed.">                    logger.warn( problem.getMessage() + ( StringUtils.isNotEmpty( loc ) ? &quot; @ &quot; + loc : &quot;&quot; ) );</span>
+<span class="nc" id="L416">                }</span>
+
+<span class="nc" id="L418">                problems = true;</span>
+            }
+<span class="nc" id="L420">        }</span>
+
+<span class="nc bnc" id="L422" title="All 2 branches missed.">        if ( problems )</span>
+        {
+<span class="nc" id="L424">            logger.warn( &quot;&quot; );</span>
+<span class="nc" id="L425">            logger.warn( &quot;It is highly recommended to fix these problems&quot;</span>
+                + &quot; because they threaten the stability of your build.&quot; );
+<span class="nc" id="L427">            logger.warn( &quot;&quot; );</span>
+<span class="nc" id="L428">            logger.warn( &quot;For this reason, future Maven versions might no&quot;</span>
+                + &quot; longer support building such malformed projects.&quot; );
+<span class="nc" id="L430">            logger.warn( &quot;&quot; );</span>
+        }
+<span class="nc" id="L432">    }</span>
+
+    private void validateProjects( List&lt;MavenProject&gt; projects )
+    {
+<span class="nc" id="L436">        Map&lt;String, MavenProject&gt; projectsMap = new HashMap&lt;&gt;();</span>
+
+<span class="nc bnc" id="L438" title="All 2 branches missed.">        for ( MavenProject p : projects )</span>
+        {
+<span class="nc" id="L440">            String projectKey = ArtifactUtils.key( p.getGroupId(), p.getArtifactId(), p.getVersion() );</span>
+
+<span class="nc" id="L442">            projectsMap.put( projectKey, p );</span>
+<span class="nc" id="L443">        }</span>
+
+<span class="nc bnc" id="L445" title="All 2 branches missed.">        for ( MavenProject project : projects )</span>
+        {
+            // MNG-1911 / MNG-5572: Building plugins with extensions cannot be part of reactor
+<span class="nc bnc" id="L448" title="All 2 branches missed.">            for ( Plugin plugin : project.getBuildPlugins() )</span>
+            {
+<span class="nc bnc" id="L450" title="All 2 branches missed.">                if ( plugin.isExtensions() )</span>
+                {
+<span class="nc" id="L452">                    String pluginKey = ArtifactUtils.key( plugin.getGroupId(), plugin.getArtifactId(),</span>
+                                                          plugin.getVersion() );
+
+<span class="nc bnc" id="L455" title="All 2 branches missed.">                    if ( projectsMap.containsKey( pluginKey ) )</span>
+                    {
+<span class="nc" id="L457">                        logger.warn( project.getName() + &quot; uses &quot; + plugin.getKey()</span>
+                            + &quot; as extensions, which is not possible within the same reactor build. &quot;
+                            + &quot;This plugin was pulled from the local repository!&quot; );
+                    }
+                }
+<span class="nc" id="L462">            }</span>
+<span class="nc" id="L463">        }</span>
+<span class="nc" id="L464">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

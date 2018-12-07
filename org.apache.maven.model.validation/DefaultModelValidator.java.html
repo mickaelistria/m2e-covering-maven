@@ -1,0 +1,1179 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultModelValidator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.model.validation</a> &gt; <span class="el_source">DefaultModelValidator.java</span></div><h1>DefaultModelValidator.java</h1><pre class="source lang-java linenums">package org.apache.maven.model.validation;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+
+import org.apache.maven.model.Activation;
+import org.apache.maven.model.ActivationFile;
+import org.apache.maven.model.Build;
+import org.apache.maven.model.BuildBase;
+import org.apache.maven.model.Dependency;
+import org.apache.maven.model.DependencyManagement;
+import org.apache.maven.model.DistributionManagement;
+import org.apache.maven.model.Exclusion;
+import org.apache.maven.model.InputLocation;
+import org.apache.maven.model.InputLocationTracker;
+import org.apache.maven.model.Model;
+import org.apache.maven.model.Parent;
+import org.apache.maven.model.Plugin;
+import org.apache.maven.model.PluginExecution;
+import org.apache.maven.model.PluginManagement;
+import org.apache.maven.model.Profile;
+import org.apache.maven.model.ReportPlugin;
+import org.apache.maven.model.Reporting;
+import org.apache.maven.model.Repository;
+import org.apache.maven.model.Resource;
+import org.apache.maven.model.building.ModelBuildingRequest;
+import org.apache.maven.model.building.ModelProblem.Severity;
+import org.apache.maven.model.building.ModelProblem.Version;
+import org.apache.maven.model.building.ModelProblemCollector;
+import org.apache.maven.model.building.ModelProblemCollectorRequest;
+import org.apache.maven.model.interpolation.AbstractStringBasedModelInterpolator;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.util.StringUtils;
+
+/**
+ * @author &lt;a href=&quot;mailto:trygvis@inamo.no&quot;&gt;Trygve Laugst&amp;oslash;l&lt;/a&gt;
+ */
+@Component( role = ModelValidator.class )
+<span class="fc" id="L65">public class DefaultModelValidator</span>
+    implements ModelValidator
+{
+
+<span class="fc" id="L69">    private static final Pattern CI_FRIENDLY_EXPRESSION = Pattern.compile( &quot;\\$\\{(.+?)\\}&quot; );</span>
+
+<span class="fc" id="L71">    private static final List&lt;String&gt; CI_FRIENDLY_POSSIBLE_PROPERTY_NAMES =</span>
+        Arrays.asList( AbstractStringBasedModelInterpolator.REVISION_PROPERTY,
+                       AbstractStringBasedModelInterpolator.CHANGELIST_PROPERTY,
+                       AbstractStringBasedModelInterpolator.SHA1_PROPERTY );
+
+<span class="fc" id="L76">    private static final Pattern ID_REGEX = Pattern.compile( &quot;[A-Za-z0-9_\\-.]+&quot; );</span>
+
+<span class="fc" id="L78">    private static final Pattern ID_WITH_WILDCARDS_REGEX = Pattern.compile( &quot;[A-Za-z0-9_\\-.?*]+&quot; );</span>
+
+    private static final String ILLEGAL_FS_CHARS = &quot;\\/:\&quot;&lt;&gt;|?*&quot;;
+
+    private static final String ILLEGAL_VERSION_CHARS = ILLEGAL_FS_CHARS;
+
+    private static final String ILLEGAL_REPO_ID_CHARS = ILLEGAL_FS_CHARS;
+
+    @Override
+    public void validateRawModel( Model m, ModelBuildingRequest request, ModelProblemCollector problems )
+    {
+<span class="fc" id="L89">        Parent parent = m.getParent();</span>
+<span class="fc bfc" id="L90" title="All 2 branches covered.">        if ( parent != null )</span>
+        {
+<span class="fc" id="L92">            validateStringNotEmpty( &quot;parent.groupId&quot;, problems, Severity.FATAL, Version.BASE, parent.getGroupId(),</span>
+                                    parent );
+
+<span class="fc" id="L95">            validateStringNotEmpty( &quot;parent.artifactId&quot;, problems, Severity.FATAL, Version.BASE, parent.getArtifactId(),</span>
+                                    parent );
+
+<span class="fc" id="L98">            validateStringNotEmpty( &quot;parent.version&quot;, problems, Severity.FATAL, Version.BASE, parent.getVersion(),</span>
+                                    parent );
+
+<span class="fc bfc" id="L101" title="All 4 branches covered.">            if ( equals( parent.getGroupId(), m.getGroupId() ) &amp;&amp; equals( parent.getArtifactId(), m.getArtifactId() ) )</span>
+            {
+<span class="fc" id="L103">                addViolation( problems, Severity.FATAL, Version.BASE, &quot;parent.artifactId&quot;, null,</span>
+                              &quot;must be changed&quot;
+                                  + &quot;, the parent element cannot have the same groupId:artifactId as the project.&quot;,
+                              parent );
+            }
+            
+<span class="pc bpc" id="L109" title="2 of 4 branches missed.">            if ( equals( &quot;LATEST&quot;, parent.getVersion() ) || equals( &quot;RELEASE&quot;, parent.getVersion() ) )</span>
+            {
+<span class="nc" id="L111">                addViolation( problems, Severity.WARNING, Version.BASE, &quot;parent.version&quot;, null,</span>
+                              &quot;is either LATEST or RELEASE (both of them are being deprecated)&quot;, parent );
+            }
+            
+        }
+
+<span class="fc bfc" id="L117" title="All 2 branches covered.">        if ( request.getValidationLevel() &gt;= ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_2_0 )</span>
+        {
+<span class="fc" id="L119">            Severity errOn30 = getSeverity( request, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 );</span>
+
+            // [MNG-6074] Maven should produce an error if no model version has been set in a POM file used to build an
+            // effective model.
+            //
+            // As of 3.4, the model version is mandatory even in raw models. The XML element still is optional in the
+            // XML schema and this will not change anytime soon. We do not want to build effective models based on
+            // models without a version starting with 3.4.
+<span class="fc" id="L127">            validateStringNotEmpty( &quot;modelVersion&quot;, problems, Severity.ERROR, Version.V20, m.getModelVersion(), m );</span>
+
+<span class="fc" id="L129">            validateEnum( &quot;modelVersion&quot;, problems, Severity.ERROR, Version.V20, m.getModelVersion(), null, m,</span>
+                          &quot;4.0.0&quot; );
+
+<span class="fc" id="L132">            validateStringNoExpression( &quot;groupId&quot;, problems, Severity.WARNING, Version.V20, m.getGroupId(), m );</span>
+<span class="pc bpc" id="L133" title="1 of 2 branches missed.">            if ( parent == null )</span>
+            {
+<span class="fc" id="L135">                validateStringNotEmpty( &quot;groupId&quot;, problems, Severity.FATAL, Version.V20, m.getGroupId(), m );</span>
+            }
+
+<span class="fc" id="L138">            validateStringNoExpression( &quot;artifactId&quot;, problems, Severity.WARNING, Version.V20, m.getArtifactId(), m );</span>
+<span class="fc" id="L139">            validateStringNotEmpty( &quot;artifactId&quot;, problems, Severity.FATAL, Version.V20, m.getArtifactId(), m );</span>
+
+<span class="fc" id="L141">            validateVersionNoExpression( &quot;version&quot;, problems, Severity.WARNING, Version.V20, m.getVersion(), m );</span>
+<span class="pc bpc" id="L142" title="1 of 2 branches missed.">            if ( parent == null )</span>
+            {
+<span class="fc" id="L144">                validateStringNotEmpty( &quot;version&quot;, problems, Severity.FATAL, Version.V20, m.getVersion(), m );</span>
+            }
+
+<span class="fc" id="L147">            validate20RawDependencies( problems, m.getDependencies(), &quot;dependencies.dependency&quot;, request );</span>
+
+<span class="fc" id="L149">            validate20RawDependenciesSelfReferencing( problems, m, m.getDependencies(), &quot;dependencies.dependency&quot;,</span>
+                                                      request );
+
+<span class="pc bpc" id="L152" title="1 of 2 branches missed.">            if ( m.getDependencyManagement() != null )</span>
+            {
+<span class="nc" id="L154">                validate20RawDependencies( problems, m.getDependencyManagement().getDependencies(),</span>
+                                           &quot;dependencyManagement.dependencies.dependency&quot;, request );
+            }
+
+<span class="fc" id="L158">            validateRawRepositories( problems, m.getRepositories(), &quot;repositories.repository&quot;, request );</span>
+
+<span class="fc" id="L160">            validateRawRepositories( problems, m.getPluginRepositories(), &quot;pluginRepositories.pluginRepository&quot;,</span>
+                                     request );
+
+<span class="fc" id="L163">            Build build = m.getBuild();</span>
+<span class="pc bpc" id="L164" title="1 of 2 branches missed.">            if ( build != null )</span>
+            {
+<span class="nc" id="L166">                validate20RawPlugins( problems, build.getPlugins(), &quot;build.plugins.plugin&quot;, request );</span>
+
+<span class="nc" id="L168">                PluginManagement mgmt = build.getPluginManagement();</span>
+<span class="nc bnc" id="L169" title="All 2 branches missed.">                if ( mgmt != null )</span>
+                {
+<span class="nc" id="L171">                    validate20RawPlugins( problems, mgmt.getPlugins(), &quot;build.pluginManagement.plugins.plugin&quot;,</span>
+                                          request );
+                }
+            }
+
+<span class="fc" id="L176">            Set&lt;String&gt; profileIds = new HashSet&lt;&gt;();</span>
+
+<span class="pc bpc" id="L178" title="1 of 2 branches missed.">            for ( Profile profile : m.getProfiles() )</span>
+            {
+<span class="nc" id="L180">                String prefix = &quot;profiles.profile[&quot; + profile.getId() + &quot;]&quot;;</span>
+
+<span class="nc bnc" id="L182" title="All 2 branches missed.">                if ( !profileIds.add( profile.getId() ) )</span>
+                {
+<span class="nc" id="L184">                    addViolation( problems, errOn30, Version.V20, &quot;profiles.profile.id&quot;, null,</span>
+                                  &quot;must be unique but found duplicate profile with id &quot; + profile.getId(), profile );
+                }
+
+<span class="nc" id="L188">                validate30RawProfileActivation( problems, profile.getActivation(), profile.getId(),</span>
+                                                prefix + &quot;.activation&quot;, request );
+
+<span class="nc" id="L191">                validate20RawDependencies( problems, profile.getDependencies(), prefix + &quot;.dependencies.dependency&quot;,</span>
+                                           request );
+
+<span class="nc bnc" id="L194" title="All 2 branches missed.">                if ( profile.getDependencyManagement() != null )</span>
+                {
+<span class="nc" id="L196">                    validate20RawDependencies( problems, profile.getDependencyManagement().getDependencies(),</span>
+                                               prefix + &quot;.dependencyManagement.dependencies.dependency&quot;, request );
+                }
+
+<span class="nc" id="L200">                validateRawRepositories( problems, profile.getRepositories(), prefix + &quot;.repositories.repository&quot;,</span>
+                                         request );
+
+<span class="nc" id="L203">                validateRawRepositories( problems, profile.getPluginRepositories(),</span>
+                                         prefix + &quot;.pluginRepositories.pluginRepository&quot;, request );
+
+<span class="nc" id="L206">                BuildBase buildBase = profile.getBuild();</span>
+<span class="nc bnc" id="L207" title="All 2 branches missed.">                if ( buildBase != null )</span>
+                {
+<span class="nc" id="L209">                    validate20RawPlugins( problems, buildBase.getPlugins(), prefix + &quot;.plugins.plugin&quot;, request );</span>
+
+<span class="nc" id="L211">                    PluginManagement mgmt = buildBase.getPluginManagement();</span>
+<span class="nc bnc" id="L212" title="All 2 branches missed.">                    if ( mgmt != null )</span>
+                    {
+<span class="nc" id="L214">                        validate20RawPlugins( problems, mgmt.getPlugins(), prefix + &quot;.pluginManagement.plugins.plugin&quot;,</span>
+                                              request );
+                    }
+                }
+<span class="nc" id="L218">            }</span>
+        }
+<span class="fc" id="L220">    }</span>
+
+    private void validate30RawProfileActivation( ModelProblemCollector problems, Activation activation,
+                                                 String sourceHint, String prefix, ModelBuildingRequest request )
+    {
+<span class="nc bnc" id="L225" title="All 2 branches missed.">        if ( activation == null )</span>
+        {
+<span class="nc" id="L227">            return;</span>
+        }
+
+<span class="nc" id="L230">        ActivationFile file = activation.getFile();</span>
+
+<span class="nc bnc" id="L232" title="All 2 branches missed.">        if ( file != null )</span>
+        {
+            String path;
+            boolean missing;
+
+<span class="nc bnc" id="L237" title="All 2 branches missed.">            if ( StringUtils.isNotEmpty( file.getExists() ) )</span>
+            {
+<span class="nc" id="L239">                path = file.getExists();</span>
+<span class="nc" id="L240">                missing = false;</span>
+            }
+<span class="nc bnc" id="L242" title="All 2 branches missed.">            else if ( StringUtils.isNotEmpty( file.getMissing() ) )</span>
+            {
+<span class="nc" id="L244">                path = file.getMissing();</span>
+<span class="nc" id="L245">                missing = true;</span>
+            }
+            else
+            {
+<span class="nc" id="L249">                return;</span>
+            }
+
+<span class="nc bnc" id="L252" title="All 2 branches missed.">            if ( path.contains( &quot;${project.basedir}&quot; ) )</span>
+            {
+<span class="nc bnc" id="L254" title="All 4 branches missed.">                addViolation( problems, Severity.WARNING, Version.V30,</span>
+                              prefix + ( missing ? &quot;.file.missing&quot; : &quot;.file.exists&quot; ), null,
+                              &quot;Failed to interpolate file location &quot; + path + &quot; for profile &quot; + sourceHint
+                                  + &quot;: ${project.basedir} expression not supported during profile activation, &quot;
+                                  + &quot;use ${basedir} instead&quot;,
+                              file.getLocation( missing ? &quot;missing&quot; : &quot;exists&quot; ) );
+            }
+<span class="nc bnc" id="L261" title="All 2 branches missed.">            else if ( hasProjectExpression( path ) )</span>
+            {
+<span class="nc bnc" id="L263" title="All 4 branches missed.">                addViolation( problems, Severity.WARNING, Version.V30,</span>
+                              prefix + ( missing ? &quot;.file.missing&quot; : &quot;.file.exists&quot; ), null,
+                              &quot;Failed to interpolate file location &quot; + path + &quot; for profile &quot; + sourceHint
+                                  + &quot;: ${project.*} expressions are not supported during profile activation&quot;,
+                              file.getLocation( missing ? &quot;missing&quot; : &quot;exists&quot; ) );
+            }
+        }
+<span class="nc" id="L270">    }</span>
+
+    private void validate20RawPlugins( ModelProblemCollector problems, List&lt;Plugin&gt; plugins, String prefix,
+                                       ModelBuildingRequest request )
+    {
+<span class="nc" id="L275">        Severity errOn31 = getSeverity( request, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_1 );</span>
+
+<span class="nc" id="L277">        Map&lt;String, Plugin&gt; index = new HashMap&lt;&gt;();</span>
+
+<span class="nc bnc" id="L279" title="All 2 branches missed.">        for ( Plugin plugin : plugins )</span>
+        {
+<span class="nc bnc" id="L281" title="All 6 branches missed.">            if ( plugin.getGroupId() == null</span>
+                || ( plugin.getGroupId() != null &amp;&amp; plugin.getGroupId().trim().isEmpty() ) )
+            {
+<span class="nc" id="L284">                addViolation( problems, Severity.FATAL, Version.V20, prefix + &quot;.(groupId:artifactId)&quot;, null,</span>
+                              &quot;groupId of a plugin must be defined. &quot;, plugin );
+            }
+
+<span class="nc bnc" id="L288" title="All 6 branches missed.">            if ( plugin.getArtifactId() == null</span>
+                || ( plugin.getArtifactId() != null &amp;&amp; plugin.getArtifactId().trim().isEmpty() ) )
+            {
+<span class="nc" id="L291">                addViolation( problems, Severity.FATAL, Version.V20, prefix + &quot;.(groupId:artifactId)&quot;, null,</span>
+                              &quot;artifactId of a plugin must be defined. &quot;, plugin );
+            }
+
+            // This will catch cases like &lt;version&gt;&lt;/version&gt; or &lt;version/&gt;
+<span class="nc bnc" id="L296" title="All 4 branches missed.">            if ( plugin.getVersion() != null &amp;&amp; plugin.getVersion().trim().isEmpty() )</span>
+            {
+<span class="nc" id="L298">                addViolation( problems, Severity.FATAL, Version.V20, prefix + &quot;.(groupId:artifactId)&quot;, null,</span>
+                              &quot;version of a plugin must be defined. &quot;, plugin );
+            }
+
+<span class="nc" id="L302">            String key = plugin.getKey();</span>
+
+<span class="nc" id="L304">            Plugin existing = index.get( key );</span>
+
+<span class="nc bnc" id="L306" title="All 2 branches missed.">            if ( existing != null )</span>
+            {
+<span class="nc" id="L308">                addViolation( problems, errOn31, Version.V20, prefix + &quot;.(groupId:artifactId)&quot;, null,</span>
+                              &quot;must be unique but found duplicate declaration of plugin &quot; + key, plugin );
+            }
+            else
+            {
+<span class="nc" id="L313">                index.put( key, plugin );</span>
+            }
+
+<span class="nc" id="L316">            Set&lt;String&gt; executionIds = new HashSet&lt;&gt;();</span>
+
+<span class="nc bnc" id="L318" title="All 2 branches missed.">            for ( PluginExecution exec : plugin.getExecutions() )</span>
+            {
+<span class="nc bnc" id="L320" title="All 2 branches missed.">                if ( !executionIds.add( exec.getId() ) )</span>
+                {
+<span class="nc" id="L322">                    addViolation( problems, Severity.ERROR, Version.V20,</span>
+                                  prefix + &quot;[&quot; + plugin.getKey() + &quot;].executions.execution.id&quot;, null,
+                                  &quot;must be unique but found duplicate execution with id &quot; + exec.getId(), exec );
+                }
+<span class="nc" id="L326">            }</span>
+<span class="nc" id="L327">        }</span>
+<span class="nc" id="L328">    }</span>
+
+    @Override
+    public void validateEffectiveModel( Model m, ModelBuildingRequest request, ModelProblemCollector problems )
+    {
+<span class="fc" id="L333">        validateStringNotEmpty( &quot;modelVersion&quot;, problems, Severity.ERROR, Version.BASE, m.getModelVersion(), m );</span>
+
+<span class="fc" id="L335">        validateId( &quot;groupId&quot;, problems, m.getGroupId(), m );</span>
+
+<span class="fc" id="L337">        validateId( &quot;artifactId&quot;, problems, m.getArtifactId(), m );</span>
+
+<span class="fc" id="L339">        validateStringNotEmpty( &quot;packaging&quot;, problems, Severity.ERROR, Version.BASE, m.getPackaging(), m );</span>
+
+<span class="fc bfc" id="L341" title="All 2 branches covered.">        if ( !m.getModules().isEmpty() )</span>
+        {
+<span class="pc bpc" id="L343" title="1 of 2 branches missed.">            if ( !&quot;pom&quot;.equals( m.getPackaging() ) )</span>
+            {
+<span class="nc" id="L345">                addViolation( problems, Severity.ERROR, Version.BASE, &quot;packaging&quot;, null, &quot;with value '&quot;</span>
+                    + m.getPackaging() + &quot;' is invalid. Aggregator projects &quot; + &quot;require 'pom' as packaging.&quot;, m );
+            }
+
+<span class="fc bfc" id="L349" title="All 2 branches covered.">            for ( int i = 0, n = m.getModules().size(); i &lt; n; i++ )</span>
+            {
+<span class="fc" id="L351">                String module = m.getModules().get( i );</span>
+<span class="pc bpc" id="L352" title="1 of 2 branches missed.">                if ( StringUtils.isBlank( module ) )</span>
+                {
+<span class="nc" id="L354">                    addViolation( problems, Severity.ERROR, Version.BASE, &quot;modules.module[&quot; + i + &quot;]&quot;, null,</span>
+                                  &quot;has been specified without a path to the project directory.&quot;,
+                                  m.getLocation( &quot;modules&quot; ) );
+                }
+            }
+        }
+
+<span class="fc" id="L361">        validateStringNotEmpty( &quot;version&quot;, problems, Severity.ERROR, Version.BASE, m.getVersion(), m );</span>
+
+<span class="fc" id="L363">        Severity errOn30 = getSeverity( request, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 );</span>
+
+<span class="fc" id="L365">        validateEffectiveDependencies( problems, m, m.getDependencies(), false, request );</span>
+
+<span class="fc" id="L367">        DependencyManagement mgmt = m.getDependencyManagement();</span>
+<span class="fc bfc" id="L368" title="All 2 branches covered.">        if ( mgmt != null )</span>
+        {
+<span class="fc" id="L370">            validateEffectiveDependencies( problems, m, mgmt.getDependencies(), true, request );</span>
+        }
+
+<span class="fc bfc" id="L373" title="All 2 branches covered.">        if ( request.getValidationLevel() &gt;= ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_2_0 )</span>
+        {
+<span class="fc" id="L375">            Set&lt;String&gt; modules = new HashSet&lt;&gt;();</span>
+<span class="pc bpc" id="L376" title="1 of 2 branches missed.">            for ( int i = 0, n = m.getModules().size(); i &lt; n; i++ )</span>
+            {
+<span class="nc" id="L378">                String module = m.getModules().get( i );</span>
+<span class="nc bnc" id="L379" title="All 2 branches missed.">                if ( !modules.add( module ) )</span>
+                {
+<span class="nc" id="L381">                    addViolation( problems, Severity.ERROR, Version.V20, &quot;modules.module[&quot; + i + &quot;]&quot;, null,</span>
+                                  &quot;specifies duplicate child module &quot; + module, m.getLocation( &quot;modules&quot; ) );
+                }
+            }
+
+<span class="fc" id="L386">            Severity errOn31 = getSeverity( request, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_1 );</span>
+
+<span class="fc" id="L388">            validateBannedCharacters( &quot;version&quot;, problems, errOn31, Version.V20, m.getVersion(), null, m,</span>
+                                      ILLEGAL_VERSION_CHARS );
+<span class="fc" id="L390">            validate20ProperSnapshotVersion( &quot;version&quot;, problems, errOn31, Version.V20, m.getVersion(), null, m );</span>
+
+<span class="fc" id="L392">            Build build = m.getBuild();</span>
+<span class="pc bpc" id="L393" title="1 of 2 branches missed.">            if ( build != null )</span>
+            {
+<span class="fc bfc" id="L395" title="All 2 branches covered.">                for ( Plugin p : build.getPlugins() )</span>
+                {
+<span class="fc" id="L397">                    validateStringNotEmpty( &quot;build.plugins.plugin.artifactId&quot;, problems, Severity.ERROR, Version.V20,</span>
+                                            p.getArtifactId(), p );
+
+<span class="fc" id="L400">                    validateStringNotEmpty( &quot;build.plugins.plugin.groupId&quot;, problems, Severity.ERROR, Version.V20,</span>
+                                            p.getGroupId(), p );
+
+<span class="fc" id="L403">                    validate20PluginVersion( &quot;build.plugins.plugin.version&quot;, problems, p.getVersion(), p.getKey(), p,</span>
+                                             request );
+
+<span class="fc" id="L406">                    validateBoolean( &quot;build.plugins.plugin.inherited&quot;, problems, errOn30, Version.V20, p.getInherited(),</span>
+                                     p.getKey(), p );
+
+<span class="fc" id="L409">                    validateBoolean( &quot;build.plugins.plugin.extensions&quot;, problems, errOn30, Version.V20,</span>
+                                     p.getExtensions(), p.getKey(), p );
+
+<span class="fc" id="L412">                    validate20EffectivePluginDependencies( problems, p, request );</span>
+<span class="fc" id="L413">                }</span>
+
+<span class="fc" id="L415">                validate20RawResources( problems, build.getResources(), &quot;build.resources.resource&quot;, request );</span>
+
+<span class="fc" id="L417">                validate20RawResources( problems, build.getTestResources(), &quot;build.testResources.testResource&quot;,</span>
+                                        request );
+            }
+
+<span class="fc" id="L421">            Reporting reporting = m.getReporting();</span>
+<span class="pc bpc" id="L422" title="1 of 2 branches missed.">            if ( reporting != null )</span>
+            {
+<span class="pc bpc" id="L424" title="1 of 2 branches missed.">                for ( ReportPlugin p : reporting.getPlugins() )</span>
+                {
+<span class="nc" id="L426">                    validateStringNotEmpty( &quot;reporting.plugins.plugin.artifactId&quot;, problems, Severity.ERROR,</span>
+                                            Version.V20, p.getArtifactId(), p );
+
+<span class="nc" id="L429">                    validateStringNotEmpty( &quot;reporting.plugins.plugin.groupId&quot;, problems, Severity.ERROR, Version.V20,</span>
+                                            p.getGroupId(), p );
+<span class="nc" id="L431">                }</span>
+            }
+
+<span class="fc bfc" id="L434" title="All 2 branches covered.">            for ( Repository repository : m.getRepositories() )</span>
+            {
+<span class="fc" id="L436">                validate20EffectiveRepository( problems, repository, &quot;repositories.repository&quot;, request );</span>
+<span class="fc" id="L437">            }</span>
+
+<span class="fc bfc" id="L439" title="All 2 branches covered.">            for ( Repository repository : m.getPluginRepositories() )</span>
+            {
+<span class="fc" id="L441">                validate20EffectiveRepository( problems, repository, &quot;pluginRepositories.pluginRepository&quot;, request );</span>
+<span class="fc" id="L442">            }</span>
+
+<span class="fc" id="L444">            DistributionManagement distMgmt = m.getDistributionManagement();</span>
+<span class="pc bpc" id="L445" title="1 of 2 branches missed.">            if ( distMgmt != null )</span>
+            {
+<span class="nc bnc" id="L447" title="All 2 branches missed.">                if ( distMgmt.getStatus() != null )</span>
+                {
+<span class="nc" id="L449">                    addViolation( problems, Severity.ERROR, Version.V20, &quot;distributionManagement.status&quot;, null,</span>
+                                  &quot;must not be specified.&quot;, distMgmt );
+                }
+
+<span class="nc" id="L453">                validate20EffectiveRepository( problems, distMgmt.getRepository(), &quot;distributionManagement.repository&quot;,</span>
+                                               request );
+<span class="nc" id="L455">                validate20EffectiveRepository( problems, distMgmt.getSnapshotRepository(),</span>
+                                               &quot;distributionManagement.snapshotRepository&quot;, request );
+            }
+        }
+<span class="fc" id="L459">    }</span>
+
+    private void validate20RawDependencies( ModelProblemCollector problems, List&lt;Dependency&gt; dependencies,
+                                            String prefix, ModelBuildingRequest request )
+    {
+<span class="fc" id="L464">        Severity errOn30 = getSeverity( request, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 );</span>
+<span class="fc" id="L465">        Severity errOn31 = getSeverity( request, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_1 );</span>
+
+<span class="fc" id="L467">        Map&lt;String, Dependency&gt; index = new HashMap&lt;&gt;();</span>
+
+<span class="pc bpc" id="L469" title="1 of 2 branches missed.">        for ( Dependency dependency : dependencies )</span>
+        {
+<span class="nc" id="L471">            String key = dependency.getManagementKey();</span>
+
+<span class="nc bnc" id="L473" title="All 2 branches missed.">            if ( &quot;import&quot;.equals( dependency.getScope() ) )</span>
+            {
+<span class="nc bnc" id="L475" title="All 2 branches missed.">                if ( !&quot;pom&quot;.equals( dependency.getType() ) )</span>
+                {
+<span class="nc" id="L477">                    addViolation( problems, Severity.WARNING, Version.V20, prefix + &quot;.type&quot;, key,</span>
+                                  &quot;must be 'pom' to import the managed dependencies.&quot;, dependency );
+                }
+<span class="nc bnc" id="L480" title="All 2 branches missed.">                else if ( StringUtils.isNotEmpty( dependency.getClassifier() ) )</span>
+                {
+<span class="nc" id="L482">                    addViolation( problems, errOn30, Version.V20, prefix + &quot;.classifier&quot;, key,</span>
+                                  &quot;must be empty, imported POM cannot have a classifier.&quot;, dependency );
+                }
+            }
+<span class="nc bnc" id="L486" title="All 2 branches missed.">            else if ( &quot;system&quot;.equals( dependency.getScope() ) )</span>
+            {
+
+<span class="nc bnc" id="L489" title="All 2 branches missed.">                if ( request.getValidationLevel() &gt;= ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_1 )</span>
+                {
+<span class="nc" id="L491">                    addViolation( problems, Severity.WARNING, Version.V31, prefix + &quot;.scope&quot;, key,</span>
+                                  &quot;declares usage of deprecated 'system' scope &quot;, dependency );
+                }
+
+<span class="nc" id="L495">                String sysPath = dependency.getSystemPath();</span>
+<span class="nc bnc" id="L496" title="All 2 branches missed.">                if ( StringUtils.isNotEmpty( sysPath ) )</span>
+                {
+<span class="nc bnc" id="L498" title="All 2 branches missed.">                    if ( !hasExpression( sysPath ) )</span>
+                    {
+<span class="nc" id="L500">                        addViolation( problems, Severity.WARNING, Version.V20, prefix + &quot;.systemPath&quot;, key,</span>
+                                      &quot;should use a variable instead of a hard-coded path &quot; + sysPath, dependency );
+                    }
+<span class="nc bnc" id="L503" title="All 4 branches missed.">                    else if ( sysPath.contains( &quot;${basedir}&quot; ) || sysPath.contains( &quot;${project.basedir}&quot; ) )</span>
+                    {
+<span class="nc" id="L505">                        addViolation( problems, Severity.WARNING, Version.V20, prefix + &quot;.systemPath&quot;, key,</span>
+                                      &quot;should not point at files within the project directory, &quot; + sysPath
+                                          + &quot; will be unresolvable by dependent projects&quot;,
+                                      dependency );
+                    }
+                }
+            }
+
+<span class="nc bnc" id="L513" title="All 4 branches missed.">            if ( equals( &quot;LATEST&quot;, dependency.getVersion() ) || equals( &quot;RELEASE&quot;, dependency.getVersion() ) )</span>
+            {
+<span class="nc" id="L515">                addViolation( problems, Severity.WARNING, Version.BASE, prefix + &quot;.version&quot;, key,</span>
+                              &quot;is either LATEST or RELEASE (both of them are being deprecated)&quot;, dependency );
+            }
+
+<span class="nc" id="L519">            Dependency existing = index.get( key );</span>
+
+<span class="nc bnc" id="L521" title="All 2 branches missed.">            if ( existing != null )</span>
+            {
+                String msg;
+<span class="nc bnc" id="L524" title="All 2 branches missed.">                if ( equals( existing.getVersion(), dependency.getVersion() ) )</span>
+                {
+<span class="nc" id="L526">                    msg = &quot;duplicate declaration of version &quot;</span>
+                        + StringUtils.defaultString( dependency.getVersion(), &quot;(?)&quot; );
+                }
+                else
+                {
+<span class="nc" id="L531">                    msg = &quot;version &quot; + StringUtils.defaultString( existing.getVersion(), &quot;(?)&quot; ) + &quot; vs &quot;</span>
+                        + StringUtils.defaultString( dependency.getVersion(), &quot;(?)&quot; );
+                }
+
+<span class="nc" id="L535">                addViolation( problems, errOn31, Version.V20, prefix + &quot;.(groupId:artifactId:type:classifier)&quot;, null,</span>
+                              &quot;must be unique: &quot; + key + &quot; -&gt; &quot; + msg, dependency );
+<span class="nc" id="L537">            }</span>
+            else
+            {
+<span class="nc" id="L540">                index.put( key, dependency );</span>
+            }
+<span class="nc" id="L542">        }</span>
+<span class="fc" id="L543">    }</span>
+
+    private void validate20RawDependenciesSelfReferencing( ModelProblemCollector problems, Model m,
+                                                           List&lt;Dependency&gt; dependencies, String prefix,
+                                                           ModelBuildingRequest request )
+    {
+        // We only check for groupId/artifactId cause if there is another
+        // module with the same groupId/artifactId this will fail the build
+        // earlier like &quot;Project '...' is duplicated in the reactor.
+        // So it is sufficient to check only groupId/artifactId and not the
+        // packaging type.
+<span class="pc bpc" id="L554" title="1 of 2 branches missed.">        for ( Dependency dependency : dependencies )</span>
+        {
+<span class="nc" id="L556">            String key = dependency.getGroupId() + &quot;:&quot; + dependency.getArtifactId() + &quot;:&quot; + dependency.getVersion();</span>
+<span class="nc" id="L557">            String mKey = m.getGroupId() + &quot;:&quot; + m.getArtifactId() + &quot;:&quot; + m.getVersion();</span>
+<span class="nc bnc" id="L558" title="All 2 branches missed.">            if ( key.equals( mKey ) )</span>
+            {
+                // This means a module which is build has a dependency which has the same
+                // groupId, artifactId and version coordinates. This is in consequence
+                // a self reference or in other words a circular reference which can not
+                // being resolved.
+<span class="nc" id="L564">                addViolation( problems, Severity.FATAL, Version.V31, prefix + &quot; &quot; + key, key, &quot;is referencing itself.&quot;,</span>
+                              dependency );
+
+            }
+<span class="nc" id="L568">        }</span>
+<span class="fc" id="L569">    }</span>
+
+    private void validateEffectiveDependencies( ModelProblemCollector problems, Model m, List&lt;Dependency&gt; dependencies,
+                                                boolean management, ModelBuildingRequest request )
+    {
+<span class="fc" id="L574">        Severity errOn30 = getSeverity( request, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 );</span>
+
+<span class="fc bfc" id="L576" title="All 2 branches covered.">        String prefix = management ? &quot;dependencyManagement.dependencies.dependency.&quot; : &quot;dependencies.dependency.&quot;;</span>
+
+<span class="fc bfc" id="L578" title="All 2 branches covered.">        for ( Dependency d : dependencies )</span>
+        {
+<span class="fc" id="L580">            validateEffectiveDependency( problems, d, management, prefix, request );</span>
+
+<span class="pc bpc" id="L582" title="1 of 2 branches missed.">            if ( request.getValidationLevel() &gt;= ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_2_0 )</span>
+            {
+<span class="nc" id="L584">                validateBoolean( prefix + &quot;optional&quot;, problems, errOn30, Version.V20, d.getOptional(),</span>
+                                 d.getManagementKey(), d );
+
+<span class="nc bnc" id="L587" title="All 2 branches missed.">                if ( !management )</span>
+                {
+<span class="nc" id="L589">                    validateVersion( prefix + &quot;version&quot;, problems, errOn30, Version.V20, d.getVersion(),</span>
+                                     d.getManagementKey(), d );
+
+                    /*
+                     * TODO Extensions like Flex Mojos use custom scopes like &quot;merged&quot;, &quot;internal&quot;, &quot;external&quot;, etc. In
+                     * order to don't break backward-compat with those, only warn but don't error out.
+                     */
+<span class="nc" id="L596">                    validateEnum( prefix + &quot;scope&quot;, problems, Severity.WARNING, Version.V20, d.getScope(),</span>
+                                  d.getManagementKey(), d, &quot;provided&quot;, &quot;compile&quot;, &quot;runtime&quot;, &quot;test&quot;, &quot;system&quot; );
+
+<span class="nc" id="L599">                    validateEffectiveModelAgainstDependency( prefix, problems, m, d, request );</span>
+                }
+            }
+<span class="fc" id="L602">        }</span>
+<span class="fc" id="L603">    }</span>
+
+    private void validateEffectiveModelAgainstDependency( String prefix, ModelProblemCollector problems, Model m,
+                                                          Dependency d, ModelBuildingRequest request )
+    {
+<span class="nc" id="L608">        String key = d.getGroupId() + &quot;:&quot; + d.getArtifactId() + &quot;:&quot; + d.getVersion();</span>
+<span class="nc" id="L609">        String mKey = m.getGroupId() + &quot;:&quot; + m.getArtifactId() + &quot;:&quot; + m.getVersion();</span>
+<span class="nc bnc" id="L610" title="All 2 branches missed.">        if ( key.equals( mKey ) )</span>
+        {
+            // This means a module which is build has a dependency which has the same
+            // groupId, artifactId and version coordinates. This is in consequence
+            // a self reference or in other words a circular reference which can not
+            // being resolved.
+<span class="nc" id="L616">            addViolation( problems, Severity.FATAL, Version.V31, prefix + &quot; &quot; + key, key, &quot;is referencing itself.&quot;, d );</span>
+
+        }
+
+<span class="nc" id="L620">    }</span>
+
+    private void validate20EffectivePluginDependencies( ModelProblemCollector problems, Plugin plugin,
+                                                        ModelBuildingRequest request )
+    {
+<span class="fc" id="L625">        List&lt;Dependency&gt; dependencies = plugin.getDependencies();</span>
+
+<span class="pc bpc" id="L627" title="1 of 2 branches missed.">        if ( !dependencies.isEmpty() )</span>
+        {
+<span class="nc" id="L629">            String prefix = &quot;build.plugins.plugin[&quot; + plugin.getKey() + &quot;].dependencies.dependency.&quot;;</span>
+
+<span class="nc" id="L631">            Severity errOn30 = getSeverity( request, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 );</span>
+
+<span class="nc bnc" id="L633" title="All 2 branches missed.">            for ( Dependency d : dependencies )</span>
+            {
+<span class="nc" id="L635">                validateEffectiveDependency( problems, d, false, prefix, request );</span>
+
+<span class="nc" id="L637">                validateVersion( prefix + &quot;version&quot;, problems, errOn30, Version.BASE, d.getVersion(),</span>
+                                 d.getManagementKey(), d );
+
+<span class="nc" id="L640">                validateEnum( prefix + &quot;scope&quot;, problems, errOn30, Version.BASE, d.getScope(), d.getManagementKey(), d,</span>
+                              &quot;compile&quot;, &quot;runtime&quot;, &quot;system&quot; );
+<span class="nc" id="L642">            }</span>
+        }
+<span class="fc" id="L644">    }</span>
+
+    private void validateEffectiveDependency( ModelProblemCollector problems, Dependency d, boolean management,
+                                              String prefix, ModelBuildingRequest request )
+    {
+<span class="fc" id="L649">        validateId( prefix + &quot;artifactId&quot;, problems, Severity.ERROR, Version.BASE, d.getArtifactId(),</span>
+                    d.getManagementKey(), d );
+
+<span class="fc" id="L652">        validateId( prefix + &quot;groupId&quot;, problems, Severity.ERROR, Version.BASE, d.getGroupId(), d.getManagementKey(),</span>
+                    d );
+
+<span class="fc bfc" id="L655" title="All 2 branches covered.">        if ( !management )</span>
+        {
+<span class="fc" id="L657">            validateStringNotEmpty( prefix + &quot;type&quot;, problems, Severity.ERROR, Version.BASE, d.getType(),</span>
+                                    d.getManagementKey(), d );
+
+<span class="fc" id="L660">            validateDependencyVersion( problems, d, prefix );</span>
+        }
+
+<span class="fc bfc" id="L663" title="All 2 branches covered.">        if ( &quot;system&quot;.equals( d.getScope() ) )</span>
+        {
+<span class="fc" id="L665">            String systemPath = d.getSystemPath();</span>
+
+<span class="pc bpc" id="L667" title="1 of 2 branches missed.">            if ( StringUtils.isEmpty( systemPath ) )</span>
+            {
+<span class="nc" id="L669">                addViolation( problems, Severity.ERROR, Version.BASE, prefix + &quot;systemPath&quot;, d.getManagementKey(),</span>
+                              &quot;is missing.&quot;, d );
+            }
+            else
+            {
+<span class="fc" id="L674">                File sysFile = new File( systemPath );</span>
+<span class="pc bpc" id="L675" title="1 of 2 branches missed.">                if ( !sysFile.isAbsolute() )</span>
+                {
+<span class="nc" id="L677">                    addViolation( problems, Severity.ERROR, Version.BASE, prefix + &quot;systemPath&quot;, d.getManagementKey(),</span>
+                                  &quot;must specify an absolute path but is &quot; + systemPath, d );
+                }
+<span class="pc bpc" id="L680" title="1 of 2 branches missed.">                else if ( !sysFile.isFile() )</span>
+                {
+<span class="nc" id="L682">                    String msg = &quot;refers to a non-existing file &quot; + sysFile.getAbsolutePath();</span>
+<span class="nc" id="L683">                    systemPath = systemPath.replace( '/', File.separatorChar ).replace( '\\', File.separatorChar );</span>
+<span class="nc" id="L684">                    String jdkHome =</span>
+                        request.getSystemProperties().getProperty( &quot;java.home&quot;, &quot;&quot; ) + File.separator + &quot;..&quot;;
+<span class="nc bnc" id="L686" title="All 2 branches missed.">                    if ( systemPath.startsWith( jdkHome ) )</span>
+                    {
+<span class="nc" id="L688">                        msg += &quot;. Please verify that you run Maven using a JDK and not just a JRE.&quot;;</span>
+                    }
+<span class="nc" id="L690">                    addViolation( problems, Severity.WARNING, Version.BASE, prefix + &quot;systemPath&quot;, d.getManagementKey(),</span>
+                                  msg, d );
+                }
+            }
+<span class="fc" id="L694">        }</span>
+<span class="pc bpc" id="L695" title="1 of 2 branches missed.">        else if ( StringUtils.isNotEmpty( d.getSystemPath() ) )</span>
+        {
+<span class="nc" id="L697">            addViolation( problems, Severity.ERROR, Version.BASE, prefix + &quot;systemPath&quot;, d.getManagementKey(),</span>
+                          &quot;must be omitted.&quot; + &quot; This field may only be specified for a dependency with system scope.&quot;,
+                          d );
+        }
+
+<span class="pc bpc" id="L702" title="1 of 2 branches missed.">        if ( request.getValidationLevel() &gt;= ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_2_0 )</span>
+        {
+<span class="nc bnc" id="L704" title="All 2 branches missed.">            for ( Exclusion exclusion : d.getExclusions() )</span>
+            {
+<span class="nc bnc" id="L706" title="All 2 branches missed.">                if ( request.getValidationLevel() &lt; ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 )</span>
+                {
+<span class="nc" id="L708">                    validateId( prefix + &quot;exclusions.exclusion.groupId&quot;, problems, Severity.WARNING, Version.V20,</span>
+                                exclusion.getGroupId(), d.getManagementKey(), exclusion );
+
+<span class="nc" id="L711">                    validateId( prefix + &quot;exclusions.exclusion.artifactId&quot;, problems, Severity.WARNING, Version.V20,</span>
+                                exclusion.getArtifactId(), d.getManagementKey(), exclusion );
+                }
+                else
+                {
+<span class="nc" id="L716">                    validateIdWithWildcards( prefix + &quot;exclusions.exclusion.groupId&quot;, problems, Severity.WARNING,</span>
+                                             Version.V30, exclusion.getGroupId(), d.getManagementKey(), exclusion );
+
+<span class="nc" id="L719">                    validateIdWithWildcards( prefix + &quot;exclusions.exclusion.artifactId&quot;, problems, Severity.WARNING,</span>
+                                             Version.V30, exclusion.getArtifactId(), d.getManagementKey(), exclusion );
+                }
+<span class="nc" id="L722">            }</span>
+        }
+<span class="fc" id="L724">    }</span>
+
+    /**
+     * @since 3.2.4
+     */
+    protected void validateDependencyVersion( ModelProblemCollector problems, Dependency d, String prefix )
+    {
+<span class="fc" id="L731">        validateStringNotEmpty( prefix + &quot;version&quot;, problems, Severity.ERROR, Version.BASE, d.getVersion(),</span>
+                                d.getManagementKey(), d );
+<span class="fc" id="L733">    }</span>
+
+    private void validateRawRepositories( ModelProblemCollector problems, List&lt;Repository&gt; repositories, String prefix,
+                                          ModelBuildingRequest request )
+    {
+<span class="fc" id="L738">        Map&lt;String, Repository&gt; index = new HashMap&lt;&gt;();</span>
+
+<span class="pc bpc" id="L740" title="1 of 2 branches missed.">        for ( Repository repository : repositories )</span>
+        {
+<span class="nc" id="L742">            validateStringNotEmpty( prefix + &quot;.id&quot;, problems, Severity.ERROR, Version.V20, repository.getId(),</span>
+                                    repository );
+
+<span class="nc" id="L745">            validateStringNotEmpty( prefix + &quot;[&quot; + repository.getId() + &quot;].url&quot;, problems, Severity.ERROR, Version.V20,</span>
+                                    repository.getUrl(), repository );
+
+<span class="nc" id="L748">            String key = repository.getId();</span>
+
+<span class="nc" id="L750">            Repository existing = index.get( key );</span>
+
+<span class="nc bnc" id="L752" title="All 2 branches missed.">            if ( existing != null )</span>
+            {
+<span class="nc" id="L754">                Severity errOn30 = getSeverity( request, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 );</span>
+
+<span class="nc" id="L756">                addViolation( problems, errOn30, Version.V20, prefix + &quot;.id&quot;, null, &quot;must be unique: &quot;</span>
+                    + repository.getId() + &quot; -&gt; &quot; + existing.getUrl() + &quot; vs &quot; + repository.getUrl(), repository );
+<span class="nc" id="L758">            }</span>
+            else
+            {
+<span class="nc" id="L761">                index.put( key, repository );</span>
+            }
+<span class="nc" id="L763">        }</span>
+<span class="fc" id="L764">    }</span>
+
+    private void validate20EffectiveRepository( ModelProblemCollector problems, Repository repository, String prefix,
+                                                ModelBuildingRequest request )
+    {
+<span class="pc bpc" id="L769" title="1 of 2 branches missed.">        if ( repository != null )</span>
+        {
+<span class="fc" id="L771">            Severity errOn31 = getSeverity( request, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_1 );</span>
+
+<span class="fc" id="L773">            validateBannedCharacters( prefix + &quot;.id&quot;, problems, errOn31, Version.V20, repository.getId(), null,</span>
+                                      repository, ILLEGAL_REPO_ID_CHARS );
+
+<span class="pc bpc" id="L776" title="1 of 2 branches missed.">            if ( &quot;local&quot;.equals( repository.getId() ) )</span>
+            {
+<span class="nc" id="L778">                addViolation( problems, errOn31, Version.V20, prefix + &quot;.id&quot;, null,</span>
+                              &quot;must not be 'local'&quot; + &quot;, this identifier is reserved for the local repository&quot;
+                                  + &quot;, using it for other repositories will corrupt your repository metadata.&quot;,
+                              repository );
+            }
+
+<span class="pc bpc" id="L784" title="1 of 2 branches missed.">            if ( &quot;legacy&quot;.equals( repository.getLayout() ) )</span>
+            {
+<span class="nc" id="L786">                addViolation( problems, Severity.WARNING, Version.V20, prefix + &quot;.layout&quot;, repository.getId(),</span>
+                              &quot;uses the unsupported value 'legacy', artifact resolution might fail.&quot;, repository );
+            }
+        }
+<span class="fc" id="L790">    }</span>
+
+    private void validate20RawResources( ModelProblemCollector problems, List&lt;Resource&gt; resources, String prefix,
+                                         ModelBuildingRequest request )
+    {
+<span class="fc" id="L795">        Severity errOn30 = getSeverity( request, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 );</span>
+
+<span class="fc bfc" id="L797" title="All 2 branches covered.">        for ( Resource resource : resources )</span>
+        {
+<span class="fc" id="L799">            validateStringNotEmpty( prefix + &quot;.directory&quot;, problems, Severity.ERROR, Version.V20,</span>
+                                    resource.getDirectory(), resource );
+
+<span class="fc" id="L802">            validateBoolean( prefix + &quot;.filtering&quot;, problems, errOn30, Version.V20, resource.getFiltering(),</span>
+                             resource.getDirectory(), resource );
+<span class="fc" id="L804">        }</span>
+<span class="fc" id="L805">    }</span>
+
+    // ----------------------------------------------------------------------
+    // Field validation
+    // ----------------------------------------------------------------------
+
+    private boolean validateId( String fieldName, ModelProblemCollector problems, String id,
+                                InputLocationTracker tracker )
+    {
+<span class="fc" id="L814">        return validateId( fieldName, problems, Severity.ERROR, Version.BASE, id, null, tracker );</span>
+    }
+
+    private boolean validateId( String fieldName, ModelProblemCollector problems, Severity severity, Version version,
+                                String id, String sourceHint, InputLocationTracker tracker )
+    {
+<span class="fc bfc" id="L820" title="All 2 branches covered.">        if ( !validateStringNotEmpty( fieldName, problems, severity, version, id, sourceHint, tracker ) )</span>
+        {
+<span class="fc" id="L822">            return false;</span>
+        }
+        else
+        {
+<span class="fc" id="L826">            boolean match = ID_REGEX.matcher( id ).matches();</span>
+<span class="pc bpc" id="L827" title="1 of 2 branches missed.">            if ( !match )</span>
+            {
+<span class="nc" id="L829">                addViolation( problems, severity, version, fieldName, sourceHint,</span>
+                              &quot;with value '&quot; + id + &quot;' does not match a valid id pattern.&quot;, tracker );
+            }
+<span class="fc" id="L832">            return match;</span>
+        }
+    }
+
+    private boolean validateIdWithWildcards( String fieldName, ModelProblemCollector problems, Severity severity,
+                                             Version version, String id, String sourceHint,
+                                             InputLocationTracker tracker )
+    {
+<span class="nc bnc" id="L840" title="All 2 branches missed.">        if ( !validateStringNotEmpty( fieldName, problems, severity, version, id, sourceHint, tracker ) )</span>
+        {
+<span class="nc" id="L842">            return false;</span>
+        }
+        else
+        {
+<span class="nc" id="L846">            boolean match = ID_WITH_WILDCARDS_REGEX.matcher( id ).matches();</span>
+<span class="nc bnc" id="L847" title="All 2 branches missed.">            if ( !match )</span>
+            {
+<span class="nc" id="L849">                addViolation( problems, severity, version, fieldName, sourceHint,</span>
+                              &quot;with value '&quot; + id + &quot;' does not match a valid id pattern.&quot;, tracker );
+            }
+<span class="nc" id="L852">            return match;</span>
+        }
+    }
+
+    private boolean validateStringNoExpression( String fieldName, ModelProblemCollector problems, Severity severity,
+                                                Version version, String string, InputLocationTracker tracker )
+    {
+<span class="pc bpc" id="L859" title="1 of 2 branches missed.">        if ( !hasExpression( string ) )</span>
+        {
+<span class="fc" id="L861">            return true;</span>
+        }
+
+<span class="nc" id="L864">        addViolation( problems, severity, version, fieldName, null, &quot;contains an expression but should be a constant.&quot;,</span>
+                      tracker );
+
+<span class="nc" id="L867">        return false;</span>
+    }
+
+    private boolean validateVersionNoExpression( String fieldName, ModelProblemCollector problems, Severity severity,
+                                                 Version version, String string, InputLocationTracker tracker )
+    {
+<span class="pc bpc" id="L873" title="1 of 2 branches missed.">        if ( !hasExpression( string ) )</span>
+        {
+<span class="fc" id="L875">            return true;</span>
+        }
+
+        //
+        // Acceptable versions for continuous delivery
+        //
+        // changelist
+        // revision
+        // sha1
+        //
+<span class="nc" id="L885">        Matcher m = CI_FRIENDLY_EXPRESSION.matcher( string.trim() );</span>
+<span class="nc bnc" id="L886" title="All 2 branches missed.">        while ( m.find() )</span>
+        {
+<span class="nc bnc" id="L888" title="All 2 branches missed.">            if ( !CI_FRIENDLY_POSSIBLE_PROPERTY_NAMES.contains( m.group( 1 ) ) )</span>
+            {
+<span class="nc" id="L890">                addViolation( problems, severity, version, fieldName, null,</span>
+                              &quot;contains an expression but should be a constant.&quot;, tracker );
+
+<span class="nc" id="L893">                return false;</span>
+            }
+        }
+
+<span class="nc" id="L897">        return true;</span>
+    }
+
+    private boolean hasExpression( String value )
+    {
+<span class="pc bpc" id="L902" title="2 of 4 branches missed.">        return value != null &amp;&amp; value.contains( &quot;${&quot; );</span>
+    }
+
+    private boolean hasProjectExpression( String value )
+    {
+<span class="nc bnc" id="L907" title="All 4 branches missed.">        return value != null &amp;&amp; value.contains( &quot;${project.&quot; );</span>
+    }
+
+    private boolean validateStringNotEmpty( String fieldName, ModelProblemCollector problems, Severity severity,
+                                            Version version, String string, InputLocationTracker tracker )
+    {
+<span class="fc" id="L913">        return validateStringNotEmpty( fieldName, problems, severity, version, string, null, tracker );</span>
+    }
+
+    /**
+     * Asserts:
+     * &lt;p/&gt;
+     * &lt;ul&gt;
+     * &lt;li&gt;&lt;code&gt;string != null&lt;/code&gt;
+     * &lt;li&gt;&lt;code&gt;string.length &gt; 0&lt;/code&gt;
+     * &lt;/ul&gt;
+     */
+    private boolean validateStringNotEmpty( String fieldName, ModelProblemCollector problems, Severity severity,
+                                            Version version, String string, String sourceHint,
+                                            InputLocationTracker tracker )
+    {
+<span class="fc bfc" id="L928" title="All 2 branches covered.">        if ( !validateNotNull( fieldName, problems, severity, version, string, sourceHint, tracker ) )</span>
+        {
+<span class="fc" id="L930">            return false;</span>
+        }
+
+<span class="pc bpc" id="L933" title="1 of 2 branches missed.">        if ( string.length() &gt; 0 )</span>
+        {
+<span class="fc" id="L935">            return true;</span>
+        }
+
+<span class="nc" id="L938">        addViolation( problems, severity, version, fieldName, sourceHint, &quot;is missing.&quot;, tracker );</span>
+
+<span class="nc" id="L940">        return false;</span>
+    }
+
+    /**
+     * Asserts:
+     * &lt;p/&gt;
+     * &lt;ul&gt;
+     * &lt;li&gt;&lt;code&gt;string != null&lt;/code&gt;
+     * &lt;/ul&gt;
+     */
+    private boolean validateNotNull( String fieldName, ModelProblemCollector problems, Severity severity,
+                                     Version version, Object object, String sourceHint, InputLocationTracker tracker )
+    {
+<span class="fc bfc" id="L953" title="All 2 branches covered.">        if ( object != null )</span>
+        {
+<span class="fc" id="L955">            return true;</span>
+        }
+
+<span class="fc" id="L958">        addViolation( problems, severity, version, fieldName, sourceHint, &quot;is missing.&quot;, tracker );</span>
+
+<span class="fc" id="L960">        return false;</span>
+    }
+
+    private boolean validateBoolean( String fieldName, ModelProblemCollector problems, Severity severity,
+                                     Version version, String string, String sourceHint, InputLocationTracker tracker )
+    {
+<span class="pc bpc" id="L966" title="3 of 4 branches missed.">        if ( string == null || string.length() &lt;= 0 )</span>
+        {
+<span class="fc" id="L968">            return true;</span>
+        }
+
+<span class="nc bnc" id="L971" title="All 4 branches missed.">        if ( &quot;true&quot;.equalsIgnoreCase( string ) || &quot;false&quot;.equalsIgnoreCase( string ) )</span>
+        {
+<span class="nc" id="L973">            return true;</span>
+        }
+
+<span class="nc" id="L976">        addViolation( problems, severity, version, fieldName, sourceHint,</span>
+                      &quot;must be 'true' or 'false' but is '&quot; + string + &quot;'.&quot;, tracker );
+
+<span class="nc" id="L979">        return false;</span>
+    }
+
+    @SuppressWarnings( &quot;checkstyle:parameternumber&quot; )
+    private boolean validateEnum( String fieldName, ModelProblemCollector problems, Severity severity, Version version,
+                                  String string, String sourceHint, InputLocationTracker tracker,
+                                  String... validValues )
+    {
+<span class="pc bpc" id="L987" title="2 of 4 branches missed.">        if ( string == null || string.length() &lt;= 0 )</span>
+        {
+<span class="nc" id="L989">            return true;</span>
+        }
+
+<span class="fc" id="L992">        List&lt;String&gt; values = Arrays.asList( validValues );</span>
+
+<span class="pc bpc" id="L994" title="1 of 2 branches missed.">        if ( values.contains( string ) )</span>
+        {
+<span class="fc" id="L996">            return true;</span>
+        }
+
+<span class="nc" id="L999">        addViolation( problems, severity, version, fieldName, sourceHint,</span>
+                      &quot;must be one of &quot; + values + &quot; but is '&quot; + string + &quot;'.&quot;, tracker );
+
+<span class="nc" id="L1002">        return false;</span>
+    }
+
+    @SuppressWarnings( &quot;checkstyle:parameternumber&quot; )
+    private boolean validateBannedCharacters( String fieldName, ModelProblemCollector problems, Severity severity,
+                                              Version version, String string, String sourceHint,
+                                              InputLocationTracker tracker, String banned )
+    {
+<span class="pc bpc" id="L1010" title="1 of 2 branches missed.">        if ( string != null )</span>
+        {
+<span class="fc bfc" id="L1012" title="All 2 branches covered.">            for ( int i = string.length() - 1; i &gt;= 0; i-- )</span>
+            {
+<span class="pc bpc" id="L1014" title="1 of 2 branches missed.">                if ( banned.indexOf( string.charAt( i ) ) &gt;= 0 )</span>
+                {
+<span class="nc" id="L1016">                    addViolation( problems, severity, version, fieldName, sourceHint,</span>
+                                  &quot;must not contain any of these characters &quot; + banned + &quot; but found &quot;
+                                      + string.charAt( i ),
+                                  tracker );
+<span class="nc" id="L1020">                    return false;</span>
+                }
+            }
+        }
+
+<span class="fc" id="L1025">        return true;</span>
+    }
+
+    private boolean validateVersion( String fieldName, ModelProblemCollector problems, Severity severity,
+                                     Version version, String string, String sourceHint, InputLocationTracker tracker )
+    {
+<span class="pc bpc" id="L1031" title="2 of 4 branches missed.">        if ( string == null || string.length() &lt;= 0 )</span>
+        {
+<span class="nc" id="L1033">            return true;</span>
+        }
+
+<span class="pc bpc" id="L1036" title="1 of 2 branches missed.">        if ( hasExpression( string ) )</span>
+        {
+<span class="nc" id="L1038">            addViolation( problems, severity, version, fieldName, sourceHint,</span>
+                          &quot;must be a valid version but is '&quot; + string + &quot;'.&quot;, tracker );
+<span class="nc" id="L1040">            return false;</span>
+        }
+
+<span class="fc" id="L1043">        return validateBannedCharacters( fieldName, problems, severity, version, string, sourceHint, tracker,</span>
+                                         ILLEGAL_VERSION_CHARS );
+
+    }
+
+    private boolean validate20ProperSnapshotVersion( String fieldName, ModelProblemCollector problems,
+                                                     Severity severity, Version version, String string,
+                                                     String sourceHint, InputLocationTracker tracker )
+    {
+<span class="pc bpc" id="L1052" title="2 of 4 branches missed.">        if ( string == null || string.length() &lt;= 0 )</span>
+        {
+<span class="nc" id="L1054">            return true;</span>
+        }
+
+<span class="pc bpc" id="L1057" title="3 of 4 branches missed.">        if ( string.endsWith( &quot;SNAPSHOT&quot; ) &amp;&amp; !string.endsWith( &quot;-SNAPSHOT&quot; ) )</span>
+        {
+<span class="nc" id="L1059">            addViolation( problems, severity, version, fieldName, sourceHint,</span>
+                          &quot;uses an unsupported snapshot version format, should be '*-SNAPSHOT' instead.&quot;, tracker );
+<span class="nc" id="L1061">            return false;</span>
+        }
+
+<span class="fc" id="L1064">        return true;</span>
+    }
+
+    private boolean validate20PluginVersion( String fieldName, ModelProblemCollector problems, String string,
+                                             String sourceHint, InputLocationTracker tracker,
+                                             ModelBuildingRequest request )
+    {
+<span class="pc bpc" id="L1071" title="1 of 2 branches missed.">        if ( string == null )</span>
+        {
+            // NOTE: The check for missing plugin versions is handled directly by the model builder
+<span class="nc" id="L1074">            return true;</span>
+        }
+
+<span class="fc" id="L1077">        Severity errOn30 = getSeverity( request, ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_0 );</span>
+
+<span class="pc bpc" id="L1079" title="1 of 2 branches missed.">        if ( !validateVersion( fieldName, problems, errOn30, Version.V20, string, sourceHint, tracker ) )</span>
+        {
+<span class="nc" id="L1081">            return false;</span>
+        }
+
+<span class="pc bpc" id="L1084" title="3 of 6 branches missed.">        if ( string.length() &lt;= 0 || &quot;RELEASE&quot;.equals( string ) || &quot;LATEST&quot;.equals( string ) )</span>
+        {
+<span class="nc" id="L1086">            addViolation( problems, errOn30, Version.V20, fieldName, sourceHint,</span>
+                          &quot;must be a valid version but is '&quot; + string + &quot;'.&quot;, tracker );
+<span class="nc" id="L1088">            return false;</span>
+        }
+
+<span class="fc" id="L1091">        return true;</span>
+    }
+
+    private static void addViolation( ModelProblemCollector problems, Severity severity, Version version,
+                                      String fieldName, String sourceHint, String message,
+                                      InputLocationTracker tracker )
+    {
+<span class="fc" id="L1098">        StringBuilder buffer = new StringBuilder( 256 );</span>
+<span class="fc" id="L1099">        buffer.append( '\'' ).append( fieldName ).append( '\'' );</span>
+
+<span class="fc bfc" id="L1101" title="All 2 branches covered.">        if ( sourceHint != null )</span>
+        {
+<span class="fc" id="L1103">            buffer.append( &quot; for &quot; ).append( sourceHint );</span>
+        }
+
+<span class="fc" id="L1106">        buffer.append( ' ' ).append( message );</span>
+
+        // CHECKSTYLE_OFF: LineLength
+<span class="fc" id="L1109">        problems.add( new ModelProblemCollectorRequest( severity, version ).setMessage(</span>
+                                                                                        buffer.toString() ).setLocation( getLocation( fieldName, tracker ) ) );
+        // CHECKSTYLE_ON: LineLength
+<span class="fc" id="L1112">    }</span>
+
+    private static InputLocation getLocation( String fieldName, InputLocationTracker tracker )
+    {
+<span class="fc" id="L1116">        InputLocation location = null;</span>
+
+<span class="pc bpc" id="L1118" title="1 of 2 branches missed.">        if ( tracker != null )</span>
+        {
+<span class="pc bpc" id="L1120" title="1 of 2 branches missed.">            if ( fieldName != null )</span>
+            {
+<span class="fc" id="L1122">                Object key = fieldName;</span>
+
+<span class="fc" id="L1124">                int idx = fieldName.lastIndexOf( '.' );</span>
+<span class="fc bfc" id="L1125" title="All 2 branches covered.">                if ( idx &gt;= 0 )</span>
+                {
+<span class="fc" id="L1127">                    fieldName = fieldName.substring( idx + 1 );</span>
+<span class="fc" id="L1128">                    key = fieldName;</span>
+                }
+
+<span class="pc bpc" id="L1131" title="1 of 2 branches missed.">                if ( fieldName.endsWith( &quot;]&quot; ) )</span>
+                {
+<span class="nc" id="L1133">                    key = fieldName.substring( fieldName.lastIndexOf( '[' ) + 1, fieldName.length() - 1 );</span>
+                    try
+                    {
+<span class="nc" id="L1136">                        key = Integer.valueOf( key.toString() );</span>
+                    }
+<span class="nc" id="L1138">                    catch ( NumberFormatException e )</span>
+                    {
+                        // use key as is
+<span class="nc" id="L1141">                    }</span>
+                }
+
+<span class="fc" id="L1144">                location = tracker.getLocation( key );</span>
+            }
+
+<span class="fc bfc" id="L1147" title="All 2 branches covered.">            if ( location == null )</span>
+            {
+<span class="fc" id="L1149">                location = tracker.getLocation( &quot;&quot; );</span>
+            }
+        }
+
+<span class="fc" id="L1153">        return location;</span>
+    }
+
+    private static boolean equals( String s1, String s2 )
+    {
+<span class="fc" id="L1158">        return StringUtils.clean( s1 ).equals( StringUtils.clean( s2 ) );</span>
+    }
+
+    private static Severity getSeverity( ModelBuildingRequest request, int errorThreshold )
+    {
+<span class="fc" id="L1163">        return getSeverity( request.getValidationLevel(), errorThreshold );</span>
+    }
+
+    private static Severity getSeverity( int validationLevel, int errorThreshold )
+    {
+<span class="fc bfc" id="L1168" title="All 2 branches covered.">        if ( validationLevel &lt; errorThreshold )</span>
+        {
+<span class="fc" id="L1170">            return Severity.WARNING;</span>
+        }
+        else
+        {
+<span class="fc" id="L1174">            return Severity.ERROR;</span>
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

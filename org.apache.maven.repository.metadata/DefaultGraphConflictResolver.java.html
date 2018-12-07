@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultGraphConflictResolver.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository.metadata</a> &gt; <span class="el_source">DefaultGraphConflictResolver.java</span></div><h1>DefaultGraphConflictResolver.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository.metadata;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.TreeSet;
+
+import org.apache.maven.artifact.ArtifactScopeEnum;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
+
+/**
+ * Default conflict resolver.Implements closer newer first policy by default, but could be configured via plexus
+ *
+ * @author &lt;a href=&quot;mailto:oleg@codehaus.org&quot;&gt;Oleg Gusakov&lt;/a&gt;
+ */
+@Component( role = GraphConflictResolver.class )
+<span class="nc" id="L36">public class DefaultGraphConflictResolver</span>
+    implements GraphConflictResolver
+{
+    /**
+     * artifact, closer to the entry point, is selected
+     */
+    @Requirement( role = GraphConflictResolutionPolicy.class )
+    protected GraphConflictResolutionPolicy policy;
+
+    // -------------------------------------------------------------------------------------
+    // -------------------------------------------------------------------------------------
+    public MetadataGraph resolveConflicts( MetadataGraph graph, ArtifactScopeEnum scope )
+        throws GraphConflictResolutionException
+    {
+<span class="nc bnc" id="L50" title="All 2 branches missed.">        if ( policy == null )</span>
+        {
+<span class="nc" id="L52">            throw new GraphConflictResolutionException( &quot;no GraphConflictResolutionPolicy injected&quot; );</span>
+        }
+
+<span class="nc bnc" id="L55" title="All 2 branches missed.">        if ( graph == null )</span>
+        {
+<span class="nc" id="L57">            return null;</span>
+        }
+
+<span class="nc" id="L60">        final MetadataGraphVertex entry = graph.getEntry();</span>
+<span class="nc bnc" id="L61" title="All 2 branches missed.">        if ( entry == null )</span>
+        {
+<span class="nc" id="L63">            return null;</span>
+        }
+
+<span class="nc bnc" id="L66" title="All 2 branches missed.">        if ( graph.isEmpty() )</span>
+        {
+<span class="nc" id="L68">            throw new GraphConflictResolutionException( &quot;graph with an entry, but not vertices do not exist&quot; );</span>
+        }
+
+<span class="nc bnc" id="L71" title="All 2 branches missed.">        if ( graph.isEmptyEdges() )</span>
+        {
+<span class="nc" id="L73">            return null; // no edges - nothing to worry about</span>
+        }
+
+<span class="nc" id="L76">        final TreeSet&lt;MetadataGraphVertex&gt; vertices = graph.getVertices();</span>
+
+        try
+        {
+            // edge case - single vertex graph
+<span class="nc bnc" id="L81" title="All 2 branches missed.">            if ( vertices.size() == 1 )</span>
+            {
+<span class="nc" id="L83">                return new MetadataGraph( entry );</span>
+            }
+
+<span class="nc" id="L86">            final ArtifactScopeEnum requestedScope = ArtifactScopeEnum.checkScope( scope );</span>
+
+<span class="nc" id="L88">            MetadataGraph res = new MetadataGraph( vertices.size() );</span>
+<span class="nc" id="L89">            res.setVersionedVertices( false );</span>
+<span class="nc" id="L90">            res.setScopedVertices( false );</span>
+
+<span class="nc" id="L92">            MetadataGraphVertex resEntry = res.addVertex( entry.getMd() );</span>
+<span class="nc" id="L93">            res.setEntry( resEntry );</span>
+
+<span class="nc" id="L95">            res.setScope( requestedScope );</span>
+
+<span class="nc bnc" id="L97" title="All 2 branches missed.">            for ( MetadataGraphVertex v : vertices )</span>
+            {
+<span class="nc" id="L99">                final List&lt;MetadataGraphEdge&gt; ins = graph.getIncidentEdges( v );</span>
+<span class="nc" id="L100">                final MetadataGraphEdge edge = cleanEdges( v, ins, requestedScope );</span>
+
+<span class="nc bnc" id="L102" title="All 2 branches missed.">                if ( edge == null )</span>
+                { // no edges - don't need this vertex any more
+<span class="nc bnc" id="L104" title="All 2 branches missed.">                    if ( entry.equals( v ) )</span>
+                    { // unless it's an entry point.
+                        // currently processing the entry point - it should not have any entry incident edges
+<span class="nc" id="L107">                        res.getEntry().getMd().setWhy( &quot;This is a graph entry point. No links.&quot; );</span>
+                    }
+                    else
+                    {
+                        // System.out.println(&quot;---&gt;&quot;+v.getMd().toDomainString()
+                        // +&quot; has been terminated on this entry set\n-------------------\n&quot;
+                        // +ins
+                        // +&quot;\n-------------------\n&quot;
+                        // );
+                    }
+                }
+                else
+                {
+                    // System.out.println(&quot;+++&gt;&quot;+v.getMd().toDomainString()+&quot; still has &quot;+edge.toString() );
+                    // fill in domain md with actual version data
+<span class="nc" id="L122">                    ArtifactMetadata md = v.getMd();</span>
+<span class="nc bnc" id="L123" title="All 4 branches missed.">                    ArtifactMetadata newMd =</span>
+                        new ArtifactMetadata( md.getGroupId(), md.getArtifactId(), edge.getVersion(), md.getType(),
+                                              md.getScopeAsEnum(), md.getClassifier(), edge.getArtifactUri(),
+                                              edge.getSource() == null ? &quot;&quot; : edge.getSource().getMd().toString(),
+                                              edge.isResolved(), edge.getTarget() == null ? null
+                                                              : edge.getTarget().getMd().getError() );
+<span class="nc" id="L129">                    MetadataGraphVertex newV = res.addVertex( newMd );</span>
+<span class="nc" id="L130">                    MetadataGraphVertex sourceV = res.addVertex( edge.getSource().getMd() );</span>
+
+<span class="nc" id="L132">                    res.addEdge( sourceV, newV, edge );</span>
+                }
+<span class="nc" id="L134">            }</span>
+<span class="nc" id="L135">            MetadataGraph linkedRes = findLinkedSubgraph( res );</span>
+            // System.err.println(&quot;Original graph(&quot;+graph.getVertices().size()+&quot;):\n&quot;+graph.toString());
+            // System.err.println(&quot;Cleaned(&quot;+requestedScope+&quot;) graph(&quot;+res.getVertices().size()+&quot;):\n&quot;+res.toString());
+            // System.err.println(&quot;Linked(&quot;+requestedScope+&quot;)
+            // subgraph(&quot;+linkedRes.getVertices().size()+&quot;):\n&quot;+linkedRes.toString());
+<span class="nc" id="L140">            return linkedRes;</span>
+        }
+<span class="nc" id="L142">        catch ( MetadataResolutionException e )</span>
+        {
+<span class="nc" id="L144">            throw new GraphConflictResolutionException( e );</span>
+        }
+    }
+
+    // -------------------------------------------------------------------------------------
+    private MetadataGraph findLinkedSubgraph( MetadataGraph g )
+    {
+<span class="nc bnc" id="L151" title="All 2 branches missed.">        if ( g.getVertices().size() == 1 )</span>
+        {
+<span class="nc" id="L153">            return g;</span>
+        }
+
+<span class="nc" id="L156">        List&lt;MetadataGraphVertex&gt; visited = new ArrayList&lt;&gt;( g.getVertices().size() );</span>
+<span class="nc" id="L157">        visit( g.getEntry(), visited, g );</span>
+
+<span class="nc" id="L159">        List&lt;MetadataGraphVertex&gt; dropList = new ArrayList&lt;&gt;( g.getVertices().size() );</span>
+
+        // collect drop list
+<span class="nc bnc" id="L162" title="All 2 branches missed.">        for ( MetadataGraphVertex v : g.getVertices() )</span>
+        {
+<span class="nc bnc" id="L164" title="All 2 branches missed.">            if ( !visited.contains( v ) )</span>
+            {
+<span class="nc" id="L166">                dropList.add( v );</span>
+            }
+<span class="nc" id="L168">        }</span>
+
+<span class="nc bnc" id="L170" title="All 2 branches missed.">        if ( dropList.size() &lt; 1 )</span>
+        {
+<span class="nc" id="L172">            return g;</span>
+        }
+
+        // now - drop vertices
+<span class="nc" id="L176">        TreeSet&lt;MetadataGraphVertex&gt; vertices = g.getVertices();</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">        for ( MetadataGraphVertex v : dropList )</span>
+        {
+<span class="nc" id="L179">            vertices.remove( v );</span>
+<span class="nc" id="L180">        }</span>
+
+<span class="nc" id="L182">        return g;</span>
+    }
+
+    // -------------------------------------------------------------------------------------
+    private void visit( MetadataGraphVertex from, List&lt;MetadataGraphVertex&gt; visited, MetadataGraph graph )
+    {
+<span class="nc bnc" id="L188" title="All 2 branches missed.">        if ( visited.contains( from ) )</span>
+        {
+<span class="nc" id="L190">            return;</span>
+        }
+
+<span class="nc" id="L193">        visited.add( from );</span>
+
+<span class="nc" id="L195">        List&lt;MetadataGraphEdge&gt; exitList = graph.getExcidentEdges( from );</span>
+        // String s = &quot;|---&gt; &quot;+from.getMd().toString()+&quot; - &quot;+(exitList == null ? -1 : exitList.size()) + &quot; exit links&quot;;
+<span class="nc bnc" id="L197" title="All 4 branches missed.">        if ( exitList != null &amp;&amp; exitList.size() &gt; 0 )</span>
+        {
+<span class="nc bnc" id="L199" title="All 2 branches missed.">            for ( MetadataGraphEdge e : graph.getExcidentEdges( from ) )</span>
+            {
+<span class="nc" id="L201">                visit( e.getTarget(), visited, graph );</span>
+<span class="nc" id="L202">            }</span>
+        }
+<span class="nc" id="L204">    }</span>
+
+    // -------------------------------------------------------------------------------------
+    private MetadataGraphEdge cleanEdges( MetadataGraphVertex v, List&lt;MetadataGraphEdge&gt; edges,
+                                          ArtifactScopeEnum scope )
+    {
+<span class="nc bnc" id="L210" title="All 4 branches missed.">        if ( edges == null || edges.isEmpty() )</span>
+        {
+<span class="nc" id="L212">            return null;</span>
+        }
+
+<span class="nc bnc" id="L215" title="All 2 branches missed.">        if ( edges.size() == 1 )</span>
+        {
+<span class="nc" id="L217">            MetadataGraphEdge e = edges.get( 0 );</span>
+<span class="nc bnc" id="L218" title="All 2 branches missed.">            if ( scope.encloses( e.getScope() ) )</span>
+            {
+<span class="nc" id="L220">                return e;</span>
+            }
+
+<span class="nc" id="L223">            return null;</span>
+        }
+
+<span class="nc" id="L226">        MetadataGraphEdge res = null;</span>
+
+<span class="nc bnc" id="L228" title="All 2 branches missed.">        for ( MetadataGraphEdge e : edges )</span>
+        {
+<span class="nc bnc" id="L230" title="All 2 branches missed.">            if ( !scope.encloses( e.getScope() ) )</span>
+            {
+<span class="nc" id="L232">                continue;</span>
+            }
+
+<span class="nc bnc" id="L235" title="All 2 branches missed.">            if ( res == null )</span>
+            {
+<span class="nc" id="L237">                res = e;</span>
+            }
+            else
+            {
+<span class="nc" id="L241">                res = policy.apply( e, res );</span>
+            }
+<span class="nc" id="L243">        }</span>
+
+<span class="nc" id="L245">        return res;</span>
+    }
+    // -------------------------------------------------------------------------------------
+    // -------------------------------------------------------------------------------------
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

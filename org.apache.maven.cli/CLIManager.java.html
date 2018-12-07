@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CLIManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.cli</a> &gt; <span class="el_source">CLIManager.java</span></div><h1>CLIManager.java</h1><pre class="source lang-java linenums">package org.apache.maven.cli;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.PrintStream;
+import java.io.PrintWriter;
+
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.GnuParser;
+import org.apache.commons.cli.HelpFormatter;
+import org.apache.commons.cli.OptionBuilder;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
+
+/**
+ * @author Jason van Zyl
+ */
+public class CLIManager
+{
+    public static final char ALTERNATE_POM_FILE = 'f';
+
+    public static final char BATCH_MODE = 'B';
+
+    public static final char SET_SYSTEM_PROPERTY = 'D';
+
+    public static final char OFFLINE = 'o';
+
+    public static final char QUIET = 'q';
+
+    public static final char DEBUG = 'X';
+
+    public static final char ERRORS = 'e';
+
+    public static final char HELP = 'h';
+
+    public static final char VERSION = 'v';
+
+    public static final char SHOW_VERSION = 'V';
+
+    public static final char NON_RECURSIVE = 'N';
+
+    public static final char UPDATE_SNAPSHOTS = 'U';
+
+    public static final char ACTIVATE_PROFILES = 'P';
+
+    public static final String SUPRESS_SNAPSHOT_UPDATES = &quot;nsu&quot;;
+
+    public static final char CHECKSUM_FAILURE_POLICY = 'C';
+
+    public static final char CHECKSUM_WARNING_POLICY = 'c';
+
+    public static final char ALTERNATE_USER_SETTINGS = 's';
+
+    public static final String ALTERNATE_GLOBAL_SETTINGS = &quot;gs&quot;;
+
+    public static final char ALTERNATE_USER_TOOLCHAINS = 't';
+
+    public static final String ALTERNATE_GLOBAL_TOOLCHAINS = &quot;gt&quot;;
+
+    public static final String FAIL_FAST = &quot;ff&quot;;
+
+    public static final String FAIL_AT_END = &quot;fae&quot;;
+
+    public static final String FAIL_NEVER = &quot;fn&quot;;
+
+    public static final String RESUME_FROM = &quot;rf&quot;;
+
+    public static final String PROJECT_LIST = &quot;pl&quot;;
+
+    public static final String ALSO_MAKE = &quot;am&quot;;
+
+    public static final String ALSO_MAKE_DEPENDENTS = &quot;amd&quot;;
+
+    public static final String LOG_FILE = &quot;l&quot;;
+
+    public static final String ENCRYPT_MASTER_PASSWORD = &quot;emp&quot;;
+
+    public static final String ENCRYPT_PASSWORD = &quot;ep&quot;;
+
+    public static final String THREADS = &quot;T&quot;;
+
+    public static final String LEGACY_LOCAL_REPOSITORY = &quot;llr&quot;;
+
+    public static final String BUILDER = &quot;b&quot;;
+
+    protected Options options;
+
+    @SuppressWarnings( { &quot;static-access&quot;, &quot;checkstyle:linelength&quot; } )
+    public CLIManager()
+<span class="nc" id="L108">    {</span>
+<span class="nc" id="L109">        options = new Options();</span>
+<span class="nc" id="L110">        options.addOption( OptionBuilder.withLongOpt( &quot;help&quot; ).withDescription( &quot;Display help information&quot; ).create( HELP ) );</span>
+<span class="nc" id="L111">        options.addOption( OptionBuilder.withLongOpt( &quot;file&quot; ).hasArg().withDescription( &quot;Force the use of an alternate POM file (or directory with pom.xml)&quot; ).create( ALTERNATE_POM_FILE ) );</span>
+<span class="nc" id="L112">        options.addOption( OptionBuilder.withLongOpt( &quot;define&quot; ).hasArg().withDescription( &quot;Define a system property&quot; ).create( SET_SYSTEM_PROPERTY ) );</span>
+<span class="nc" id="L113">        options.addOption( OptionBuilder.withLongOpt( &quot;offline&quot; ).withDescription( &quot;Work offline&quot; ).create( OFFLINE ) );</span>
+<span class="nc" id="L114">        options.addOption( OptionBuilder.withLongOpt( &quot;version&quot; ).withDescription( &quot;Display version information&quot; ).create( VERSION ) );</span>
+<span class="nc" id="L115">        options.addOption( OptionBuilder.withLongOpt( &quot;quiet&quot; ).withDescription( &quot;Quiet output - only show errors&quot; ).create( QUIET ) );</span>
+<span class="nc" id="L116">        options.addOption( OptionBuilder.withLongOpt( &quot;debug&quot; ).withDescription( &quot;Produce execution debug output&quot; ).create( DEBUG ) );</span>
+<span class="nc" id="L117">        options.addOption( OptionBuilder.withLongOpt( &quot;errors&quot; ).withDescription( &quot;Produce execution error messages&quot; ).create( ERRORS ) );</span>
+<span class="nc" id="L118">        options.addOption( OptionBuilder.withLongOpt( &quot;non-recursive&quot; ).withDescription( &quot;Do not recurse into sub-projects&quot; ).create( NON_RECURSIVE ) );</span>
+<span class="nc" id="L119">        options.addOption( OptionBuilder.withLongOpt( &quot;update-snapshots&quot; ).withDescription( &quot;Forces a check for missing releases and updated snapshots on remote repositories&quot; ).create( UPDATE_SNAPSHOTS ) );</span>
+<span class="nc" id="L120">        options.addOption( OptionBuilder.withLongOpt( &quot;activate-profiles&quot; ).withDescription( &quot;Comma-delimited list of profiles to activate&quot; ).hasArg().create( ACTIVATE_PROFILES ) );</span>
+<span class="nc" id="L121">        options.addOption( OptionBuilder.withLongOpt( &quot;batch-mode&quot; ).withDescription( &quot;Run in non-interactive (batch) mode (disables output color)&quot; ).create( BATCH_MODE ) );</span>
+<span class="nc" id="L122">        options.addOption( OptionBuilder.withLongOpt( &quot;no-snapshot-updates&quot; ).withDescription( &quot;Suppress SNAPSHOT updates&quot; ).create( SUPRESS_SNAPSHOT_UPDATES ) );</span>
+<span class="nc" id="L123">        options.addOption( OptionBuilder.withLongOpt( &quot;strict-checksums&quot; ).withDescription( &quot;Fail the build if checksums don't match&quot; ).create( CHECKSUM_FAILURE_POLICY ) );</span>
+<span class="nc" id="L124">        options.addOption( OptionBuilder.withLongOpt( &quot;lax-checksums&quot; ).withDescription( &quot;Warn if checksums don't match&quot; ).create( CHECKSUM_WARNING_POLICY ) );</span>
+<span class="nc" id="L125">        options.addOption( OptionBuilder.withLongOpt( &quot;settings&quot; ).withDescription( &quot;Alternate path for the user settings file&quot; ).hasArg().create( ALTERNATE_USER_SETTINGS ) );</span>
+<span class="nc" id="L126">        options.addOption( OptionBuilder.withLongOpt( &quot;global-settings&quot; ).withDescription( &quot;Alternate path for the global settings file&quot; ).hasArg().create( ALTERNATE_GLOBAL_SETTINGS ) );</span>
+<span class="nc" id="L127">        options.addOption( OptionBuilder.withLongOpt( &quot;toolchains&quot; ).withDescription( &quot;Alternate path for the user toolchains file&quot; ).hasArg().create( ALTERNATE_USER_TOOLCHAINS ) );</span>
+<span class="nc" id="L128">        options.addOption( OptionBuilder.withLongOpt( &quot;global-toolchains&quot; ).withDescription( &quot;Alternate path for the global toolchains file&quot; ).hasArg().create( ALTERNATE_GLOBAL_TOOLCHAINS ) );</span>
+<span class="nc" id="L129">        options.addOption( OptionBuilder.withLongOpt( &quot;fail-fast&quot; ).withDescription( &quot;Stop at first failure in reactorized builds&quot; ).create( FAIL_FAST ) );</span>
+<span class="nc" id="L130">        options.addOption( OptionBuilder.withLongOpt( &quot;fail-at-end&quot; ).withDescription( &quot;Only fail the build afterwards; allow all non-impacted builds to continue&quot; ).create( FAIL_AT_END ) );</span>
+<span class="nc" id="L131">        options.addOption( OptionBuilder.withLongOpt( &quot;fail-never&quot; ).withDescription( &quot;NEVER fail the build, regardless of project result&quot; ).create( FAIL_NEVER ) );</span>
+<span class="nc" id="L132">        options.addOption( OptionBuilder.withLongOpt( &quot;resume-from&quot; ).hasArg().withDescription( &quot;Resume reactor from specified project&quot; ).create( RESUME_FROM ) );</span>
+<span class="nc" id="L133">        options.addOption( OptionBuilder.withLongOpt( &quot;projects&quot; ).withDescription( &quot;Comma-delimited list of specified reactor projects to build instead of all projects. A project can be specified by [groupId]:artifactId or by its relative path&quot; ).hasArg().create( PROJECT_LIST ) );</span>
+<span class="nc" id="L134">        options.addOption( OptionBuilder.withLongOpt( &quot;also-make&quot; ).withDescription( &quot;If project list is specified, also build projects required by the list&quot; ).create( ALSO_MAKE ) );</span>
+<span class="nc" id="L135">        options.addOption( OptionBuilder.withLongOpt( &quot;also-make-dependents&quot; ).withDescription( &quot;If project list is specified, also build projects that depend on projects on the list&quot; ).create( ALSO_MAKE_DEPENDENTS ) );</span>
+<span class="nc" id="L136">        options.addOption( OptionBuilder.withLongOpt( &quot;log-file&quot; ).hasArg().withDescription( &quot;Log file where all build output will go (disables output color)&quot; ).create( LOG_FILE ) );</span>
+<span class="nc" id="L137">        options.addOption( OptionBuilder.withLongOpt( &quot;show-version&quot; ).withDescription( &quot;Display version information WITHOUT stopping build&quot; ).create( SHOW_VERSION ) );</span>
+<span class="nc" id="L138">        options.addOption( OptionBuilder.withLongOpt( &quot;encrypt-master-password&quot; ).hasOptionalArg().withDescription( &quot;Encrypt master security password&quot; ).create( ENCRYPT_MASTER_PASSWORD ) );</span>
+<span class="nc" id="L139">        options.addOption( OptionBuilder.withLongOpt( &quot;encrypt-password&quot; ).hasOptionalArg().withDescription( &quot;Encrypt server password&quot; ).create( ENCRYPT_PASSWORD ) );</span>
+<span class="nc" id="L140">        options.addOption( OptionBuilder.withLongOpt( &quot;threads&quot; ).hasArg().withDescription( &quot;Thread count, for instance 2.0C where C is core multiplied&quot; ).create( THREADS ) );</span>
+<span class="nc" id="L141">        options.addOption( OptionBuilder.withLongOpt( &quot;legacy-local-repository&quot; ).withDescription( &quot;Use Maven 2 Legacy Local Repository behaviour, ie no use of _remote.repositories. Can also be activated by using -Dmaven.legacyLocalRepo=true&quot; ).create( LEGACY_LOCAL_REPOSITORY ) );</span>
+<span class="nc" id="L142">        options.addOption( OptionBuilder.withLongOpt( &quot;builder&quot; ).hasArg().withDescription( &quot;The id of the build strategy to use&quot; ).create( BUILDER ) );</span>
+
+        // Adding this back in for compatibility with the verifier that hard codes this option.
+<span class="nc" id="L145">        options.addOption( OptionBuilder.withLongOpt( &quot;no-plugin-registry&quot; ).withDescription( &quot;Ineffective, only kept for backward compatibility&quot; ).create( &quot;npr&quot; ) );</span>
+<span class="nc" id="L146">        options.addOption( OptionBuilder.withLongOpt( &quot;check-plugin-updates&quot; ).withDescription( &quot;Ineffective, only kept for backward compatibility&quot; ).create( &quot;cpu&quot; ) );</span>
+<span class="nc" id="L147">        options.addOption( OptionBuilder.withLongOpt( &quot;update-plugins&quot; ).withDescription( &quot;Ineffective, only kept for backward compatibility&quot; ).create( &quot;up&quot; ) );</span>
+<span class="nc" id="L148">        options.addOption( OptionBuilder.withLongOpt( &quot;no-plugin-updates&quot; ).withDescription( &quot;Ineffective, only kept for backward compatibility&quot; ).create( &quot;npu&quot; ) );</span>
+<span class="nc" id="L149">    }</span>
+
+    public CommandLine parse( String[] args )
+        throws ParseException
+    {
+        // We need to eat any quotes surrounding arguments...
+<span class="nc" id="L155">        String[] cleanArgs = CleanArgument.cleanArgs( args );</span>
+
+<span class="nc" id="L157">        CommandLineParser parser = new GnuParser();</span>
+
+<span class="nc" id="L159">        return parser.parse( options, cleanArgs );</span>
+    }
+
+    public void displayHelp( PrintStream stdout )
+    {
+<span class="nc" id="L164">        stdout.println();</span>
+
+<span class="nc" id="L166">        PrintWriter pw = new PrintWriter( stdout );</span>
+
+<span class="nc" id="L168">        HelpFormatter formatter = new HelpFormatter();</span>
+
+<span class="nc" id="L170">        formatter.printHelp( pw, HelpFormatter.DEFAULT_WIDTH, &quot;mvn [options] [&lt;goal(s)&gt;] [&lt;phase(s)&gt;]&quot;, &quot;\nOptions:&quot;,</span>
+                             options, HelpFormatter.DEFAULT_LEFT_PAD, HelpFormatter.DEFAULT_DESC_PAD, &quot;\n&quot;, false );
+
+<span class="nc" id="L173">        pw.flush();</span>
+<span class="nc" id="L174">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultArtifactInstaller.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.artifact.installer</a> &gt; <span class="el_source">DefaultArtifactInstaller.java</span></div><h1>DefaultArtifactInstaller.java</h1><pre class="source lang-java linenums">package org.apache.maven.artifact.installer;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+
+import org.apache.maven.RepositoryUtils;
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.metadata.ArtifactMetadata;
+import org.apache.maven.artifact.repository.ArtifactRepository;
+import org.apache.maven.artifact.repository.LegacyLocalRepositoryManager;
+import org.apache.maven.artifact.repository.metadata.ArtifactRepositoryMetadata;
+import org.apache.maven.artifact.repository.metadata.MetadataBridge;
+import org.apache.maven.artifact.repository.metadata.Snapshot;
+import org.apache.maven.artifact.repository.metadata.SnapshotArtifactRepositoryMetadata;
+import org.apache.maven.artifact.repository.metadata.Versioning;
+import org.apache.maven.plugin.LegacySupport;
+import org.apache.maven.project.artifact.ProjectArtifactMetadata;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
+import org.codehaus.plexus.logging.AbstractLogEnabled;
+import org.eclipse.aether.RepositorySystem;
+import org.eclipse.aether.RepositorySystemSession;
+import org.eclipse.aether.RequestTrace;
+import org.eclipse.aether.installation.InstallRequest;
+import org.eclipse.aether.installation.InstallationException;
+import org.eclipse.aether.util.artifact.SubArtifact;
+
+/**
+ * @author Jason van Zyl
+ */
+@Component( role = ArtifactInstaller.class )
+<span class="nc" id="L50">public class DefaultArtifactInstaller</span>
+    extends AbstractLogEnabled
+    implements ArtifactInstaller
+{
+
+    @Requirement
+    private RepositorySystem repoSystem;
+
+    @Requirement
+    private LegacySupport legacySupport;
+
+    /** @deprecated we want to use the artifact method only, and ensure artifact.file is set correctly. */
+    @Deprecated
+    public void install( String basedir, String finalName, Artifact artifact, ArtifactRepository localRepository )
+        throws ArtifactInstallationException
+    {
+<span class="nc" id="L66">        String extension = artifact.getArtifactHandler().getExtension();</span>
+<span class="nc" id="L67">        File source = new File( basedir, finalName + &quot;.&quot; + extension );</span>
+
+<span class="nc" id="L69">        install( source, artifact, localRepository );</span>
+<span class="nc" id="L70">    }</span>
+
+    public void install( File source, Artifact artifact, ArtifactRepository localRepository )
+        throws ArtifactInstallationException
+    {
+<span class="nc" id="L75">        RepositorySystemSession session =</span>
+            LegacyLocalRepositoryManager.overlay( localRepository, legacySupport.getRepositorySession(), repoSystem );
+
+<span class="nc" id="L78">        InstallRequest request = new InstallRequest();</span>
+
+<span class="nc" id="L80">        request.setTrace( RequestTrace.newChild( null, legacySupport.getSession().getCurrentProject() ) );</span>
+
+<span class="nc" id="L82">        org.eclipse.aether.artifact.Artifact mainArtifact = RepositoryUtils.toArtifact( artifact );</span>
+<span class="nc" id="L83">        mainArtifact = mainArtifact.setFile( source );</span>
+<span class="nc" id="L84">        request.addArtifact( mainArtifact );</span>
+
+<span class="nc bnc" id="L86" title="All 2 branches missed.">        for ( ArtifactMetadata metadata : artifact.getMetadataList() )</span>
+        {
+<span class="nc bnc" id="L88" title="All 2 branches missed.">            if ( metadata instanceof ProjectArtifactMetadata )</span>
+            {
+<span class="nc" id="L90">                org.eclipse.aether.artifact.Artifact pomArtifact = new SubArtifact( mainArtifact, &quot;&quot;, &quot;pom&quot; );</span>
+<span class="nc" id="L91">                pomArtifact = pomArtifact.setFile( ( (ProjectArtifactMetadata) metadata ).getFile() );</span>
+<span class="nc" id="L92">                request.addArtifact( pomArtifact );</span>
+<span class="nc" id="L93">            }</span>
+<span class="nc bnc" id="L94" title="All 4 branches missed.">            else if ( metadata instanceof SnapshotArtifactRepositoryMetadata</span>
+                || metadata instanceof ArtifactRepositoryMetadata )
+            {
+                // eaten, handled by repo system
+            }
+            else
+            {
+<span class="nc" id="L101">                request.addMetadata( new MetadataBridge( metadata ) );</span>
+            }
+<span class="nc" id="L103">        }</span>
+
+        try
+        {
+<span class="nc" id="L107">            repoSystem.install( session, request );</span>
+        }
+<span class="nc" id="L109">        catch ( InstallationException e )</span>
+        {
+<span class="nc" id="L111">            throw new ArtifactInstallationException( e.getMessage(), e );</span>
+<span class="nc" id="L112">        }</span>
+
+        /*
+         * NOTE: Not used by Maven core, only here to provide backward-compat with plugins like the Install Plugin.
+         */
+
+<span class="nc bnc" id="L118" title="All 2 branches missed.">        if ( artifact.isSnapshot() )</span>
+        {
+<span class="nc" id="L120">            Snapshot snapshot = new Snapshot();</span>
+<span class="nc" id="L121">            snapshot.setLocalCopy( true );</span>
+<span class="nc" id="L122">            artifact.addMetadata( new SnapshotArtifactRepositoryMetadata( artifact, snapshot ) );</span>
+        }
+
+<span class="nc" id="L125">        Versioning versioning = new Versioning();</span>
+<span class="nc" id="L126">        versioning.updateTimestamp();</span>
+<span class="nc" id="L127">        versioning.addVersion( artifact.getBaseVersion() );</span>
+<span class="nc bnc" id="L128" title="All 2 branches missed.">        if ( artifact.isRelease() )</span>
+        {
+<span class="nc" id="L130">            versioning.setRelease( artifact.getBaseVersion() );</span>
+        }
+<span class="nc" id="L132">        artifact.addMetadata( new ArtifactRepositoryMetadata( artifact, versioning ) );</span>
+<span class="nc" id="L133">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

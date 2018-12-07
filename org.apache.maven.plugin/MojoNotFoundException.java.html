@@ -1,0 +1,89 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MojoNotFoundException.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.plugin</a> &gt; <span class="el_source">MojoNotFoundException.java</span></div><h1>MojoNotFoundException.java</h1><pre class="source lang-java linenums">package org.apache.maven.plugin;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.Iterator;
+import java.util.List;
+
+import org.apache.maven.plugin.descriptor.MojoDescriptor;
+import org.apache.maven.plugin.descriptor.PluginDescriptor;
+
+/**
+ * MojoNotFoundException
+ */
+public class MojoNotFoundException
+    extends Exception
+{
+    private String goal;
+
+    private PluginDescriptor pluginDescriptor;
+
+    public MojoNotFoundException( String goal, PluginDescriptor pluginDescriptor )
+    {
+<span class="nc" id="L40">        super( toMessage( goal, pluginDescriptor ) );</span>
+
+<span class="nc" id="L42">        this.goal = goal;</span>
+<span class="nc" id="L43">        this.pluginDescriptor = pluginDescriptor;</span>
+<span class="nc" id="L44">    }</span>
+
+    public String getGoal()
+    {
+<span class="nc" id="L48">        return goal;</span>
+    }
+
+    public PluginDescriptor getPluginDescriptor()
+    {
+<span class="nc" id="L53">        return pluginDescriptor;</span>
+    }
+
+    private static String toMessage( String goal, PluginDescriptor pluginDescriptor )
+    {
+<span class="nc" id="L58">        StringBuilder buffer = new StringBuilder( 256 );</span>
+
+<span class="nc" id="L60">        buffer.append( &quot;Could not find goal '&quot; ).append( goal ).append( '\'' );</span>
+
+<span class="nc bnc" id="L62" title="All 2 branches missed.">        if ( pluginDescriptor != null )</span>
+        {
+<span class="nc" id="L64">            buffer.append( &quot; in plugin &quot; ).append( pluginDescriptor.getId() );</span>
+
+<span class="nc" id="L66">            buffer.append( &quot; among available goals &quot; );</span>
+<span class="nc" id="L67">            List&lt;MojoDescriptor&gt; mojos = pluginDescriptor.getMojos();</span>
+<span class="nc bnc" id="L68" title="All 2 branches missed.">            if ( mojos != null )</span>
+            {
+<span class="nc bnc" id="L70" title="All 2 branches missed.">                for ( Iterator&lt;MojoDescriptor&gt; it = mojos.iterator(); it.hasNext(); )</span>
+                {
+<span class="nc" id="L72">                    MojoDescriptor mojo = it.next();</span>
+<span class="nc bnc" id="L73" title="All 2 branches missed.">                    if ( mojo != null )</span>
+                    {
+<span class="nc" id="L75">                        buffer.append( mojo.getGoal() );</span>
+                    }
+<span class="nc bnc" id="L77" title="All 2 branches missed.">                    if ( it.hasNext() )</span>
+                    {
+<span class="nc" id="L79">                        buffer.append( &quot;, &quot; );</span>
+                    }
+<span class="nc" id="L81">                }</span>
+            }
+        }
+
+<span class="nc" id="L85">        return buffer.toString();</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

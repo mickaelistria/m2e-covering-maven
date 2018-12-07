@@ -1,0 +1,407 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractStringBasedModelInterpolator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.project.interpolation</a> &gt; <span class="el_source">AbstractStringBasedModelInterpolator.java</span></div><h1>AbstractStringBasedModelInterpolator.java</h1><pre class="source lang-java linenums">package org.apache.maven.project.interpolation;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.maven.model.Model;
+import org.apache.maven.model.io.xpp3.MavenXpp3Reader;
+import org.apache.maven.model.io.xpp3.MavenXpp3Writer;
+import org.apache.maven.project.DefaultProjectBuilderConfiguration;
+import org.apache.maven.project.ProjectBuilderConfiguration;
+import org.apache.maven.project.path.PathTranslator;
+import org.codehaus.plexus.component.annotations.Requirement;
+import org.codehaus.plexus.interpolation.AbstractValueSource;
+import org.codehaus.plexus.interpolation.InterpolationException;
+import org.codehaus.plexus.interpolation.InterpolationPostProcessor;
+import org.codehaus.plexus.interpolation.Interpolator;
+import org.codehaus.plexus.interpolation.MapBasedValueSource;
+import org.codehaus.plexus.interpolation.ObjectBasedValueSource;
+import org.codehaus.plexus.interpolation.PrefixAwareRecursionInterceptor;
+import org.codehaus.plexus.interpolation.PrefixedObjectValueSource;
+import org.codehaus.plexus.interpolation.PrefixedValueSourceWrapper;
+import org.codehaus.plexus.interpolation.RecursionInterceptor;
+import org.codehaus.plexus.interpolation.ValueSource;
+import org.codehaus.plexus.logging.AbstractLogEnabled;
+import org.codehaus.plexus.logging.Logger;
+import org.codehaus.plexus.personality.plexus.lifecycle.phase.Initializable;
+import org.codehaus.plexus.personality.plexus.lifecycle.phase.InitializationException;
+import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.StringReader;
+import java.io.StringWriter;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+
+/**
+ * Use a regular expression search to find and resolve expressions within the POM.
+ *
+ * @author jdcasey Created on Feb 3, 2005
+ * TODO Consolidate this logic with the PluginParameterExpressionEvaluator, minus deprecations/bans.
+ */
+@Deprecated
+public abstract class AbstractStringBasedModelInterpolator
+    extends AbstractLogEnabled
+    implements ModelInterpolator, Initializable
+{
+
+<span class="nc" id="L69">    private static final List&lt;String&gt; PROJECT_PREFIXES = Arrays.asList( &quot;pom.&quot;, &quot;project.&quot; );</span>
+
+    private static final List&lt;String&gt; TRANSLATED_PATH_EXPRESSIONS;
+
+    static
+    {
+<span class="nc" id="L75">        List&lt;String&gt; translatedPrefixes = new ArrayList&lt;&gt;();</span>
+
+        // MNG-1927, MNG-2124, MNG-3355:
+        // If the build section is present and the project directory is non-null, we should make
+        // sure interpolation of the directories below uses translated paths.
+        // Afterward, we'll double back and translate any paths that weren't covered during interpolation via the
+        // code below...
+<span class="nc" id="L82">        translatedPrefixes.add( &quot;build.directory&quot; );</span>
+<span class="nc" id="L83">        translatedPrefixes.add( &quot;build.outputDirectory&quot; );</span>
+<span class="nc" id="L84">        translatedPrefixes.add( &quot;build.testOutputDirectory&quot; );</span>
+<span class="nc" id="L85">        translatedPrefixes.add( &quot;build.sourceDirectory&quot; );</span>
+<span class="nc" id="L86">        translatedPrefixes.add( &quot;build.testSourceDirectory&quot; );</span>
+<span class="nc" id="L87">        translatedPrefixes.add( &quot;build.scriptSourceDirectory&quot; );</span>
+<span class="nc" id="L88">        translatedPrefixes.add( &quot;reporting.outputDirectory&quot; );</span>
+
+<span class="nc" id="L90">        TRANSLATED_PATH_EXPRESSIONS = translatedPrefixes;</span>
+<span class="nc" id="L91">    }</span>
+
+    @Requirement
+    private PathTranslator pathTranslator;
+
+    private Interpolator interpolator;
+
+    private RecursionInterceptor recursionInterceptor;
+
+    // for testing.
+    protected AbstractStringBasedModelInterpolator( PathTranslator pathTranslator )
+<span class="nc" id="L102">    {</span>
+<span class="nc" id="L103">        this.pathTranslator = pathTranslator;</span>
+<span class="nc" id="L104">    }</span>
+
+    protected AbstractStringBasedModelInterpolator()
+<span class="nc" id="L107">    {</span>
+<span class="nc" id="L108">    }</span>
+
+    public Model interpolate( Model model, Map&lt;String, ?&gt; context )
+        throws ModelInterpolationException
+    {
+<span class="nc" id="L113">        return interpolate( model, context, true );</span>
+    }
+
+    /**
+     * Serialize the inbound Model instance to a StringWriter, perform the regex replacement to resolve
+     * POM expressions, then re-parse into the resolved Model instance.
+     * &lt;p&gt;
+     * &lt;b&gt;NOTE:&lt;/b&gt; This will result in a different instance of Model being returned!!!
+     *
+     * @param model The inbound Model instance, to serialize and reference for expression resolution
+     * @param context The other context map to be used during resolution
+     *
+     * @return The resolved instance of the inbound Model. This is a different instance!
+     *
+     * @deprecated Use {@link ModelInterpolator#interpolate(Model, File, ProjectBuilderConfiguration, boolean)} instead.
+     */
+    public Model interpolate( Model model, Map&lt;String, ?&gt; context, boolean strict )
+        throws ModelInterpolationException
+    {
+<span class="nc" id="L132">        Properties props = new Properties();</span>
+<span class="nc" id="L133">        props.putAll( context );</span>
+
+<span class="nc" id="L135">        return interpolate( model,</span>
+                            null,
+                            new DefaultProjectBuilderConfiguration().setExecutionProperties( props ),
+                            true );
+    }
+
+    public Model interpolate( Model model,
+                              File projectDir,
+                              ProjectBuilderConfiguration config,
+                              boolean debugEnabled )
+        throws ModelInterpolationException
+    {
+<span class="nc" id="L147">        StringWriter sWriter = new StringWriter( 1024 );</span>
+
+<span class="nc" id="L149">        MavenXpp3Writer writer = new MavenXpp3Writer();</span>
+        try
+        {
+<span class="nc" id="L152">            writer.write( sWriter, model );</span>
+        }
+<span class="nc" id="L154">        catch ( IOException e )</span>
+        {
+<span class="nc" id="L156">            throw new ModelInterpolationException( &quot;Cannot serialize project model for interpolation.&quot;, e );</span>
+<span class="nc" id="L157">        }</span>
+
+<span class="nc" id="L159">        String serializedModel = sWriter.toString();</span>
+<span class="nc" id="L160">        serializedModel = interpolate( serializedModel, model, projectDir, config, debugEnabled );</span>
+
+<span class="nc" id="L162">        StringReader sReader = new StringReader( serializedModel );</span>
+
+<span class="nc" id="L164">        MavenXpp3Reader modelReader = new MavenXpp3Reader();</span>
+        try
+        {
+<span class="nc" id="L167">            model = modelReader.read( sReader );</span>
+        }
+<span class="nc" id="L169">        catch ( IOException | XmlPullParserException e )</span>
+        {
+<span class="nc" id="L171">            throw new ModelInterpolationException(</span>
+                &quot;Cannot read project model from interpolating filter of serialized version.&quot;, e );
+<span class="nc" id="L173">        }</span>
+
+<span class="nc" id="L175">        return model;</span>
+    }
+
+    /**
+     * Interpolates all expressions in the src parameter.
+     * &lt;p&gt;
+     * The algorithm used for each expression is:
+     * &lt;ul&gt;
+     *   &lt;li&gt;If it starts with either &quot;pom.&quot; or &quot;project.&quot;, the expression is evaluated against the model.&lt;/li&gt;
+     *   &lt;li&gt;If the value is null, get the value from the context.&lt;/li&gt;
+     *   &lt;li&gt;If the value is null, but the context contains the expression, don't replace the expression string
+     *       with the value, and continue to find other expressions.&lt;/li&gt;
+     *   &lt;li&gt;If the value is null, get it from the model properties.&lt;/li&gt;
+     * &lt;/ul&gt;
+     */
+    public String interpolate( String src,
+                               Model model,
+                               final File projectDir,
+                               ProjectBuilderConfiguration config,
+                               boolean debug )
+        throws ModelInterpolationException
+    {
+        try
+        {
+<span class="nc" id="L199">            List&lt;ValueSource&gt; valueSources = createValueSources( model, projectDir, config );</span>
+<span class="nc" id="L200">            List&lt;InterpolationPostProcessor&gt; postProcessors = createPostProcessors( model, projectDir, config );</span>
+
+<span class="nc" id="L202">            return interpolateInternal( src, valueSources, postProcessors, debug );</span>
+        }
+        finally
+        {
+<span class="nc" id="L206">            interpolator.clearAnswers();</span>
+        }
+    }
+
+    protected List&lt;ValueSource&gt; createValueSources( final Model model, final File projectDir,
+                                                    final ProjectBuilderConfiguration config )
+    {
+<span class="nc" id="L213">        String timestampFormat = DEFAULT_BUILD_TIMESTAMP_FORMAT;</span>
+
+<span class="nc" id="L215">        Properties modelProperties = model.getProperties();</span>
+<span class="nc bnc" id="L216" title="All 2 branches missed.">        if ( modelProperties != null )</span>
+        {
+<span class="nc" id="L218">            timestampFormat = modelProperties.getProperty( BUILD_TIMESTAMP_FORMAT_PROPERTY, timestampFormat );</span>
+        }
+
+<span class="nc" id="L221">        ValueSource modelValueSource1 = new PrefixedObjectValueSource( PROJECT_PREFIXES, model, false );</span>
+<span class="nc" id="L222">        ValueSource modelValueSource2 = new ObjectBasedValueSource( model );</span>
+
+<span class="nc" id="L224">        ValueSource basedirValueSource = new PrefixedValueSourceWrapper( new AbstractValueSource( false )</span>
+<span class="nc" id="L225">        {</span>
+
+            public Object getValue( String expression )
+            {
+<span class="nc bnc" id="L229" title="All 4 branches missed.">                if ( projectDir != null &amp;&amp; &quot;basedir&quot;.equals( expression ) )</span>
+                {
+<span class="nc" id="L231">                    return projectDir.getAbsolutePath();</span>
+                }
+<span class="nc" id="L233">                return null;</span>
+            }
+
+        }, PROJECT_PREFIXES, true );
+<span class="nc" id="L237">        ValueSource baseUriValueSource = new PrefixedValueSourceWrapper( new AbstractValueSource( false )</span>
+<span class="nc" id="L238">        {</span>
+
+            public Object getValue( String expression )
+            {
+<span class="nc bnc" id="L242" title="All 4 branches missed.">                if ( projectDir != null &amp;&amp; &quot;baseUri&quot;.equals( expression ) )</span>
+                {
+<span class="nc" id="L244">                    return projectDir.getAbsoluteFile().toURI().toString();</span>
+                }
+<span class="nc" id="L246">                return null;</span>
+            }
+
+        }, PROJECT_PREFIXES, false );
+
+<span class="nc" id="L251">        List&lt;ValueSource&gt; valueSources = new ArrayList&lt;&gt;( 9 );</span>
+
+        // NOTE: Order counts here!
+<span class="nc" id="L254">        valueSources.add( basedirValueSource );</span>
+<span class="nc" id="L255">        valueSources.add( baseUriValueSource );</span>
+<span class="nc" id="L256">        valueSources.add( new BuildTimestampValueSource( config.getBuildStartTime(), timestampFormat ) );</span>
+<span class="nc" id="L257">        valueSources.add( modelValueSource1 );</span>
+<span class="nc" id="L258">        valueSources.add( new MapBasedValueSource( config.getUserProperties() ) );</span>
+<span class="nc" id="L259">        valueSources.add( new MapBasedValueSource( modelProperties ) );</span>
+<span class="nc" id="L260">        valueSources.add( new MapBasedValueSource( config.getExecutionProperties() ) );</span>
+<span class="nc" id="L261">        valueSources.add( new AbstractValueSource( false )</span>
+<span class="nc" id="L262">        {</span>
+
+            public Object getValue( String expression )
+            {
+<span class="nc" id="L266">                return config.getExecutionProperties().getProperty( &quot;env.&quot; + expression );</span>
+            }
+
+        } );
+<span class="nc" id="L270">        valueSources.add( modelValueSource2 );</span>
+
+<span class="nc" id="L272">        return valueSources;</span>
+    }
+
+    protected List&lt;InterpolationPostProcessor&gt; createPostProcessors( final Model model, final File projectDir,
+                                                                     final ProjectBuilderConfiguration config )
+    {
+<span class="nc" id="L278">        return Collections.singletonList(</span>
+            (InterpolationPostProcessor) new PathTranslatingPostProcessor(
+                PROJECT_PREFIXES,
+                TRANSLATED_PATH_EXPRESSIONS,
+                projectDir,
+                pathTranslator ) );
+
+    }
+
+    @SuppressWarnings( &quot;unchecked&quot; )
+    protected String interpolateInternal( String src, List&lt;ValueSource&gt; valueSources,
+                                          List&lt;InterpolationPostProcessor&gt; postProcessors, boolean debug )
+        throws ModelInterpolationException
+    {
+<span class="nc bnc" id="L292" title="All 2 branches missed.">        if ( !src.contains( &quot;${&quot; ) )</span>
+        {
+<span class="nc" id="L294">            return src;</span>
+        }
+
+<span class="nc" id="L297">        Logger logger = getLogger();</span>
+
+<span class="nc" id="L299">        String result = src;</span>
+<span class="nc" id="L300">        synchronized ( this )</span>
+        {
+
+<span class="nc bnc" id="L303" title="All 2 branches missed.">            for ( ValueSource vs : valueSources )</span>
+            {
+<span class="nc" id="L305">                interpolator.addValueSource( vs );</span>
+<span class="nc" id="L306">            }</span>
+
+<span class="nc bnc" id="L308" title="All 2 branches missed.">            for ( InterpolationPostProcessor postProcessor : postProcessors )</span>
+            {
+<span class="nc" id="L310">                interpolator.addPostProcessor( postProcessor );</span>
+<span class="nc" id="L311">            }</span>
+
+            try
+            {
+                try
+                {
+<span class="nc" id="L317">                    result = interpolator.interpolate( result, recursionInterceptor );</span>
+                }
+<span class="nc" id="L319">                catch ( InterpolationException e )</span>
+                {
+<span class="nc" id="L321">                    throw new ModelInterpolationException( e.getMessage(), e );</span>
+<span class="nc" id="L322">                }</span>
+
+<span class="nc bnc" id="L324" title="All 2 branches missed.">                if ( debug )</span>
+                {
+<span class="nc" id="L326">                    List&lt;Object&gt; feedback = interpolator.getFeedback();</span>
+<span class="nc bnc" id="L327" title="All 4 branches missed.">                    if ( feedback != null &amp;&amp; !feedback.isEmpty() )</span>
+                    {
+<span class="nc" id="L329">                        logger.debug( &quot;Maven encountered the following problems during initial POM interpolation:&quot; );</span>
+
+<span class="nc" id="L331">                        Object last = null;</span>
+<span class="nc bnc" id="L332" title="All 2 branches missed.">                        for ( Object next : feedback )</span>
+                        {
+<span class="nc bnc" id="L334" title="All 2 branches missed.">                            if ( next instanceof Throwable )</span>
+                            {
+<span class="nc bnc" id="L336" title="All 2 branches missed.">                                if ( last == null )</span>
+                                {
+<span class="nc" id="L338">                                    logger.debug( &quot;&quot;, ( (Throwable) next ) );</span>
+                                }
+                                else
+                                {
+<span class="nc" id="L342">                                    logger.debug( String.valueOf( last ), ( (Throwable) next ) );</span>
+                                }
+                            }
+                            else
+                            {
+<span class="nc bnc" id="L347" title="All 2 branches missed.">                                if ( last != null )</span>
+                                {
+<span class="nc" id="L349">                                    logger.debug( String.valueOf( last ) );</span>
+                                }
+
+<span class="nc" id="L352">                                last = next;</span>
+                            }
+<span class="nc" id="L354">                        }</span>
+
+<span class="nc bnc" id="L356" title="All 2 branches missed.">                        if ( last != null )</span>
+                        {
+<span class="nc" id="L358">                            logger.debug( String.valueOf( last ) );</span>
+                        }
+                    }
+                }
+
+<span class="nc" id="L363">                interpolator.clearFeedback();</span>
+            }
+            finally
+            {
+<span class="nc bnc" id="L367" title="All 2 branches missed.">                for ( ValueSource vs : valueSources )</span>
+                {
+<span class="nc" id="L369">                    interpolator.removeValuesSource( vs );</span>
+<span class="nc" id="L370">                }</span>
+
+<span class="nc bnc" id="L372" title="All 2 branches missed.">                for ( InterpolationPostProcessor postProcessor : postProcessors )</span>
+                {
+<span class="nc" id="L374">                    interpolator.removePostProcessor( postProcessor );</span>
+<span class="nc" id="L375">                }</span>
+            }
+<span class="nc" id="L377">        }</span>
+
+<span class="nc" id="L379">        return result;</span>
+    }
+
+    protected RecursionInterceptor getRecursionInterceptor()
+    {
+<span class="nc" id="L384">        return recursionInterceptor;</span>
+    }
+
+    protected void setRecursionInterceptor( RecursionInterceptor recursionInterceptor )
+    {
+<span class="nc" id="L389">        this.recursionInterceptor = recursionInterceptor;</span>
+<span class="nc" id="L390">    }</span>
+
+    protected abstract Interpolator createInterpolator();
+
+    public void initialize()
+        throws InitializationException
+    {
+<span class="nc" id="L397">        interpolator = createInterpolator();</span>
+<span class="nc" id="L398">        recursionInterceptor = new PrefixAwareRecursionInterceptor( PROJECT_PREFIXES );</span>
+<span class="nc" id="L399">    }</span>
+
+    protected final Interpolator getInterpolator()
+    {
+<span class="nc" id="L403">        return interpolator;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

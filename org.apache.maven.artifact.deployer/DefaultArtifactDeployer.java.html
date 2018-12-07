@@ -1,0 +1,165 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultArtifactDeployer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.artifact.deployer</a> &gt; <span class="el_source">DefaultArtifactDeployer.java</span></div><h1>DefaultArtifactDeployer.java</h1><pre class="source lang-java linenums">package org.apache.maven.artifact.deployer;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.apache.maven.RepositoryUtils;
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.metadata.ArtifactMetadata;
+import org.apache.maven.artifact.repository.ArtifactRepository;
+import org.apache.maven.artifact.repository.DefaultArtifactRepository;
+import org.apache.maven.artifact.repository.LegacyLocalRepositoryManager;
+import org.apache.maven.artifact.repository.metadata.ArtifactRepositoryMetadata;
+import org.apache.maven.artifact.repository.metadata.MetadataBridge;
+import org.apache.maven.artifact.repository.metadata.SnapshotArtifactRepositoryMetadata;
+import org.apache.maven.plugin.LegacySupport;
+import org.apache.maven.project.artifact.ProjectArtifactMetadata;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
+import org.codehaus.plexus.logging.AbstractLogEnabled;
+import org.eclipse.aether.RepositorySystem;
+import org.eclipse.aether.RepositorySystemSession;
+import org.eclipse.aether.RequestTrace;
+import org.eclipse.aether.deployment.DeployRequest;
+import org.eclipse.aether.deployment.DeployResult;
+import org.eclipse.aether.deployment.DeploymentException;
+import org.eclipse.aether.metadata.MergeableMetadata;
+import org.eclipse.aether.repository.RemoteRepository;
+import org.eclipse.aether.util.artifact.SubArtifact;
+
+/**
+ * DefaultArtifactDeployer
+ */
+@Component( role = ArtifactDeployer.class, instantiationStrategy = &quot;per-lookup&quot; )
+<span class="nc" id="L54">public class DefaultArtifactDeployer</span>
+    extends AbstractLogEnabled
+    implements ArtifactDeployer
+{
+
+    @Requirement
+    private RepositorySystem repoSystem;
+
+    @Requirement
+    private LegacySupport legacySupport;
+
+<span class="nc" id="L65">    private Map&lt;Object, MergeableMetadata&gt; relatedMetadata = new ConcurrentHashMap&lt;&gt;();</span>
+
+    /**
+     * @deprecated we want to use the artifact method only, and ensure artifact.file is set
+     *             correctly.
+     */
+    @Deprecated
+    public void deploy( String basedir, String finalName, Artifact artifact, ArtifactRepository deploymentRepository,
+                        ArtifactRepository localRepository )
+        throws ArtifactDeploymentException
+    {
+<span class="nc" id="L76">        String extension = artifact.getArtifactHandler().getExtension();</span>
+<span class="nc" id="L77">        File source = new File( basedir, finalName + &quot;.&quot; + extension );</span>
+<span class="nc" id="L78">        deploy( source, artifact, deploymentRepository, localRepository );</span>
+<span class="nc" id="L79">    }</span>
+
+    public void deploy( File source, Artifact artifact, ArtifactRepository deploymentRepository,
+                        ArtifactRepository localRepository )
+        throws ArtifactDeploymentException
+    {
+<span class="nc" id="L85">        RepositorySystemSession session =</span>
+            LegacyLocalRepositoryManager.overlay( localRepository, legacySupport.getRepositorySession(), repoSystem );
+
+<span class="nc" id="L88">        DeployRequest request = new DeployRequest();</span>
+
+<span class="nc" id="L90">        request.setTrace( RequestTrace.newChild( null, legacySupport.getSession().getCurrentProject() ) );</span>
+
+<span class="nc" id="L92">        org.eclipse.aether.artifact.Artifact mainArtifact = RepositoryUtils.toArtifact( artifact );</span>
+<span class="nc" id="L93">        mainArtifact = mainArtifact.setFile( source );</span>
+<span class="nc" id="L94">        request.addArtifact( mainArtifact );</span>
+
+<span class="nc" id="L96">        String versionKey = artifact.getGroupId() + ':' + artifact.getArtifactId();</span>
+<span class="nc" id="L97">        String snapshotKey = null;</span>
+<span class="nc bnc" id="L98" title="All 2 branches missed.">        if ( artifact.isSnapshot() )</span>
+        {
+<span class="nc" id="L100">            snapshotKey = versionKey + ':' + artifact.getBaseVersion();</span>
+<span class="nc" id="L101">            request.addMetadata( relatedMetadata.get( snapshotKey ) );</span>
+        }
+<span class="nc" id="L103">        request.addMetadata( relatedMetadata.get( versionKey ) );</span>
+
+<span class="nc bnc" id="L105" title="All 2 branches missed.">        for ( ArtifactMetadata metadata : artifact.getMetadataList() )</span>
+        {
+<span class="nc bnc" id="L107" title="All 2 branches missed.">            if ( metadata instanceof ProjectArtifactMetadata )</span>
+            {
+<span class="nc" id="L109">                org.eclipse.aether.artifact.Artifact pomArtifact = new SubArtifact( mainArtifact, &quot;&quot;, &quot;pom&quot; );</span>
+<span class="nc" id="L110">                pomArtifact = pomArtifact.setFile( ( (ProjectArtifactMetadata) metadata ).getFile() );</span>
+<span class="nc" id="L111">                request.addArtifact( pomArtifact );</span>
+<span class="nc" id="L112">            }</span>
+<span class="nc bnc" id="L113" title="All 4 branches missed.">            else if ( metadata instanceof SnapshotArtifactRepositoryMetadata</span>
+                || metadata instanceof ArtifactRepositoryMetadata )
+            {
+                // eaten, handled by repo system
+            }
+            else
+            {
+<span class="nc" id="L120">                request.addMetadata( new MetadataBridge( metadata ) );</span>
+            }
+<span class="nc" id="L122">        }</span>
+
+<span class="nc" id="L124">        RemoteRepository remoteRepo = RepositoryUtils.toRepo( deploymentRepository );</span>
+        /*
+         * NOTE: This provides backward-compat with maven-deploy-plugin:2.4 which bypasses the repository factory when
+         * using an alternative deployment location.
+         */
+<span class="nc bnc" id="L129" title="All 4 branches missed.">        if ( deploymentRepository instanceof DefaultArtifactRepository</span>
+            &amp;&amp; deploymentRepository.getAuthentication() == null )
+        {
+<span class="nc" id="L132">            RemoteRepository.Builder builder = new RemoteRepository.Builder( remoteRepo );</span>
+<span class="nc" id="L133">            builder.setAuthentication( session.getAuthenticationSelector().getAuthentication( remoteRepo ) );</span>
+<span class="nc" id="L134">            builder.setProxy( session.getProxySelector().getProxy( remoteRepo ) );</span>
+<span class="nc" id="L135">            remoteRepo = builder.build();</span>
+        }
+<span class="nc" id="L137">        request.setRepository( remoteRepo );</span>
+
+        DeployResult result;
+        try
+        {
+<span class="nc" id="L142">            result = repoSystem.deploy( session, request );</span>
+        }
+<span class="nc" id="L144">        catch ( DeploymentException e )</span>
+        {
+<span class="nc" id="L146">            throw new ArtifactDeploymentException( e.getMessage(), e );</span>
+<span class="nc" id="L147">        }</span>
+
+<span class="nc bnc" id="L149" title="All 2 branches missed.">        for ( Object metadata : result.getMetadata() )</span>
+        {
+<span class="nc bnc" id="L151" title="All 2 branches missed.">            if ( metadata.getClass().getName().endsWith( &quot;.internal.VersionsMetadata&quot; ) )</span>
+            {
+<span class="nc" id="L153">                relatedMetadata.put( versionKey, (MergeableMetadata) metadata );</span>
+            }
+<span class="nc bnc" id="L155" title="All 4 branches missed.">            if ( snapshotKey != null &amp;&amp; metadata.getClass().getName().endsWith( &quot;.internal.RemoteSnapshotMetadata&quot; ) )</span>
+            {
+<span class="nc" id="L157">                relatedMetadata.put( snapshotKey, (MergeableMetadata) metadata );</span>
+            }
+<span class="nc" id="L159">        }</span>
+
+<span class="nc" id="L161">        artifact.setResolvedVersion( result.getArtifacts().iterator().next().getVersion() );</span>
+<span class="nc" id="L162">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

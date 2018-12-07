@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultSettingsDecrypter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.settings.crypto</a> &gt; <span class="el_source">DefaultSettingsDecrypter.java</span></div><h1>DefaultSettingsDecrypter.java</h1><pre class="source lang-java linenums">package org.apache.maven.settings.crypto;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.ArrayList;
+import java.util.List;
+
+import org.apache.maven.settings.Proxy;
+import org.apache.maven.settings.Server;
+import org.apache.maven.settings.building.DefaultSettingsProblem;
+import org.apache.maven.settings.building.SettingsProblem;
+import org.apache.maven.settings.building.SettingsProblem.Severity;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
+import org.sonatype.plexus.components.sec.dispatcher.SecDispatcher;
+import org.sonatype.plexus.components.sec.dispatcher.SecDispatcherException;
+
+/**
+ * Decrypts passwords in the settings.
+ *
+ * @author Benjamin Bentmann
+ */
+@Component( role = SettingsDecrypter.class )
+<span class="fc" id="L41">public class DefaultSettingsDecrypter</span>
+    implements SettingsDecrypter
+{
+
+    @Requirement( hint = &quot;maven&quot; )
+    private SecDispatcher securityDispatcher;
+
+    @Override
+    public SettingsDecryptionResult decrypt( SettingsDecryptionRequest request )
+    {
+<span class="fc" id="L51">        List&lt;SettingsProblem&gt; problems = new ArrayList&lt;&gt;();</span>
+
+<span class="fc" id="L53">        List&lt;Server&gt; servers = new ArrayList&lt;&gt;();</span>
+
+<span class="fc bfc" id="L55" title="All 2 branches covered.">        for ( Server server : request.getServers() )</span>
+        {
+<span class="fc" id="L57">            server = server.clone();</span>
+
+<span class="fc" id="L59">            servers.add( server );</span>
+
+            try
+            {
+<span class="fc" id="L63">                server.setPassword( decrypt( server.getPassword() ) );</span>
+            }
+<span class="nc" id="L65">            catch ( SecDispatcherException e )</span>
+            {
+<span class="nc" id="L67">                problems.add( new DefaultSettingsProblem( &quot;Failed to decrypt password for server &quot; + server.getId()</span>
+                    + &quot;: &quot; + e.getMessage(), Severity.ERROR, &quot;server: &quot; + server.getId(), -1, -1, e ) );
+<span class="fc" id="L69">            }</span>
+
+            try
+            {
+<span class="fc" id="L73">                server.setPassphrase( decrypt( server.getPassphrase() ) );</span>
+            }
+<span class="nc" id="L75">            catch ( SecDispatcherException e )</span>
+            {
+<span class="nc" id="L77">                problems.add( new DefaultSettingsProblem( &quot;Failed to decrypt passphrase for server &quot; + server.getId()</span>
+                    + &quot;: &quot; + e.getMessage(), Severity.ERROR, &quot;server: &quot; + server.getId(), -1, -1, e ) );
+<span class="fc" id="L79">            }</span>
+<span class="fc" id="L80">        }</span>
+
+<span class="fc" id="L82">        List&lt;Proxy&gt; proxies = new ArrayList&lt;&gt;();</span>
+
+<span class="fc bfc" id="L84" title="All 2 branches covered.">        for ( Proxy proxy : request.getProxies() )</span>
+        {
+<span class="fc" id="L86">            proxy = proxy.clone();</span>
+
+<span class="fc" id="L88">            proxies.add( proxy );</span>
+
+            try
+            {
+<span class="fc" id="L92">                proxy.setPassword( decrypt( proxy.getPassword() ) );</span>
+            }
+<span class="nc" id="L94">            catch ( SecDispatcherException e )</span>
+            {
+<span class="nc" id="L96">                problems.add( new DefaultSettingsProblem( &quot;Failed to decrypt password for proxy &quot; + proxy.getId()</span>
+                    + &quot;: &quot; + e.getMessage(), Severity.ERROR, &quot;proxy: &quot; + proxy.getId(), -1, -1, e ) );
+<span class="fc" id="L98">            }</span>
+<span class="fc" id="L99">        }</span>
+
+<span class="fc" id="L101">        return new DefaultSettingsDecryptionResult( servers, proxies, problems );</span>
+    }
+
+    private String decrypt( String str )
+        throws SecDispatcherException
+    {
+<span class="fc bfc" id="L107" title="All 2 branches covered.">        return ( str == null ) ? null : securityDispatcher.decrypt( str );</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

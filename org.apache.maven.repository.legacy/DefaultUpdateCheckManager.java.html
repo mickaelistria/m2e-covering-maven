@@ -1,0 +1,429 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultUpdateCheckManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository.legacy</a> &gt; <span class="el_source">DefaultUpdateCheckManager.java</span></div><h1>DefaultUpdateCheckManager.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository.legacy;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.repository.ArtifactRepository;
+import org.apache.maven.artifact.repository.ArtifactRepositoryPolicy;
+import org.apache.maven.artifact.repository.Authentication;
+import org.apache.maven.artifact.repository.metadata.RepositoryMetadata;
+import org.apache.maven.repository.Proxy;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.logging.AbstractLogEnabled;
+import org.codehaus.plexus.logging.Logger;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.RandomAccessFile;
+import java.nio.channels.Channels;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
+import java.util.Date;
+import java.util.Properties;
+
+/**
+ * DefaultUpdateCheckManager
+ */
+@Component( role = UpdateCheckManager.class )
+public class DefaultUpdateCheckManager
+    extends AbstractLogEnabled
+    implements UpdateCheckManager
+{
+
+    private static final String ERROR_KEY_SUFFIX = &quot;.error&quot;;
+
+    public DefaultUpdateCheckManager()
+<span class="fc" id="L54">    {</span>
+
+<span class="fc" id="L56">    }</span>
+
+    public DefaultUpdateCheckManager( Logger logger )
+<span class="nc" id="L59">    {</span>
+<span class="nc" id="L60">        enableLogging( logger );</span>
+<span class="nc" id="L61">    }</span>
+
+    public static final String LAST_UPDATE_TAG = &quot;.lastUpdated&quot;;
+
+    private static final String TOUCHFILE_NAME = &quot;resolver-status.properties&quot;;
+
+    public boolean isUpdateRequired( Artifact artifact, ArtifactRepository repository )
+    {
+<span class="nc" id="L69">        File file = artifact.getFile();</span>
+
+<span class="nc bnc" id="L71" title="All 2 branches missed.">        ArtifactRepositoryPolicy policy = artifact.isSnapshot() ? repository.getSnapshots() : repository.getReleases();</span>
+
+<span class="nc bnc" id="L73" title="All 2 branches missed.">        if ( !policy.isEnabled() )</span>
+        {
+<span class="nc bnc" id="L75" title="All 2 branches missed.">            if ( getLogger().isDebugEnabled() )</span>
+            {
+<span class="nc" id="L77">                getLogger().debug(</span>
+                    &quot;Skipping update check for &quot; + artifact + &quot; (&quot; + file + &quot;) from &quot; + repository.getId() + &quot; (&quot;
+                        + repository.getUrl() + &quot;)&quot; );
+            }
+
+<span class="nc" id="L82">            return false;</span>
+        }
+
+<span class="nc bnc" id="L85" title="All 2 branches missed.">        if ( getLogger().isDebugEnabled() )</span>
+        {
+<span class="nc" id="L87">            getLogger().debug(</span>
+                &quot;Determining update check for &quot; + artifact + &quot; (&quot; + file + &quot;) from &quot; + repository.getId() + &quot; (&quot;
+                    + repository.getUrl() + &quot;)&quot; );
+        }
+
+<span class="nc bnc" id="L92" title="All 2 branches missed.">        if ( file == null )</span>
+        {
+            // TODO throw something instead?
+<span class="nc" id="L95">            return true;</span>
+        }
+
+        Date lastCheckDate;
+
+<span class="nc bnc" id="L100" title="All 2 branches missed.">        if ( file.exists() )</span>
+        {
+<span class="nc" id="L102">            lastCheckDate = new Date( file.lastModified() );</span>
+        }
+        else
+        {
+<span class="nc" id="L106">            File touchfile = getTouchfile( artifact );</span>
+<span class="nc" id="L107">            lastCheckDate = readLastUpdated( touchfile, getRepositoryKey( repository ) );</span>
+        }
+
+<span class="nc bnc" id="L110" title="All 4 branches missed.">        return ( lastCheckDate == null ) || policy.checkOutOfDate( lastCheckDate );</span>
+    }
+
+    public boolean isUpdateRequired( RepositoryMetadata metadata, ArtifactRepository repository, File file )
+    {
+        // Here, we need to determine which policy to use. Release updateInterval will be used when
+        // the metadata refers to a release artifact or meta-version, and snapshot updateInterval will be used when
+        // it refers to a snapshot artifact or meta-version.
+        // NOTE: Release metadata includes version information about artifacts that have been released, to allow
+        // meta-versions like RELEASE and LATEST to resolve, and also to allow retrieval of the range of valid, released
+        // artifacts available.
+<span class="nc" id="L121">        ArtifactRepositoryPolicy policy = metadata.getPolicy( repository );</span>
+
+<span class="nc bnc" id="L123" title="All 2 branches missed.">        if ( !policy.isEnabled() )</span>
+        {
+<span class="nc bnc" id="L125" title="All 2 branches missed.">            if ( getLogger().isDebugEnabled() )</span>
+            {
+<span class="nc" id="L127">                getLogger().debug(</span>
+                    &quot;Skipping update check for &quot; + metadata.getKey() + &quot; (&quot; + file + &quot;) from &quot; + repository.getId()
+                        + &quot; (&quot; + repository.getUrl() + &quot;)&quot; );
+            }
+
+<span class="nc" id="L132">            return false;</span>
+        }
+
+<span class="nc bnc" id="L135" title="All 2 branches missed.">        if ( getLogger().isDebugEnabled() )</span>
+        {
+<span class="nc" id="L137">            getLogger().debug(</span>
+                &quot;Determining update check for &quot; + metadata.getKey() + &quot; (&quot; + file + &quot;) from &quot; + repository.getId()
+                    + &quot; (&quot; + repository.getUrl() + &quot;)&quot; );
+        }
+
+<span class="nc bnc" id="L142" title="All 2 branches missed.">        if ( file == null )</span>
+        {
+            // TODO throw something instead?
+<span class="nc" id="L145">            return true;</span>
+        }
+
+<span class="nc" id="L148">        Date lastCheckDate = readLastUpdated( metadata, repository, file );</span>
+
+<span class="nc bnc" id="L150" title="All 4 branches missed.">        return ( lastCheckDate == null ) || policy.checkOutOfDate( lastCheckDate );</span>
+    }
+
+    private Date readLastUpdated( RepositoryMetadata metadata, ArtifactRepository repository, File file )
+    {
+<span class="nc" id="L155">        File touchfile = getTouchfile( metadata, file );</span>
+
+<span class="nc" id="L157">        String key = getMetadataKey( repository, file );</span>
+
+<span class="nc" id="L159">        return readLastUpdated( touchfile, key );</span>
+    }
+
+    public String getError( Artifact artifact, ArtifactRepository repository )
+    {
+<span class="nc" id="L164">        File touchFile = getTouchfile( artifact );</span>
+<span class="nc" id="L165">        return getError( touchFile, getRepositoryKey( repository ) );</span>
+    }
+
+    public void touch( Artifact artifact, ArtifactRepository repository, String error )
+    {
+<span class="nc" id="L170">        File file = artifact.getFile();</span>
+
+<span class="nc" id="L172">        File touchfile = getTouchfile( artifact );</span>
+
+<span class="nc bnc" id="L174" title="All 2 branches missed.">        if ( file.exists() )</span>
+        {
+<span class="nc" id="L176">            touchfile.delete();</span>
+        }
+        else
+        {
+<span class="nc" id="L180">            writeLastUpdated( touchfile, getRepositoryKey( repository ), error );</span>
+        }
+<span class="nc" id="L182">    }</span>
+
+    public void touch( RepositoryMetadata metadata, ArtifactRepository repository, File file )
+    {
+<span class="nc" id="L186">        File touchfile = getTouchfile( metadata, file );</span>
+
+<span class="nc" id="L188">        String key = getMetadataKey( repository, file );</span>
+
+<span class="nc" id="L190">        writeLastUpdated( touchfile, key, null );</span>
+<span class="nc" id="L191">    }</span>
+
+    String getMetadataKey( ArtifactRepository repository, File file )
+    {
+<span class="nc" id="L195">        return repository.getId() + '.' + file.getName() + LAST_UPDATE_TAG;</span>
+    }
+
+    String getRepositoryKey( ArtifactRepository repository )
+    {
+<span class="nc" id="L200">        StringBuilder buffer = new StringBuilder( 256 );</span>
+
+<span class="nc" id="L202">        Proxy proxy = repository.getProxy();</span>
+<span class="nc bnc" id="L203" title="All 2 branches missed.">        if ( proxy != null )</span>
+        {
+<span class="nc bnc" id="L205" title="All 2 branches missed.">            if ( proxy.getUserName() != null )</span>
+            {
+<span class="nc" id="L207">                int hash = ( proxy.getUserName() + proxy.getPassword() ).hashCode();</span>
+<span class="nc" id="L208">                buffer.append( hash ).append( '@' );</span>
+            }
+<span class="nc" id="L210">            buffer.append( proxy.getHost() ).append( ':' ).append( proxy.getPort() ).append( '&gt;' );</span>
+        }
+
+        // consider the username&amp;password because a repo manager might block artifacts depending on authorization
+<span class="nc" id="L214">        Authentication auth = repository.getAuthentication();</span>
+<span class="nc bnc" id="L215" title="All 2 branches missed.">        if ( auth != null )</span>
+        {
+<span class="nc" id="L217">            int hash = ( auth.getUsername() + auth.getPassword() ).hashCode();</span>
+<span class="nc" id="L218">            buffer.append( hash ).append( '@' );</span>
+        }
+
+        // consider the URL (instead of the id) as this most closely relates to the contents in the repo
+<span class="nc" id="L222">        buffer.append( repository.getUrl() );</span>
+
+<span class="nc" id="L224">        return buffer.toString();</span>
+    }
+
+    private void writeLastUpdated( File touchfile, String key, String error )
+    {
+<span class="nc" id="L229">        synchronized ( touchfile.getAbsolutePath().intern() )</span>
+        {
+<span class="nc bnc" id="L231" title="All 4 branches missed.">            if ( !touchfile.getParentFile().exists() &amp;&amp; !touchfile.getParentFile().mkdirs() )</span>
+            {
+<span class="nc" id="L233">                getLogger().debug( &quot;Failed to create directory: &quot; + touchfile.getParent()</span>
+                                       + &quot; for tracking artifact metadata resolution.&quot; );
+<span class="nc" id="L235">                return;</span>
+            }
+
+<span class="nc" id="L238">            FileChannel channel = null;</span>
+<span class="nc" id="L239">            FileLock lock = null;</span>
+            try
+            {
+<span class="nc" id="L242">                Properties props = new Properties();</span>
+
+<span class="nc" id="L244">                channel = new RandomAccessFile( touchfile, &quot;rw&quot; ).getChannel();</span>
+<span class="nc" id="L245">                lock = channel.lock();</span>
+
+<span class="nc bnc" id="L247" title="All 2 branches missed.">                if ( touchfile.canRead() )</span>
+                {
+<span class="nc" id="L249">                    getLogger().debug( &quot;Reading resolution-state from: &quot; + touchfile );</span>
+<span class="nc" id="L250">                    props.load( Channels.newInputStream( channel ) );</span>
+                }
+
+<span class="nc" id="L253">                props.setProperty( key, Long.toString( System.currentTimeMillis() ) );</span>
+
+<span class="nc bnc" id="L255" title="All 2 branches missed.">                if ( error != null )</span>
+                {
+<span class="nc" id="L257">                    props.setProperty( key + ERROR_KEY_SUFFIX, error );</span>
+                }
+                else
+                {
+<span class="nc" id="L261">                    props.remove( key + ERROR_KEY_SUFFIX );</span>
+                }
+
+<span class="nc" id="L264">                getLogger().debug( &quot;Writing resolution-state to: &quot; + touchfile );</span>
+<span class="nc" id="L265">                channel.truncate( 0 );</span>
+<span class="nc" id="L266">                props.store( Channels.newOutputStream( channel ), &quot;Last modified on: &quot; + new Date() );</span>
+
+<span class="nc" id="L268">                lock.release();</span>
+<span class="nc" id="L269">                lock = null;</span>
+
+<span class="nc" id="L271">                channel.close();</span>
+<span class="nc" id="L272">                channel = null;</span>
+            }
+<span class="nc" id="L274">            catch ( IOException e )</span>
+            {
+<span class="nc" id="L276">                getLogger().debug(</span>
+                    &quot;Failed to record lastUpdated information for resolution.\nFile: &quot; + touchfile.toString()
+                        + &quot;; key: &quot; + key, e );
+            }
+            finally
+            {
+<span class="nc bnc" id="L282" title="All 2 branches missed.">                if ( lock != null )</span>
+                {
+                    try
+                    {
+<span class="nc" id="L286">                        lock.release();</span>
+                    }
+<span class="nc" id="L288">                    catch ( IOException e )</span>
+                    {
+<span class="nc" id="L290">                        getLogger().debug( &quot;Error releasing exclusive lock for resolution tracking file: &quot; + touchfile,</span>
+                                           e );
+<span class="nc" id="L292">                    }</span>
+                }
+
+<span class="nc bnc" id="L295" title="All 2 branches missed.">                if ( channel != null )</span>
+                {
+                    try
+                    {
+<span class="nc" id="L299">                        channel.close();</span>
+                    }
+<span class="nc" id="L301">                    catch ( IOException e )</span>
+                    {
+<span class="nc" id="L303">                        getLogger().debug( &quot;Error closing FileChannel for resolution tracking file: &quot; + touchfile, e );</span>
+<span class="nc" id="L304">                    }</span>
+                }
+            }
+<span class="nc" id="L307">        }</span>
+<span class="nc" id="L308">    }</span>
+
+    Date readLastUpdated( File touchfile, String key )
+    {
+<span class="nc" id="L312">        getLogger().debug( &quot;Searching for &quot; + key + &quot; in resolution tracking file.&quot; );</span>
+
+<span class="nc" id="L314">        Properties props = read( touchfile );</span>
+<span class="nc bnc" id="L315" title="All 2 branches missed.">        if ( props != null )</span>
+        {
+<span class="nc" id="L317">            String rawVal = props.getProperty( key );</span>
+<span class="nc bnc" id="L318" title="All 2 branches missed.">            if ( rawVal != null )</span>
+            {
+                try
+                {
+<span class="nc" id="L322">                    return new Date( Long.parseLong( rawVal ) );</span>
+                }
+<span class="nc" id="L324">                catch ( NumberFormatException e )</span>
+                {
+<span class="nc" id="L326">                    getLogger().debug( &quot;Cannot parse lastUpdated date: \'&quot; + rawVal + &quot;\'. Ignoring.&quot;, e );</span>
+                }
+            }
+        }
+<span class="nc" id="L330">        return null;</span>
+    }
+
+    private String getError( File touchFile, String key )
+    {
+<span class="nc" id="L335">        Properties props = read( touchFile );</span>
+<span class="nc bnc" id="L336" title="All 2 branches missed.">        if ( props != null )</span>
+        {
+<span class="nc" id="L338">            return props.getProperty( key + ERROR_KEY_SUFFIX );</span>
+        }
+<span class="nc" id="L340">        return null;</span>
+    }
+
+    private Properties read( File touchfile )
+    {
+<span class="nc bnc" id="L345" title="All 2 branches missed.">        if ( !touchfile.canRead() )</span>
+        {
+<span class="nc" id="L347">            getLogger().debug( &quot;Skipped unreadable resolution tracking file &quot; + touchfile );</span>
+<span class="nc" id="L348">            return null;</span>
+        }
+
+<span class="nc" id="L351">        synchronized ( touchfile.getAbsolutePath().intern() )</span>
+        {
+<span class="nc" id="L353">            FileInputStream in = null;</span>
+<span class="nc" id="L354">            FileLock lock = null;</span>
+
+            try
+            {
+<span class="nc" id="L358">                Properties props = new Properties();</span>
+
+<span class="nc" id="L360">                in = new FileInputStream( touchfile );</span>
+<span class="nc" id="L361">                lock = in.getChannel().lock( 0, Long.MAX_VALUE, true );</span>
+
+<span class="nc" id="L363">                getLogger().debug( &quot;Reading resolution-state from: &quot; + touchfile );</span>
+<span class="nc" id="L364">                props.load( in );</span>
+
+<span class="nc" id="L366">                lock.release();</span>
+<span class="nc" id="L367">                lock = null;</span>
+
+<span class="nc" id="L369">                in.close();</span>
+<span class="nc" id="L370">                in = null;</span>
+
+<span class="nc" id="L372">                return props;</span>
+            }
+<span class="nc" id="L374">            catch ( IOException e )</span>
+            {
+<span class="nc" id="L376">                getLogger().debug( &quot;Failed to read resolution tracking file &quot; + touchfile, e );</span>
+
+<span class="nc" id="L378">                return null;</span>
+            }
+            finally
+            {
+<span class="nc bnc" id="L382" title="All 2 branches missed.">                if ( lock != null )</span>
+                {
+                    try
+                    {
+<span class="nc" id="L386">                        lock.release();</span>
+                    }
+<span class="nc" id="L388">                    catch ( IOException e )</span>
+                    {
+<span class="nc" id="L390">                        getLogger().debug( &quot;Error releasing shared lock for resolution tracking file: &quot; + touchfile,</span>
+                                           e );
+<span class="nc" id="L392">                    }</span>
+                }
+
+<span class="nc bnc" id="L395" title="All 2 branches missed.">                if ( in != null )</span>
+                {
+                    try
+                    {
+<span class="nc" id="L399">                        in.close();</span>
+                    }
+<span class="nc" id="L401">                    catch ( IOException e )</span>
+                    {
+<span class="nc" id="L403">                        getLogger().debug( &quot;Error closing FileChannel for resolution tracking file: &quot; + touchfile, e );</span>
+<span class="nc" id="L404">                    }</span>
+                }
+            }
+        }
+    }
+
+    File getTouchfile( Artifact artifact )
+    {
+<span class="nc" id="L412">        StringBuilder sb = new StringBuilder( 128 );</span>
+<span class="nc" id="L413">        sb.append( artifact.getArtifactId() );</span>
+<span class="nc" id="L414">        sb.append( '-' ).append( artifact.getBaseVersion() );</span>
+<span class="nc bnc" id="L415" title="All 2 branches missed.">        if ( artifact.getClassifier() != null )</span>
+        {
+<span class="nc" id="L417">            sb.append( '-' ).append( artifact.getClassifier() );</span>
+        }
+<span class="nc" id="L419">        sb.append( '.' ).append( artifact.getType() ).append( LAST_UPDATE_TAG );</span>
+<span class="nc" id="L420">        return new File( artifact.getFile().getParentFile(), sb.toString() );</span>
+    }
+
+    File getTouchfile( RepositoryMetadata metadata, File file )
+    {
+<span class="nc" id="L425">        return new File( file.getParent(), TOUCHFILE_NAME );</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

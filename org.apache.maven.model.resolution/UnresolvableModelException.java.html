@@ -1,0 +1,127 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>UnresolvableModelException.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.model.resolution</a> &gt; <span class="el_source">UnresolvableModelException.java</span></div><h1>UnresolvableModelException.java</h1><pre class="source lang-java linenums">package org.apache.maven.model.resolution;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+/**
+ * Signals an error when resolving the path to an external model.
+ *
+ * @author Benjamin Bentmann
+ */
+public class UnresolvableModelException
+    extends Exception
+{
+
+    /**
+     * The group id of the unresolvable model.
+     */
+    private final String groupId;
+
+    /**
+     * The artifact id of the unresolvable model.
+     */
+    private final String artifactId;
+
+    /**
+     * The version of the unresolvable model.
+     */
+    private final String version;
+
+    /**
+     * Creates a new exception with specified detail message and cause.
+     *
+     * @param message The detail message, may be {@code null}.
+     * @param groupId The group id of the unresolvable model, may be {@code null}.
+     * @param artifactId The artifact id of the unresolvable model, may be {@code null}.
+     * @param version The version of the unresolvable model, may be {@code null}.
+     * @param cause The cause, may be {@code null}.
+     */
+    public UnresolvableModelException( String message, String groupId, String artifactId, String version,
+                                       Throwable cause )
+    {
+<span class="fc" id="L58">        super( message, cause );</span>
+<span class="pc bpc" id="L59" title="1 of 2 branches missed.">        this.groupId = ( groupId != null ) ? groupId : &quot;&quot;;</span>
+<span class="pc bpc" id="L60" title="1 of 2 branches missed.">        this.artifactId = ( artifactId != null ) ? artifactId : &quot;&quot;;</span>
+<span class="pc bpc" id="L61" title="1 of 2 branches missed.">        this.version = ( version != null ) ? version : &quot;&quot;;</span>
+<span class="fc" id="L62">    }</span>
+
+    /**
+     * Creates a new exception with specified detail message.
+     *
+     * @param message The detail message, may be {@code null}.
+     * @param groupId The group id of the unresolvable model, may be {@code null}.
+     * @param artifactId The artifact id of the unresolvable model, may be {@code null}.
+     * @param version The version of the unresolvable model, may be {@code null}.
+     */
+    public UnresolvableModelException( String message, String groupId, String artifactId, String version )
+    {
+<span class="nc" id="L74">        super( message );</span>
+<span class="nc bnc" id="L75" title="All 2 branches missed.">        this.groupId = ( groupId != null ) ? groupId : &quot;&quot;;</span>
+<span class="nc bnc" id="L76" title="All 2 branches missed.">        this.artifactId = ( artifactId != null ) ? artifactId : &quot;&quot;;</span>
+<span class="nc bnc" id="L77" title="All 2 branches missed.">        this.version = ( version != null ) ? version : &quot;&quot;;</span>
+<span class="nc" id="L78">    }</span>
+
+    /**
+     * Creates a new exception with specified cause
+     *
+     * @param cause
+     * @param groupId
+     * @param artifactId
+     * @param version
+     */
+    public UnresolvableModelException( Throwable cause, String groupId, String artifactId, String version )
+    {
+<span class="nc" id="L90">        super( cause );</span>
+<span class="nc" id="L91">        this.groupId = groupId;</span>
+<span class="nc" id="L92">        this.artifactId = artifactId;</span>
+<span class="nc" id="L93">        this.version = version;</span>
+<span class="nc" id="L94">    }</span>
+
+    /**
+     * Gets the group id of the unresolvable model.
+     *
+     * @return The group id of the unresolvable model, can be empty but never {@code null}.
+     */
+    public String getGroupId()
+    {
+<span class="nc" id="L103">        return groupId;</span>
+    }
+
+    /**
+     * Gets the artifact id of the unresolvable model.
+     *
+     * @return The artifact id of the unresolvable model, can be empty but never {@code null}.
+     */
+    public String getArtifactId()
+    {
+<span class="nc" id="L113">        return artifactId;</span>
+    }
+
+    /**
+     * Gets the version of the unresolvable model.
+     *
+     * @return The version of the unresolvable model, can be empty but never {@code null}.
+     */
+    public String getVersion()
+    {
+<span class="nc" id="L123">        return version;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

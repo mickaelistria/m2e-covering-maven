@@ -1,0 +1,186 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultWagonManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.artifact.manager</a> &gt; <span class="el_source">DefaultWagonManager.java</span></div><h1>DefaultWagonManager.java</h1><pre class="source lang-java linenums">package org.apache.maven.artifact.manager;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.List;
+
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.repository.ArtifactRepository;
+import org.apache.maven.artifact.repository.ArtifactRepositoryFactory;
+import org.apache.maven.execution.MavenExecutionRequest;
+import org.apache.maven.execution.MavenSession;
+import org.apache.maven.plugin.LegacySupport;
+import org.apache.maven.repository.MirrorSelector;
+import org.apache.maven.settings.Mirror;
+import org.apache.maven.settings.Proxy;
+import org.apache.maven.settings.Server;
+import org.apache.maven.settings.crypto.DefaultSettingsDecryptionRequest;
+import org.apache.maven.settings.crypto.SettingsDecrypter;
+import org.apache.maven.settings.crypto.SettingsDecryptionResult;
+import org.apache.maven.wagon.ResourceDoesNotExistException;
+import org.apache.maven.wagon.TransferFailedException;
+import org.apache.maven.wagon.authentication.AuthenticationInfo;
+import org.apache.maven.wagon.proxy.ProxyInfo;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
+import org.codehaus.plexus.logging.Logger;
+
+/**
+ * Manages &lt;a href=&quot;https://maven.apache.org/wagon&quot;&gt;Wagon&lt;/a&gt; related operations in Maven.
+ */
+@Component( role = WagonManager.class )
+<span class="fc" id="L49">public class DefaultWagonManager</span>
+    extends org.apache.maven.repository.legacy.DefaultWagonManager
+    implements WagonManager
+{
+
+    // NOTE: This must use a different field name than in the super class or IoC has no chance to inject the loggers
+    @Requirement
+    private Logger log;
+
+    @Requirement
+    private LegacySupport legacySupport;
+
+    @Requirement
+    private SettingsDecrypter settingsDecrypter;
+
+    @Requirement
+    private MirrorSelector mirrorSelector;
+
+    @Requirement
+    private ArtifactRepositoryFactory artifactRepositoryFactory;
+
+    public AuthenticationInfo getAuthenticationInfo( String id )
+    {
+<span class="fc" id="L72">        MavenSession session = legacySupport.getSession();</span>
+
+<span class="pc bpc" id="L74" title="3 of 4 branches missed.">        if ( session != null &amp;&amp; id != null )</span>
+        {
+<span class="nc" id="L76">            MavenExecutionRequest request = session.getRequest();</span>
+
+<span class="nc bnc" id="L78" title="All 2 branches missed.">            if ( request != null )</span>
+            {
+<span class="nc" id="L80">                List&lt;Server&gt; servers = request.getServers();</span>
+
+<span class="nc bnc" id="L82" title="All 2 branches missed.">                if ( servers != null )</span>
+                {
+<span class="nc bnc" id="L84" title="All 2 branches missed.">                    for ( Server server : servers )</span>
+                    {
+<span class="nc bnc" id="L86" title="All 2 branches missed.">                        if ( id.equalsIgnoreCase( server.getId() ) )</span>
+                        {
+<span class="nc" id="L88">                            SettingsDecryptionResult result =</span>
+                                settingsDecrypter.decrypt( new DefaultSettingsDecryptionRequest( server ) );
+<span class="nc" id="L90">                            server = result.getServer();</span>
+
+<span class="nc" id="L92">                            AuthenticationInfo authInfo = new AuthenticationInfo();</span>
+<span class="nc" id="L93">                            authInfo.setUserName( server.getUsername() );</span>
+<span class="nc" id="L94">                            authInfo.setPassword( server.getPassword() );</span>
+<span class="nc" id="L95">                            authInfo.setPrivateKey( server.getPrivateKey() );</span>
+<span class="nc" id="L96">                            authInfo.setPassphrase( server.getPassphrase() );</span>
+
+<span class="nc" id="L98">                            return authInfo;</span>
+                        }
+<span class="nc" id="L100">                    }</span>
+                }
+            }
+        }
+
+        // empty one to prevent NPE
+<span class="fc" id="L106">       return new AuthenticationInfo();</span>
+    }
+
+    public ProxyInfo getProxy( String protocol )
+    {
+<span class="fc" id="L111">        MavenSession session = legacySupport.getSession();</span>
+
+<span class="pc bpc" id="L113" title="3 of 4 branches missed.">        if ( session != null &amp;&amp; protocol != null )</span>
+        {
+<span class="nc" id="L115">            MavenExecutionRequest request = session.getRequest();</span>
+
+<span class="nc bnc" id="L117" title="All 2 branches missed.">            if ( request != null )</span>
+            {
+<span class="nc" id="L119">                List&lt;Proxy&gt; proxies = request.getProxies();</span>
+
+<span class="nc bnc" id="L121" title="All 2 branches missed.">                if ( proxies != null )</span>
+                {
+<span class="nc bnc" id="L123" title="All 2 branches missed.">                    for ( Proxy proxy : proxies )</span>
+                    {
+<span class="nc bnc" id="L125" title="All 4 branches missed.">                        if ( proxy.isActive() &amp;&amp; protocol.equalsIgnoreCase( proxy.getProtocol() ) )</span>
+                        {
+<span class="nc" id="L127">                            SettingsDecryptionResult result =</span>
+                                settingsDecrypter.decrypt( new DefaultSettingsDecryptionRequest( proxy ) );
+<span class="nc" id="L129">                            proxy = result.getProxy();</span>
+
+<span class="nc" id="L131">                            ProxyInfo proxyInfo = new ProxyInfo();</span>
+<span class="nc" id="L132">                            proxyInfo.setHost( proxy.getHost() );</span>
+<span class="nc" id="L133">                            proxyInfo.setType( proxy.getProtocol() );</span>
+<span class="nc" id="L134">                            proxyInfo.setPort( proxy.getPort() );</span>
+<span class="nc" id="L135">                            proxyInfo.setNonProxyHosts( proxy.getNonProxyHosts() );</span>
+<span class="nc" id="L136">                            proxyInfo.setUserName( proxy.getUsername() );</span>
+<span class="nc" id="L137">                            proxyInfo.setPassword( proxy.getPassword() );</span>
+
+<span class="nc" id="L139">                            return proxyInfo;</span>
+                        }
+<span class="nc" id="L141">                    }</span>
+                }
+            }
+        }
+
+<span class="fc" id="L146">        return null;</span>
+    }
+
+    public void getArtifact( Artifact artifact, ArtifactRepository repository )
+        throws TransferFailedException, ResourceDoesNotExistException
+    {
+<span class="nc" id="L152">        getArtifact( artifact, repository, null, false );</span>
+<span class="nc" id="L153">    }</span>
+
+    public void getArtifact( Artifact artifact, List&lt;ArtifactRepository&gt; remoteRepositories )
+        throws TransferFailedException, ResourceDoesNotExistException
+    {
+<span class="nc" id="L158">        getArtifact( artifact, remoteRepositories, null, false );</span>
+<span class="nc" id="L159">    }</span>
+
+    @Deprecated
+    public ArtifactRepository getMirrorRepository( ArtifactRepository repository )
+    {
+
+<span class="nc" id="L165">        Mirror mirror = mirrorSelector.getMirror( repository, legacySupport.getSession().getSettings().getMirrors() );</span>
+
+<span class="nc bnc" id="L167" title="All 2 branches missed.">        if ( mirror != null )</span>
+        {
+<span class="nc" id="L169">            String id = mirror.getId();</span>
+<span class="nc bnc" id="L170" title="All 2 branches missed.">            if ( id == null )</span>
+            {
+                // TODO this should be illegal in settings.xml
+<span class="nc" id="L173">                id = repository.getId();</span>
+            }
+
+<span class="nc" id="L176">            log.debug( &quot;Using mirror: &quot; + mirror.getUrl() + &quot; (id: &quot; + id + &quot;)&quot; );</span>
+
+<span class="nc" id="L178">            repository = artifactRepositoryFactory.createArtifactRepository( id, mirror.getUrl(),</span>
+                                                                     repository.getLayout(), repository.getSnapshots(),
+                                                                     repository.getReleases() );
+        }
+<span class="nc" id="L182">        return repository;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

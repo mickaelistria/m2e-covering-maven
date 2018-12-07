@@ -1,0 +1,409 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StringSearchModelInterpolator.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.project.interpolation</a> &gt; <span class="el_source">StringSearchModelInterpolator.java</span></div><h1>StringSearchModelInterpolator.java</h1><pre class="source lang-java linenums">package org.apache.maven.project.interpolation;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.maven.model.Model;
+import org.apache.maven.project.ProjectBuilderConfiguration;
+import org.apache.maven.project.path.PathTranslator;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.interpolation.InterpolationPostProcessor;
+import org.codehaus.plexus.interpolation.Interpolator;
+import org.codehaus.plexus.interpolation.StringSearchInterpolator;
+import org.codehaus.plexus.interpolation.ValueSource;
+import org.codehaus.plexus.logging.Logger;
+
+import java.io.File;
+import java.lang.reflect.Array;
+import java.lang.reflect.Field;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.WeakHashMap;
+
+/**
+ * StringSearchModelInterpolator
+ */
+@Deprecated
+@Component( role = ModelInterpolator.class )
+public class StringSearchModelInterpolator
+    extends AbstractStringBasedModelInterpolator
+{
+
+<span class="nc" id="L53">    private static final Map&lt;Class&lt;?&gt;, Field[]&gt; FIELDS_BY_CLASS = new WeakHashMap&lt;&gt;();</span>
+<span class="nc" id="L54">    private static final Map&lt;Class&lt;?&gt;, Boolean&gt; PRIMITIVE_BY_CLASS = new WeakHashMap&lt;&gt;();</span>
+
+    public StringSearchModelInterpolator()
+<span class="nc" id="L57">    {</span>
+<span class="nc" id="L58">    }</span>
+
+    public StringSearchModelInterpolator( PathTranslator pathTranslator )
+    {
+<span class="nc" id="L62">        super( pathTranslator );</span>
+<span class="nc" id="L63">    }</span>
+
+    public Model interpolate( Model model, File projectDir, ProjectBuilderConfiguration config, boolean debugEnabled )
+        throws ModelInterpolationException
+    {
+<span class="nc" id="L68">        interpolateObject( model, model, projectDir, config, debugEnabled );</span>
+
+<span class="nc" id="L70">        return model;</span>
+    }
+
+    protected void interpolateObject( Object obj, Model model, File projectDir, ProjectBuilderConfiguration config,
+                                      boolean debugEnabled )
+        throws ModelInterpolationException
+    {
+        try
+        {
+<span class="nc" id="L79">            List&lt;ValueSource&gt; valueSources = createValueSources( model, projectDir, config );</span>
+<span class="nc" id="L80">            List&lt;InterpolationPostProcessor&gt; postProcessors = createPostProcessors( model, projectDir, config );</span>
+
+<span class="nc" id="L82">            InterpolateObjectAction action =</span>
+                new InterpolateObjectAction( obj, valueSources, postProcessors, debugEnabled,
+                                             this, getLogger() );
+
+<span class="nc" id="L86">            ModelInterpolationException error = AccessController.doPrivileged( action );</span>
+
+<span class="nc bnc" id="L88" title="All 2 branches missed.">            if ( error != null )</span>
+            {
+<span class="nc" id="L90">                throw error;</span>
+            }
+        }
+        finally
+        {
+<span class="nc" id="L95">            getInterpolator().clearAnswers();</span>
+        }
+<span class="nc" id="L97">    }</span>
+
+    protected Interpolator createInterpolator()
+    {
+<span class="nc" id="L101">        StringSearchInterpolator interpolator = new StringSearchInterpolator();</span>
+<span class="nc" id="L102">        interpolator.setCacheAnswers( true );</span>
+
+<span class="nc" id="L104">        return interpolator;</span>
+    }
+
+    private static final class InterpolateObjectAction implements PrivilegedAction&lt;ModelInterpolationException&gt;
+    {
+
+        private final boolean debugEnabled;
+        private final LinkedList&lt;Object&gt; interpolationTargets;
+        private final StringSearchModelInterpolator modelInterpolator;
+        private final Logger logger;
+        private final List&lt;ValueSource&gt; valueSources;
+        private final List&lt;InterpolationPostProcessor&gt; postProcessors;
+
+        InterpolateObjectAction( Object target, List&lt;ValueSource&gt; valueSources,
+                                        List&lt;InterpolationPostProcessor&gt; postProcessors, boolean debugEnabled,
+                                        StringSearchModelInterpolator modelInterpolator, Logger logger )
+<span class="nc" id="L120">        {</span>
+<span class="nc" id="L121">            this.valueSources = valueSources;</span>
+<span class="nc" id="L122">            this.postProcessors = postProcessors;</span>
+<span class="nc" id="L123">            this.debugEnabled = debugEnabled;</span>
+
+<span class="nc" id="L125">            this.interpolationTargets = new LinkedList&lt;&gt;();</span>
+<span class="nc" id="L126">            interpolationTargets.add( target );</span>
+
+<span class="nc" id="L128">            this.modelInterpolator = modelInterpolator;</span>
+<span class="nc" id="L129">            this.logger = logger;</span>
+<span class="nc" id="L130">        }</span>
+
+        public ModelInterpolationException run()
+        {
+<span class="nc bnc" id="L134" title="All 2 branches missed.">            while ( !interpolationTargets.isEmpty() )</span>
+            {
+<span class="nc" id="L136">                Object obj = interpolationTargets.removeFirst();</span>
+
+                try
+                {
+<span class="nc" id="L140">                    traverseObjectWithParents( obj.getClass(), obj );</span>
+                }
+<span class="nc" id="L142">                catch ( ModelInterpolationException e )</span>
+                {
+<span class="nc" id="L144">                    return e;</span>
+<span class="nc" id="L145">                }</span>
+<span class="nc" id="L146">            }</span>
+
+<span class="nc" id="L148">            return null;</span>
+        }
+
+        @SuppressWarnings( { &quot;unchecked&quot;, &quot;checkstyle:methodlength&quot; } )
+        private void traverseObjectWithParents( Class&lt;?&gt; cls, Object target )
+            throws ModelInterpolationException
+        {
+<span class="nc bnc" id="L155" title="All 2 branches missed.">            if ( cls == null )</span>
+            {
+<span class="nc" id="L157">                return;</span>
+            }
+
+
+<span class="nc bnc" id="L161" title="All 2 branches missed.">            if ( cls.isArray() )</span>
+            {
+<span class="nc" id="L163">                evaluateArray( target );</span>
+            }
+<span class="nc bnc" id="L165" title="All 2 branches missed.">            else if ( isQualifiedForInterpolation( cls ) )</span>
+            {
+<span class="nc" id="L167">                Field[] fields = FIELDS_BY_CLASS.get( cls );</span>
+<span class="nc bnc" id="L168" title="All 2 branches missed.">                if ( fields == null )</span>
+                {
+<span class="nc" id="L170">                    fields = cls.getDeclaredFields();</span>
+<span class="nc" id="L171">                    FIELDS_BY_CLASS.put( cls, fields );</span>
+                }
+
+<span class="nc bnc" id="L174" title="All 2 branches missed.">                for ( Field field : fields )</span>
+                {
+<span class="nc" id="L176">                    Class&lt;?&gt; type = field.getType();</span>
+<span class="nc bnc" id="L177" title="All 2 branches missed.">                    if ( isQualifiedForInterpolation( field, type ) )</span>
+                    {
+<span class="nc" id="L179">                        boolean isAccessible = field.isAccessible();</span>
+<span class="nc" id="L180">                        field.setAccessible( true );</span>
+                        try
+                        {
+                            try
+                            {
+<span class="nc bnc" id="L185" title="All 2 branches missed.">                                if ( String.class == type )</span>
+                                {
+<span class="nc" id="L187">                                    String value = (String) field.get( target );</span>
+<span class="nc bnc" id="L188" title="All 2 branches missed.">                                    if ( value != null )</span>
+                                    {
+<span class="nc" id="L190">                                        String interpolated =</span>
+                                            modelInterpolator.interpolateInternal( value, valueSources, postProcessors,
+                                                                                   debugEnabled );
+
+<span class="nc bnc" id="L194" title="All 2 branches missed.">                                        if ( !interpolated.equals( value ) )</span>
+                                        {
+<span class="nc" id="L196">                                            field.set( target, interpolated );</span>
+                                        }
+                                    }
+<span class="nc" id="L199">                                }</span>
+<span class="nc bnc" id="L200" title="All 2 branches missed.">                                else if ( Collection.class.isAssignableFrom( type ) )</span>
+                                {
+<span class="nc" id="L202">                                    Collection&lt;Object&gt; c = (Collection&lt;Object&gt;) field.get( target );</span>
+<span class="nc bnc" id="L203" title="All 4 branches missed.">                                    if ( c != null &amp;&amp; !c.isEmpty() )</span>
+                                    {
+<span class="nc" id="L205">                                        List&lt;Object&gt; originalValues = new ArrayList&lt;&gt;( c );</span>
+                                        try
+                                        {
+<span class="nc" id="L208">                                            c.clear();</span>
+                                        }
+<span class="nc" id="L210">                                        catch ( UnsupportedOperationException e )</span>
+                                        {
+<span class="nc bnc" id="L212" title="All 4 branches missed.">                                            if ( debugEnabled &amp;&amp; logger != null )</span>
+                                            {
+<span class="nc" id="L214">                                                logger.debug( &quot;Skipping interpolation of field: &quot; + field + &quot; in: &quot;</span>
+                                                                  + cls.getName()
+                                                                  + &quot;; it is an unmodifiable collection.&quot; );
+                                            }
+                                            continue;
+<span class="nc" id="L219">                                        }</span>
+
+<span class="nc bnc" id="L221" title="All 2 branches missed.">                                        for ( Object value : originalValues )</span>
+                                        {
+<span class="nc bnc" id="L223" title="All 2 branches missed.">                                            if ( value != null )</span>
+                                            {
+<span class="nc bnc" id="L225" title="All 2 branches missed.">                                                if ( String.class == value.getClass() )</span>
+                                                {
+<span class="nc" id="L227">                                                    String interpolated =</span>
+                                                        modelInterpolator.interpolateInternal( (String) value,
+                                                                                               valueSources,
+                                                                                               postProcessors,
+                                                                                               debugEnabled );
+
+<span class="nc bnc" id="L233" title="All 2 branches missed.">                                                    if ( !interpolated.equals( value ) )</span>
+                                                    {
+<span class="nc" id="L235">                                                        c.add( interpolated );</span>
+                                                    }
+                                                    else
+                                                    {
+<span class="nc" id="L239">                                                        c.add( value );</span>
+                                                    }
+<span class="nc" id="L241">                                                }</span>
+                                                else
+                                                {
+<span class="nc" id="L244">                                                    c.add( value );</span>
+<span class="nc bnc" id="L245" title="All 2 branches missed.">                                                    if ( value.getClass().isArray() )</span>
+                                                    {
+<span class="nc" id="L247">                                                        evaluateArray( value );</span>
+                                                    }
+                                                    else
+                                                    {
+<span class="nc" id="L251">                                                        interpolationTargets.add( value );</span>
+                                                    }
+                                                }
+                                            }
+                                            else
+                                            {
+                                                // add the null back in...not sure what else to do...
+<span class="nc" id="L258">                                                c.add( value );</span>
+                                            }
+<span class="nc" id="L260">                                        }</span>
+                                    }
+<span class="nc" id="L262">                                }</span>
+<span class="nc bnc" id="L263" title="All 2 branches missed.">                                else if ( Map.class.isAssignableFrom( type ) )</span>
+                                {
+<span class="nc" id="L265">                                    Map&lt;Object, Object&gt; m = (Map&lt;Object, Object&gt;) field.get( target );</span>
+<span class="nc bnc" id="L266" title="All 4 branches missed.">                                    if ( m != null &amp;&amp; !m.isEmpty() )</span>
+                                    {
+<span class="nc bnc" id="L268" title="All 2 branches missed.">                                        for ( Map.Entry&lt;Object, Object&gt; entry : m.entrySet() )</span>
+                                        {
+<span class="nc" id="L270">                                            Object value = entry.getValue();</span>
+
+<span class="nc bnc" id="L272" title="All 2 branches missed.">                                            if ( value != null )</span>
+                                            {
+<span class="nc bnc" id="L274" title="All 2 branches missed.">                                                if ( String.class == value.getClass() )</span>
+                                                {
+<span class="nc" id="L276">                                                    String interpolated =</span>
+                                                        modelInterpolator.interpolateInternal( (String) value,
+                                                                                               valueSources,
+                                                                                               postProcessors,
+                                                                                               debugEnabled );
+
+<span class="nc bnc" id="L282" title="All 2 branches missed.">                                                    if ( !interpolated.equals( value ) )</span>
+                                                    {
+                                                        try
+                                                        {
+<span class="nc" id="L286">                                                            entry.setValue( interpolated );</span>
+                                                        }
+<span class="nc" id="L288">                                                        catch ( UnsupportedOperationException e )</span>
+                                                        {
+<span class="nc bnc" id="L290" title="All 4 branches missed.">                                                            if ( debugEnabled &amp;&amp; logger != null )</span>
+                                                            {
+<span class="nc" id="L292">                                                                logger.debug(</span>
+                                                                    &quot;Skipping interpolation of field: &quot; + field
+                                                                        + &quot; (key: &quot; + entry.getKey() + &quot;) in: &quot;
+                                                                        + cls.getName()
+                                                                        + &quot;; it is an unmodifiable collection.&quot; );
+                                                            }
+<span class="nc" id="L298">                                                        }</span>
+                                                    }
+<span class="nc" id="L300">                                                }</span>
+                                                else
+                                                {
+<span class="nc bnc" id="L303" title="All 2 branches missed.">                                                    if ( value.getClass().isArray() )</span>
+                                                    {
+<span class="nc" id="L305">                                                        evaluateArray( value );</span>
+                                                    }
+                                                    else
+                                                    {
+<span class="nc" id="L309">                                                        interpolationTargets.add( value );</span>
+                                                    }
+                                                }
+                                            }
+<span class="nc" id="L313">                                        }</span>
+                                    }
+<span class="nc" id="L315">                                }</span>
+                                else
+                                {
+<span class="nc" id="L318">                                    Object value = field.get( target );</span>
+<span class="nc bnc" id="L319" title="All 2 branches missed.">                                    if ( value != null )</span>
+                                    {
+<span class="nc bnc" id="L321" title="All 2 branches missed.">                                        if ( field.getType().isArray() )</span>
+                                        {
+<span class="nc" id="L323">                                            evaluateArray( value );</span>
+                                        }
+                                        else
+                                        {
+<span class="nc" id="L327">                                            interpolationTargets.add( value );</span>
+                                        }
+                                    }
+                                }
+                            }
+<span class="nc" id="L332">                            catch ( IllegalArgumentException | IllegalAccessException e )</span>
+                            {
+<span class="nc" id="L334">                                throw new ModelInterpolationException(</span>
+                                    &quot;Failed to interpolate field: &quot; + field + &quot; on class: &quot; + cls.getName(), e );
+<span class="nc" id="L336">                            }</span>
+                        }
+                        finally
+                        {
+<span class="nc" id="L340">                            field.setAccessible( isAccessible );</span>
+                        }
+                    }
+                }
+
+<span class="nc" id="L345">                traverseObjectWithParents( cls.getSuperclass(), target );</span>
+            }
+<span class="nc" id="L347">        }</span>
+
+        private boolean isQualifiedForInterpolation( Class&lt;?&gt; cls )
+        {
+<span class="nc bnc" id="L351" title="All 2 branches missed.">            return !cls.getPackage().getName().startsWith( &quot;java&quot; );</span>
+        }
+
+        private boolean isQualifiedForInterpolation( Field field, Class&lt;?&gt; fieldType )
+        {
+<span class="nc bnc" id="L356" title="All 2 branches missed.">            if ( !PRIMITIVE_BY_CLASS.containsKey( fieldType ) )</span>
+            {
+<span class="nc" id="L358">                PRIMITIVE_BY_CLASS.put( fieldType, fieldType.isPrimitive() );</span>
+            }
+
+<span class="nc bnc" id="L361" title="All 2 branches missed.">            if ( PRIMITIVE_BY_CLASS.get( fieldType ) )</span>
+            {
+<span class="nc" id="L363">                return false;</span>
+            }
+
+//            if ( fieldType.isPrimitive() )
+//            {
+//                return false;
+//            }
+
+<span class="nc bnc" id="L371" title="All 2 branches missed.">            if ( &quot;parent&quot;.equals( field.getName() ) )</span>
+            {
+<span class="nc" id="L373">                return false;</span>
+            }
+
+<span class="nc" id="L376">            return true;</span>
+        }
+
+        private void evaluateArray( Object target )
+            throws ModelInterpolationException
+        {
+<span class="nc" id="L382">            int len = Array.getLength( target );</span>
+<span class="nc bnc" id="L383" title="All 2 branches missed.">            for ( int i = 0; i &lt; len; i++ )</span>
+            {
+<span class="nc" id="L385">                Object value = Array.get( target, i );</span>
+<span class="nc bnc" id="L386" title="All 2 branches missed.">                if ( value != null )</span>
+                {
+<span class="nc bnc" id="L388" title="All 2 branches missed.">                    if ( String.class == value.getClass() )</span>
+                    {
+<span class="nc" id="L390">                        String interpolated =</span>
+                            modelInterpolator.interpolateInternal( (String) value, valueSources, postProcessors,
+                                                                   debugEnabled );
+
+<span class="nc bnc" id="L394" title="All 2 branches missed.">                        if ( !interpolated.equals( value ) )</span>
+                        {
+<span class="nc" id="L396">                            Array.set( target, i, interpolated );</span>
+                        }
+<span class="nc" id="L398">                    }</span>
+                    else
+                    {
+<span class="nc" id="L401">                        interpolationTargets.add( value );</span>
+                    }
+                }
+            }
+<span class="nc" id="L405">        }</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

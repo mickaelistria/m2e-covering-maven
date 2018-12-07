@@ -1,0 +1,525 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MetadataGraph.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository.metadata</a> &gt; <span class="el_source">MetadataGraph.java</span></div><h1>MetadataGraph.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository.metadata;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeSet;
+
+import org.apache.maven.artifact.ArtifactScopeEnum;
+
+/**
+ * maven dependency metadata graph
+ *
+ * @author &lt;a href=&quot;oleg@codehaus.org&quot;&gt;Oleg Gusakov&lt;/a&gt;
+ *
+ */
+public class MetadataGraph
+{
+    public static final int DEFAULT_VERTICES = 32;
+    public static final int DEFAULT_EDGES    = 64;
+
+    // flags to indicate the granularity of vertices
+<span class="nc" id="L42">    private boolean versionedVertices = false;</span>
+<span class="nc" id="L43">    private boolean scopedVertices    = false;</span>
+    /**
+    * the entry point we started building the graph from
+    */
+    MetadataGraphVertex entry;
+
+    // graph vertices
+    TreeSet&lt;MetadataGraphVertex&gt; vertices;
+
+    /**
+     * incident and excident edges per node
+     */
+    Map&lt;MetadataGraphVertex, List&lt;MetadataGraphEdge&gt;&gt; incidentEdges;
+    Map&lt;MetadataGraphVertex, List&lt;MetadataGraphEdge&gt;&gt; excidentEdges;
+
+    /**
+     *  null in dirty graph, actual
+     *  scope for conflict-resolved graph
+     */
+    ArtifactScopeEnum scope;
+
+    //------------------------------------------------------------------------
+    /**
+     * init graph
+     */
+    public MetadataGraph( int nVertices )
+<span class="nc" id="L69">    {</span>
+<span class="nc" id="L70">        init( nVertices, 2 * nVertices );</span>
+<span class="nc" id="L71">    }</span>
+    public MetadataGraph( int nVertices, int nEdges )
+<span class="nc" id="L73">    {</span>
+<span class="nc" id="L74">        init( nVertices, nEdges );</span>
+<span class="nc" id="L75">    }</span>
+    //------------------------------------------------------------------------
+    /**
+     * construct a single vertex
+     */
+    public MetadataGraph( MetadataGraphVertex entry )
+        throws MetadataResolutionException
+<span class="nc" id="L82">    {</span>
+<span class="nc" id="L83">        checkVertex( entry );</span>
+<span class="nc" id="L84">        checkVertices( 1 );</span>
+
+<span class="nc" id="L86">        entry.setCompareVersion( versionedVertices );</span>
+<span class="nc" id="L87">        entry.setCompareScope( scopedVertices );</span>
+
+<span class="nc" id="L89">        vertices.add( entry );</span>
+<span class="nc" id="L90">        this.entry = entry;</span>
+<span class="nc" id="L91">    }</span>
+    //------------------------------------------------------------------------
+    /**
+     * construct graph from a &quot;dirty&quot; tree
+     */
+    public MetadataGraph( MetadataTreeNode tree )
+        throws MetadataResolutionException
+    {
+<span class="nc" id="L99">        this( tree, false, false );</span>
+<span class="nc" id="L100">    }</span>
+    //------------------------------------------------------------------------
+    /**
+     * construct graph from a &quot;dirty&quot; tree
+     *
+     * @param tree &quot;dirty&quot; tree root
+     * @param versionedVertices true if graph nodes should be versioned (different versions -&amp;gt; different nodes)
+     * @param scopedVertices true if graph nodes should be versioned and scoped
+     * (different versions and/or scopes -&amp;gt; different nodes)
+     *
+     */
+    public MetadataGraph( MetadataTreeNode tree, boolean versionedVertices, boolean scopedVertices )
+        throws MetadataResolutionException
+<span class="nc" id="L113">    {</span>
+<span class="nc bnc" id="L114" title="All 2 branches missed.">        if ( tree == null )</span>
+        {
+<span class="nc" id="L116">            throw new MetadataResolutionException( &quot;tree is null&quot; );</span>
+        }
+
+<span class="nc" id="L119">        setVersionedVertices( versionedVertices );</span>
+<span class="nc" id="L120">        setScopedVertices( scopedVertices );</span>
+
+<span class="nc bnc" id="L122" title="All 4 branches missed.">        this.versionedVertices = scopedVertices || versionedVertices;</span>
+<span class="nc" id="L123">        this.scopedVertices = scopedVertices;</span>
+
+<span class="nc" id="L125">        int count = countNodes( tree );</span>
+
+<span class="nc" id="L127">        init( count, count + ( count / 2 ) );</span>
+
+<span class="nc" id="L129">        processTreeNodes( null, tree, 0, 0 );</span>
+<span class="nc" id="L130">    }</span>
+    //------------------------------------------------------------------------
+    private void processTreeNodes( MetadataGraphVertex parentVertex, MetadataTreeNode node, int depth, int pomOrder )
+        throws MetadataResolutionException
+    {
+<span class="nc bnc" id="L135" title="All 2 branches missed.">        if ( node == null )</span>
+        {
+<span class="nc" id="L137">            return;</span>
+        }
+
+<span class="nc" id="L140">        MetadataGraphVertex vertex = new MetadataGraphVertex( node.md, versionedVertices, scopedVertices );</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">        if ( !vertices.contains( vertex ) )</span>
+        {
+<span class="nc" id="L143">            vertices.add( vertex );</span>
+        }
+
+<span class="nc bnc" id="L146" title="All 2 branches missed.">        if ( parentVertex != null ) // then create the edge</span>
+        {
+<span class="nc" id="L148">            ArtifactMetadata md = node.getMd();</span>
+<span class="nc" id="L149">            MetadataGraphEdge e =</span>
+                new MetadataGraphEdge( md.version, md.resolved, md.artifactScope, md.artifactUri, depth, pomOrder );
+<span class="nc" id="L151">            addEdge( parentVertex, vertex, e );</span>
+<span class="nc" id="L152">        }</span>
+        else
+        {
+<span class="nc" id="L155">            entry = vertex;</span>
+        }
+
+<span class="nc" id="L158">        MetadataTreeNode[] kids = node.getChildren();</span>
+<span class="nc bnc" id="L159" title="All 4 branches missed.">        if ( kids == null || kids.length &lt; 1 )</span>
+        {
+<span class="nc" id="L161">            return;</span>
+        }
+
+<span class="nc bnc" id="L164" title="All 2 branches missed.">        for ( int i = 0; i &lt; kids.length; i++ )</span>
+        {
+<span class="nc" id="L166">            MetadataTreeNode n = kids[i];</span>
+<span class="nc" id="L167">            processTreeNodes( vertex, n, depth + 1, i );</span>
+        }
+<span class="nc" id="L169">    }</span>
+    //------------------------------------------------------------------------
+    public MetadataGraphVertex findVertex( ArtifactMetadata md )
+    {
+<span class="nc bnc" id="L173" title="All 6 branches missed.">        if ( md == null || vertices == null || vertices.size() &lt; 1 )</span>
+        {
+<span class="nc" id="L175">            return null;</span>
+        }
+
+<span class="nc" id="L178">        MetadataGraphVertex v = new MetadataGraphVertex( md );</span>
+<span class="nc" id="L179">        v.setCompareVersion( versionedVertices );</span>
+<span class="nc" id="L180">        v.setCompareScope( scopedVertices );</span>
+
+<span class="nc bnc" id="L182" title="All 2 branches missed.">        for ( MetadataGraphVertex gv : vertices )</span>
+        {
+<span class="nc bnc" id="L184" title="All 2 branches missed.">            if ( gv.equals( v ) )</span>
+            {
+<span class="nc" id="L186">                return gv;</span>
+            }
+<span class="nc" id="L188">        }</span>
+
+<span class="nc" id="L190">        return null;</span>
+    }
+    //------------------------------------------------------------------------
+    public MetadataGraphVertex addVertex( ArtifactMetadata md )
+    {
+<span class="nc bnc" id="L195" title="All 2 branches missed.">        if ( md == null )</span>
+        {
+<span class="nc" id="L197">            return null;</span>
+        }
+
+<span class="nc" id="L200">        checkVertices();</span>
+
+<span class="nc" id="L202">        MetadataGraphVertex v = findVertex( md );</span>
+<span class="nc bnc" id="L203" title="All 2 branches missed.">        if ( v != null )</span>
+        {
+<span class="nc" id="L205">            return v;</span>
+        }
+
+<span class="nc" id="L208">        v = new MetadataGraphVertex( md );</span>
+
+<span class="nc" id="L210">        v.setCompareVersion( versionedVertices );</span>
+<span class="nc" id="L211">        v.setCompareScope( scopedVertices );</span>
+
+<span class="nc" id="L213">        vertices.add( v );</span>
+<span class="nc" id="L214">        return v;</span>
+    }
+    //------------------------------------------------------------------------
+    /**
+     * init graph
+     */
+    private void init( int nVertices, int nEdges )
+    {
+<span class="nc" id="L222">        int nV = nVertices;</span>
+<span class="nc bnc" id="L223" title="All 2 branches missed.">        if ( nVertices &lt; 1 )</span>
+        {
+<span class="nc" id="L225">            nV = 1;</span>
+        }
+
+<span class="nc" id="L228">        checkVertices( nV );</span>
+
+<span class="nc" id="L230">        int nE = nVertices;</span>
+<span class="nc bnc" id="L231" title="All 2 branches missed.">        if ( nEdges &lt;= nV )</span>
+        {
+<span class="nc" id="L233">            nE = 2 * nE;</span>
+        }
+
+<span class="nc" id="L236">        checkEdges( nE );</span>
+<span class="nc" id="L237">    }</span>
+
+    private void checkVertices()
+    {
+<span class="nc" id="L241">        checkVertices( DEFAULT_VERTICES );</span>
+<span class="nc" id="L242">    }</span>
+
+    private void checkVertices( int nVertices )
+    {
+<span class="nc bnc" id="L246" title="All 2 branches missed.">        if ( vertices == null )</span>
+        {
+<span class="nc" id="L248">            vertices = new TreeSet&lt;&gt;();</span>
+        }
+<span class="nc" id="L250">    }</span>
+    private void checkEdges()
+    {
+<span class="nc" id="L253">        int count = DEFAULT_EDGES;</span>
+
+<span class="nc bnc" id="L255" title="All 2 branches missed.">        if ( vertices != null )</span>
+        {
+<span class="nc" id="L257">            count = vertices.size() + vertices.size() / 2;</span>
+        }
+
+<span class="nc" id="L260">        checkEdges( count );</span>
+<span class="nc" id="L261">    }</span>
+    private void checkEdges( int nEdges )
+    {
+<span class="nc bnc" id="L264" title="All 2 branches missed.">        if ( incidentEdges == null )</span>
+        {
+<span class="nc" id="L266">            incidentEdges = new HashMap&lt;&gt;( nEdges );</span>
+        }
+<span class="nc bnc" id="L268" title="All 2 branches missed.">        if ( excidentEdges == null )</span>
+        {
+<span class="nc" id="L270">            excidentEdges = new HashMap&lt;&gt;( nEdges );</span>
+        }
+<span class="nc" id="L272">    }</span>
+    //------------------------------------------------------------------------
+    private static void checkVertex( MetadataGraphVertex v )
+        throws MetadataResolutionException
+    {
+<span class="nc bnc" id="L277" title="All 2 branches missed.">        if ( v == null )</span>
+        {
+<span class="nc" id="L279">            throw new MetadataResolutionException( &quot;null vertex&quot; );</span>
+        }
+<span class="nc bnc" id="L281" title="All 2 branches missed.">        if ( v.getMd() == null )</span>
+        {
+<span class="nc" id="L283">            throw new MetadataResolutionException( &quot;vertex without metadata&quot; );</span>
+        }
+<span class="nc" id="L285">    }</span>
+    //------------------------------------------------------------------------
+    private static void checkEdge( MetadataGraphEdge e )
+        throws MetadataResolutionException
+    {
+<span class="nc bnc" id="L290" title="All 2 branches missed.">        if ( e == null )</span>
+        {
+<span class="nc" id="L292">            throw new MetadataResolutionException( &quot;badly formed edge&quot; );</span>
+        }
+<span class="nc" id="L294">    }</span>
+    //------------------------------------------------------------------------
+    public List&lt;MetadataGraphEdge&gt; getEdgesBetween( MetadataGraphVertex vFrom, MetadataGraphVertex vTo )
+    {
+<span class="nc" id="L298">        List&lt;MetadataGraphEdge&gt; edges = getIncidentEdges( vTo );</span>
+<span class="nc bnc" id="L299" title="All 4 branches missed.">        if ( edges == null || edges.isEmpty() )</span>
+        {
+<span class="nc" id="L301">            return null;</span>
+        }
+
+<span class="nc" id="L304">        List&lt;MetadataGraphEdge&gt; res = new ArrayList&lt;&gt;( edges.size() );</span>
+
+<span class="nc bnc" id="L306" title="All 2 branches missed.">        for ( MetadataGraphEdge e : edges )</span>
+        {
+<span class="nc bnc" id="L308" title="All 2 branches missed.">            if ( e.getSource().equals( vFrom ) )</span>
+            {
+<span class="nc" id="L310">                res.add( e );</span>
+            }
+<span class="nc" id="L312">        }</span>
+
+<span class="nc" id="L314">        return res;</span>
+    }
+    //------------------------------------------------------------------------
+    public MetadataGraph addEdge( MetadataGraphVertex vFrom, MetadataGraphVertex vTo, MetadataGraphEdge e )
+        throws MetadataResolutionException
+    {
+<span class="nc" id="L320">        checkVertex( vFrom );</span>
+<span class="nc" id="L321">        checkVertex( vTo );</span>
+
+<span class="nc" id="L323">        checkVertices();</span>
+
+<span class="nc" id="L325">        checkEdge( e );</span>
+<span class="nc" id="L326">        checkEdges();</span>
+
+<span class="nc" id="L328">        e.setSource( vFrom );</span>
+<span class="nc" id="L329">        e.setTarget( vTo );</span>
+
+<span class="nc" id="L331">        vFrom.setCompareVersion( versionedVertices );</span>
+<span class="nc" id="L332">        vFrom.setCompareScope( scopedVertices );</span>
+
+<span class="nc" id="L334">        List&lt;MetadataGraphEdge&gt; exList = excidentEdges.get( vFrom );</span>
+<span class="nc bnc" id="L335" title="All 2 branches missed.">        if ( exList == null )</span>
+        {
+<span class="nc" id="L337">            exList = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L338">            excidentEdges.put( vFrom, exList );</span>
+        }
+
+<span class="nc bnc" id="L341" title="All 2 branches missed.">        if ( !exList.contains( e ) )</span>
+        {
+<span class="nc" id="L343">            exList.add( e );</span>
+        }
+
+<span class="nc" id="L346">        List&lt;MetadataGraphEdge&gt; inList = incidentEdges.get( vTo );</span>
+<span class="nc bnc" id="L347" title="All 2 branches missed.">        if ( inList == null )</span>
+        {
+<span class="nc" id="L349">            inList = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L350">            incidentEdges.put( vTo, inList );</span>
+        }
+
+<span class="nc bnc" id="L353" title="All 2 branches missed.">        if ( !inList.contains( e ) )</span>
+        {
+<span class="nc" id="L355">            inList.add( e );</span>
+        }
+
+<span class="nc" id="L358">        return this;</span>
+    }
+    //------------------------------------------------------------------------
+    public MetadataGraph removeVertex( MetadataGraphVertex v )
+    {
+<span class="nc bnc" id="L363" title="All 4 branches missed.">        if ( vertices != null &amp;&amp; v != null )</span>
+        {
+<span class="nc" id="L365">            vertices.remove( v );</span>
+        }
+
+<span class="nc bnc" id="L368" title="All 2 branches missed.">        if ( incidentEdges != null )</span>
+        {
+<span class="nc" id="L370">            incidentEdges.remove( v );</span>
+        }
+
+<span class="nc bnc" id="L373" title="All 2 branches missed.">        if ( excidentEdges != null )</span>
+        {
+<span class="nc" id="L375">            excidentEdges.remove( v );</span>
+        }
+
+<span class="nc" id="L378">        return this;</span>
+
+    }
+    //------------------------------------------------------------------------
+    private static int countNodes( MetadataTreeNode tree )
+    {
+<span class="nc bnc" id="L384" title="All 2 branches missed.">        if ( tree == null )</span>
+        {
+<span class="nc" id="L386">            return 0;</span>
+        }
+
+<span class="nc" id="L389">        int count = 1;</span>
+<span class="nc" id="L390">        MetadataTreeNode[] kids = tree.getChildren();</span>
+<span class="nc bnc" id="L391" title="All 4 branches missed.">        if ( kids == null || kids.length &lt; 1 )</span>
+        {
+<span class="nc" id="L393">            return count;</span>
+        }
+<span class="nc bnc" id="L395" title="All 2 branches missed.">        for ( MetadataTreeNode n : kids )</span>
+        {
+<span class="nc" id="L397">            count += countNodes( n );</span>
+        }
+
+<span class="nc" id="L400">        return count;</span>
+    }
+
+    //------------------------------------------------------------------------
+    public MetadataGraphVertex getEntry()
+    {
+<span class="nc" id="L406">        return entry;</span>
+    }
+
+    public void setEntry( MetadataGraphVertex entry )
+    {
+<span class="nc" id="L411">        this.entry = entry;</span>
+<span class="nc" id="L412">    }</span>
+
+    public TreeSet&lt;MetadataGraphVertex&gt; getVertices()
+    {
+<span class="nc" id="L416">        return vertices;</span>
+    }
+
+    public List&lt;MetadataGraphEdge&gt; getIncidentEdges( MetadataGraphVertex vertex )
+    {
+<span class="nc" id="L421">        checkEdges();</span>
+<span class="nc" id="L422">        return incidentEdges.get( vertex );</span>
+    }
+
+    public List&lt;MetadataGraphEdge&gt; getExcidentEdges( MetadataGraphVertex vertex )
+    {
+<span class="nc" id="L427">        checkEdges();</span>
+<span class="nc" id="L428">        return excidentEdges.get( vertex );</span>
+    }
+
+    public boolean isVersionedVertices()
+    {
+<span class="nc" id="L433">        return versionedVertices;</span>
+    }
+
+    public void setVersionedVertices( boolean versionedVertices )
+    {
+<span class="nc" id="L438">        this.versionedVertices = versionedVertices;</span>
+<span class="nc" id="L439">    }</span>
+
+    public boolean isScopedVertices()
+    {
+<span class="nc" id="L443">        return scopedVertices;</span>
+    }
+
+    public void setScopedVertices( boolean scopedVertices )
+    {
+<span class="nc" id="L448">        this.scopedVertices = scopedVertices;</span>
+
+        // scoped graph is versioned by definition
+<span class="nc bnc" id="L451" title="All 2 branches missed.">        if ( scopedVertices )</span>
+        {
+<span class="nc" id="L453">            versionedVertices = true;</span>
+        }
+<span class="nc" id="L455">    }</span>
+
+    public ArtifactScopeEnum getScope()
+    {
+<span class="nc" id="L459">        return scope;</span>
+    }
+
+    public void setScope( ArtifactScopeEnum scope )
+    {
+<span class="nc" id="L464">        this.scope = scope;</span>
+<span class="nc" id="L465">    }</span>
+
+    // ------------------------------------------------------------------------
+    public boolean isEmpty()
+    {
+<span class="nc bnc" id="L470" title="All 6 branches missed.">        return entry == null || vertices == null || vertices.isEmpty();</span>
+    }
+
+    //------------------------------------------------------------------------
+    public boolean isEmptyEdges()
+    {
+<span class="nc bnc" id="L476" title="All 6 branches missed.">        return isEmpty() || incidentEdges == null || incidentEdges.isEmpty();</span>
+    }
+    //------------------------------------------------------------------------
+    @Override
+    public String toString()
+    {
+<span class="nc" id="L482">        StringBuilder sb = new StringBuilder( 512 );</span>
+<span class="nc bnc" id="L483" title="All 2 branches missed.">        if ( isEmpty() )</span>
+        {
+<span class="nc" id="L485">            return &quot;empty&quot;;</span>
+        }
+<span class="nc bnc" id="L487" title="All 2 branches missed.">        for ( MetadataGraphVertex v : vertices )</span>
+        {
+<span class="nc" id="L489">            sb.append( &quot;Vertex:  &quot; ).append( v.getMd().toString() ).append( '\n' );</span>
+<span class="nc" id="L490">            List&lt;MetadataGraphEdge&gt; ins = getIncidentEdges( v );</span>
+<span class="nc bnc" id="L491" title="All 2 branches missed.">            if ( ins != null )</span>
+            {
+<span class="nc bnc" id="L493" title="All 2 branches missed.">                for ( MetadataGraphEdge e : ins )</span>
+                {
+<span class="nc" id="L495">                    sb.append( &quot;       from :  &quot; ).append( e.toString() ).append( '\n' );</span>
+<span class="nc" id="L496">                }</span>
+            }
+            else
+            {
+<span class="nc" id="L500">                sb.append( &quot;      no entries\n&quot; );</span>
+            }
+
+<span class="nc" id="L503">            List&lt;MetadataGraphEdge&gt; outs = getExcidentEdges( v );</span>
+<span class="nc bnc" id="L504" title="All 2 branches missed.">            if ( outs != null )</span>
+            {
+<span class="nc bnc" id="L506" title="All 2 branches missed.">                for ( MetadataGraphEdge e : outs )</span>
+                {
+<span class="nc" id="L508">                    sb.append( &quot;        to :  &quot; ).append( e.toString() ).append( '\n' );</span>
+<span class="nc" id="L509">                }</span>
+            }
+            else
+            {
+<span class="nc" id="L513">                sb.append( &quot;      no exit\n&quot; );</span>
+            }
+
+<span class="nc" id="L516">            sb.append( &quot;-------------------------------------------------\n&quot; );</span>
+<span class="nc" id="L517">        }</span>
+<span class="nc" id="L518">        sb.append( &quot;=============================================================\n&quot; );</span>
+<span class="nc" id="L519">        return sb.toString();</span>
+    }
+
+    //------------------------------------------------------------------------
+    //------------------------------------------------------------------------
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

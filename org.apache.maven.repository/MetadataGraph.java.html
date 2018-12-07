@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MetadataGraph.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository</a> &gt; <span class="el_source">MetadataGraph.java</span></div><h1>MetadataGraph.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.ArrayList;
+import java.util.Collection;
+
+/**
+ * This is the main graph data structure used by the RepositorySystem to present tree and graph objects.
+ *
+ * @author Oleg Gusakov
+ *
+ */
+public class MetadataGraph
+{
+    /** all graph nodes */
+    Collection&lt;MetadataGraphNode&gt; nodes;
+
+    /** entry point for tree-like structures */
+    MetadataGraphNode entry;
+
+    public MetadataGraph( MetadataGraphNode entry )
+    {
+<span class="nc" id="L41">        this();</span>
+
+<span class="nc" id="L43">        this.entry = entry;</span>
+<span class="nc" id="L44">    }</span>
+
+    public MetadataGraph()
+<span class="nc" id="L47">    {</span>
+<span class="nc" id="L48">        nodes = new ArrayList&lt;&gt;( 64 );</span>
+<span class="nc" id="L49">    }</span>
+
+    public void addNode( MetadataGraphNode node )
+    {
+<span class="nc" id="L53">        nodes.add( node );</span>
+<span class="nc" id="L54">    }</span>
+
+    /**
+     * find a node by the GAV (metadata)
+     *
+     * @param md
+     */
+    public MetadataGraphNode findNode( MavenArtifactMetadata md )
+    {
+<span class="nc bnc" id="L63" title="All 2 branches missed.">        for ( MetadataGraphNode mgn : nodes )</span>
+        {
+<span class="nc bnc" id="L65" title="All 2 branches missed.">            if ( mgn.metadata.equals( md ) )</span>
+            {
+<span class="nc" id="L67">                return mgn;</span>
+            }
+<span class="nc" id="L69">        }</span>
+
+<span class="nc" id="L71">        MetadataGraphNode node = new MetadataGraphNode( md );</span>
+<span class="nc" id="L72">        addNode( node );</span>
+<span class="nc" id="L73">        return node;</span>
+    }
+
+    /**
+     * getter
+     */
+    public MetadataGraphNode getEntry()
+    {
+<span class="nc" id="L81">        return entry;</span>
+    }
+
+    /**
+     * getter
+     */
+    public Collection&lt;MetadataGraphNode&gt; getNodes()
+    {
+<span class="nc" id="L89">        return nodes;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

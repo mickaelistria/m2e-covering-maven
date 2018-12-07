@@ -1,0 +1,1390 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultModelBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.model.building</a> &gt; <span class="el_source">DefaultModelBuilder.java</span></div><h1>DefaultModelBuilder.java</h1><pre class="source lang-java linenums">package org.apache.maven.model.building;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+
+import org.apache.commons.lang3.Validate;
+import org.apache.maven.artifact.versioning.DefaultArtifactVersion;
+import org.apache.maven.artifact.versioning.InvalidVersionSpecificationException;
+import org.apache.maven.artifact.versioning.VersionRange;
+import org.apache.maven.model.Activation;
+import org.apache.maven.model.Build;
+import org.apache.maven.model.Dependency;
+import org.apache.maven.model.DependencyManagement;
+import org.apache.maven.model.InputLocation;
+import org.apache.maven.model.InputSource;
+import org.apache.maven.model.Model;
+import org.apache.maven.model.Parent;
+import org.apache.maven.model.Plugin;
+import org.apache.maven.model.PluginManagement;
+import org.apache.maven.model.Profile;
+import org.apache.maven.model.Repository;
+import org.apache.maven.model.building.ModelProblem.Severity;
+import org.apache.maven.model.building.ModelProblem.Version;
+import org.apache.maven.model.composition.DependencyManagementImporter;
+import org.apache.maven.model.inheritance.InheritanceAssembler;
+import org.apache.maven.model.interpolation.ModelInterpolator;
+import org.apache.maven.model.io.ModelParseException;
+import org.apache.maven.model.management.DependencyManagementInjector;
+import org.apache.maven.model.management.PluginManagementInjector;
+import org.apache.maven.model.normalization.ModelNormalizer;
+import org.apache.maven.model.path.ModelPathTranslator;
+import org.apache.maven.model.path.ModelUrlNormalizer;
+import org.apache.maven.model.plugin.LifecycleBindingsInjector;
+import org.apache.maven.model.plugin.PluginConfigurationExpander;
+import org.apache.maven.model.plugin.ReportConfigurationExpander;
+import org.apache.maven.model.plugin.ReportingConverter;
+import org.apache.maven.model.profile.DefaultProfileActivationContext;
+import org.apache.maven.model.profile.ProfileInjector;
+import org.apache.maven.model.profile.ProfileSelector;
+import org.apache.maven.model.resolution.InvalidRepositoryException;
+import org.apache.maven.model.resolution.ModelResolver;
+import org.apache.maven.model.resolution.UnresolvableModelException;
+import org.apache.maven.model.resolution.WorkspaceModelResolver;
+import org.apache.maven.model.superpom.SuperPomProvider;
+import org.apache.maven.model.validation.ModelValidator;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
+import org.codehaus.plexus.interpolation.MapBasedValueSource;
+import org.codehaus.plexus.interpolation.StringSearchInterpolator;
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+
+import static org.apache.maven.model.building.Result.error;
+import static org.apache.maven.model.building.Result.newResult;
+
+/**
+ * @author Benjamin Bentmann
+ */
+@Component( role = ModelBuilder.class )
+<span class="fc" id="L86">public class DefaultModelBuilder</span>
+    implements ModelBuilder
+{
+    @Requirement
+    private ModelProcessor modelProcessor;
+
+    @Requirement
+    private ModelValidator modelValidator;
+
+    @Requirement
+    private ModelNormalizer modelNormalizer;
+
+    @Requirement
+    private ModelInterpolator modelInterpolator;
+
+    @Requirement
+    private ModelPathTranslator modelPathTranslator;
+
+    @Requirement
+    private ModelUrlNormalizer modelUrlNormalizer;
+
+    @Requirement
+    private SuperPomProvider superPomProvider;
+
+    @Requirement
+    private InheritanceAssembler inheritanceAssembler;
+
+    @Requirement
+    private ProfileSelector profileSelector;
+
+    @Requirement
+    private ProfileInjector profileInjector;
+
+    @Requirement
+    private PluginManagementInjector pluginManagementInjector;
+
+    @Requirement
+    private DependencyManagementInjector dependencyManagementInjector;
+
+    @Requirement
+    private DependencyManagementImporter dependencyManagementImporter;
+
+    @Requirement( optional = true )
+    private LifecycleBindingsInjector lifecycleBindingsInjector;
+
+    @Requirement
+    private PluginConfigurationExpander pluginConfigurationExpander;
+
+    @Requirement
+    private ReportConfigurationExpander reportConfigurationExpander;
+
+    @Requirement
+    private ReportingConverter reportingConverter;
+
+    public DefaultModelBuilder setModelProcessor( ModelProcessor modelProcessor )
+    {
+<span class="fc" id="L142">        this.modelProcessor = modelProcessor;</span>
+<span class="fc" id="L143">        return this;</span>
+    }
+
+    public DefaultModelBuilder setModelValidator( ModelValidator modelValidator )
+    {
+<span class="fc" id="L148">        this.modelValidator = modelValidator;</span>
+<span class="fc" id="L149">        return this;</span>
+    }
+
+    public DefaultModelBuilder setModelNormalizer( ModelNormalizer modelNormalizer )
+    {
+<span class="fc" id="L154">        this.modelNormalizer = modelNormalizer;</span>
+<span class="fc" id="L155">        return this;</span>
+    }
+
+    public DefaultModelBuilder setModelInterpolator( ModelInterpolator modelInterpolator )
+    {
+<span class="fc" id="L160">        this.modelInterpolator = modelInterpolator;</span>
+<span class="fc" id="L161">        return this;</span>
+    }
+
+    public DefaultModelBuilder setModelPathTranslator( ModelPathTranslator modelPathTranslator )
+    {
+<span class="fc" id="L166">        this.modelPathTranslator = modelPathTranslator;</span>
+<span class="fc" id="L167">        return this;</span>
+    }
+
+    public DefaultModelBuilder setModelUrlNormalizer( ModelUrlNormalizer modelUrlNormalizer )
+    {
+<span class="fc" id="L172">        this.modelUrlNormalizer = modelUrlNormalizer;</span>
+<span class="fc" id="L173">        return this;</span>
+    }
+
+    public DefaultModelBuilder setSuperPomProvider( SuperPomProvider superPomProvider )
+    {
+<span class="fc" id="L178">        this.superPomProvider = superPomProvider;</span>
+<span class="fc" id="L179">        return this;</span>
+    }
+
+    public DefaultModelBuilder setProfileSelector( ProfileSelector profileSelector )
+    {
+<span class="fc" id="L184">        this.profileSelector = profileSelector;</span>
+<span class="fc" id="L185">        return this;</span>
+    }
+
+    public DefaultModelBuilder setProfileInjector( ProfileInjector profileInjector )
+    {
+<span class="fc" id="L190">        this.profileInjector = profileInjector;</span>
+<span class="fc" id="L191">        return this;</span>
+    }
+
+    public DefaultModelBuilder setInheritanceAssembler( InheritanceAssembler inheritanceAssembler )
+    {
+<span class="fc" id="L196">        this.inheritanceAssembler = inheritanceAssembler;</span>
+<span class="fc" id="L197">        return this;</span>
+    }
+
+    public DefaultModelBuilder setDependencyManagementImporter( DependencyManagementImporter depMgmtImporter )
+    {
+<span class="fc" id="L202">        this.dependencyManagementImporter = depMgmtImporter;</span>
+<span class="fc" id="L203">        return this;</span>
+    }
+
+    public DefaultModelBuilder setDependencyManagementInjector( DependencyManagementInjector depMgmtInjector )
+    {
+<span class="fc" id="L208">        this.dependencyManagementInjector = depMgmtInjector;</span>
+<span class="fc" id="L209">        return this;</span>
+    }
+
+    public DefaultModelBuilder setLifecycleBindingsInjector( LifecycleBindingsInjector lifecycleBindingsInjector )
+    {
+<span class="fc" id="L214">        this.lifecycleBindingsInjector = lifecycleBindingsInjector;</span>
+<span class="fc" id="L215">        return this;</span>
+    }
+
+    public DefaultModelBuilder setPluginConfigurationExpander( PluginConfigurationExpander pluginConfigurationExpander )
+    {
+<span class="fc" id="L220">        this.pluginConfigurationExpander = pluginConfigurationExpander;</span>
+<span class="fc" id="L221">        return this;</span>
+    }
+
+    public DefaultModelBuilder setPluginManagementInjector( PluginManagementInjector pluginManagementInjector )
+    {
+<span class="fc" id="L226">        this.pluginManagementInjector = pluginManagementInjector;</span>
+<span class="fc" id="L227">        return this;</span>
+    }
+
+    public DefaultModelBuilder setReportConfigurationExpander( ReportConfigurationExpander reportConfigurationExpander )
+    {
+<span class="fc" id="L232">        this.reportConfigurationExpander = reportConfigurationExpander;</span>
+<span class="fc" id="L233">        return this;</span>
+    }
+
+    public DefaultModelBuilder setReportingConverter( ReportingConverter reportingConverter )
+    {
+<span class="fc" id="L238">        this.reportingConverter = reportingConverter;</span>
+<span class="fc" id="L239">        return this;</span>
+    }
+
+    @SuppressWarnings( &quot;checkstyle:methodlength&quot; )
+    @Override
+    public ModelBuildingResult build( ModelBuildingRequest request )
+        throws ModelBuildingException
+    {
+        // phase 1
+<span class="fc" id="L248">        DefaultModelBuildingResult result = new DefaultModelBuildingResult();</span>
+
+<span class="fc" id="L250">        DefaultModelProblemCollector problems = new DefaultModelProblemCollector( result );</span>
+
+        // profile activation
+<span class="fc" id="L253">        DefaultProfileActivationContext profileActivationContext = getProfileActivationContext( request );</span>
+
+<span class="fc" id="L255">        problems.setSource( &quot;(external profiles)&quot; );</span>
+<span class="fc" id="L256">        List&lt;Profile&gt; activeExternalProfiles = profileSelector.getActiveProfiles( request.getProfiles(),</span>
+                                                                                  profileActivationContext, problems );
+
+<span class="fc" id="L259">        result.setActiveExternalProfiles( activeExternalProfiles );</span>
+
+<span class="fc bfc" id="L261" title="All 2 branches covered.">        if ( !activeExternalProfiles.isEmpty() )</span>
+        {
+<span class="fc" id="L263">            Properties profileProps = new Properties();</span>
+<span class="fc bfc" id="L264" title="All 2 branches covered.">            for ( Profile profile : activeExternalProfiles )</span>
+            {
+<span class="fc" id="L266">                profileProps.putAll( profile.getProperties() );</span>
+<span class="fc" id="L267">            }</span>
+<span class="fc" id="L268">            profileProps.putAll( profileActivationContext.getUserProperties() );</span>
+<span class="fc" id="L269">            profileActivationContext.setUserProperties( profileProps );</span>
+        }
+
+        // read and validate raw model
+<span class="fc" id="L273">        Model inputModel = request.getRawModel();</span>
+<span class="pc bpc" id="L274" title="1 of 2 branches missed.">        if ( inputModel == null )</span>
+        {
+<span class="fc" id="L276">            inputModel = readModel( request.getModelSource(), request.getPomFile(), request, problems );</span>
+        }
+
+<span class="fc" id="L279">        problems.setRootModel( inputModel );</span>
+
+<span class="fc" id="L281">        ModelData resultData = new ModelData( request.getModelSource(), inputModel );</span>
+<span class="fc" id="L282">        ModelData superData = new ModelData( null, getSuperModel() );</span>
+
+<span class="fc" id="L284">        Collection&lt;String&gt; parentIds = new LinkedHashSet&lt;&gt;();</span>
+<span class="fc" id="L285">        List&lt;ModelData&gt; lineage = new ArrayList&lt;&gt;();</span>
+
+<span class="pc bpc" id="L287" title="1 of 2 branches missed.">        for ( ModelData currentData = resultData; currentData != null; )</span>
+        {
+<span class="fc" id="L289">            lineage.add( currentData );</span>
+
+<span class="fc" id="L291">            Model rawModel = currentData.getModel();</span>
+<span class="fc" id="L292">            currentData.setRawModel( rawModel );</span>
+
+<span class="fc" id="L294">            Model tmpModel = rawModel.clone();</span>
+<span class="fc" id="L295">            currentData.setModel( tmpModel );</span>
+
+<span class="fc" id="L297">            problems.setSource( tmpModel );</span>
+
+            // model normalization
+<span class="fc" id="L300">            modelNormalizer.mergeDuplicates( tmpModel, request, problems );</span>
+
+<span class="fc" id="L302">            profileActivationContext.setProjectProperties( tmpModel.getProperties() );</span>
+
+<span class="fc" id="L304">            List&lt;Profile&gt; activePomProfiles = profileSelector.getActiveProfiles( rawModel.getProfiles(),</span>
+                                                                                 profileActivationContext, problems );
+<span class="fc" id="L306">            currentData.setActiveProfiles( activePomProfiles );</span>
+
+<span class="fc" id="L308">            Map&lt;String, Activation&gt; interpolatedActivations = getProfileActivations( rawModel, false );</span>
+<span class="fc" id="L309">            injectProfileActivations( tmpModel, interpolatedActivations );</span>
+
+            // profile injection
+<span class="fc bfc" id="L312" title="All 2 branches covered.">            for ( Profile activeProfile : activePomProfiles )</span>
+            {
+<span class="fc" id="L314">                profileInjector.injectProfile( tmpModel, activeProfile, request, problems );</span>
+<span class="fc" id="L315">            }</span>
+
+<span class="fc bfc" id="L317" title="All 2 branches covered.">            if ( currentData == resultData )</span>
+            {
+<span class="fc bfc" id="L319" title="All 2 branches covered.">                for ( Profile activeProfile : activeExternalProfiles )</span>
+                {
+<span class="fc" id="L321">                    profileInjector.injectProfile( tmpModel, activeProfile, request, problems );</span>
+<span class="fc" id="L322">                }</span>
+            }
+
+<span class="fc bfc" id="L325" title="All 2 branches covered.">            if ( currentData == superData )</span>
+            {
+<span class="fc" id="L327">                break;</span>
+            }
+
+<span class="fc" id="L330">            configureResolver( request.getModelResolver(), tmpModel, problems );</span>
+
+<span class="fc" id="L332">            ModelData parentData = readParent( tmpModel, currentData.getSource(), request, problems );</span>
+
+<span class="fc bfc" id="L334" title="All 2 branches covered.">            if ( parentData == null )</span>
+            {
+<span class="fc" id="L336">                currentData = superData;</span>
+            }
+<span class="fc bfc" id="L338" title="All 2 branches covered.">            else if ( currentData == resultData )</span>
+            { // First iteration - add initial id after version resolution.
+<span class="fc bfc" id="L340" title="All 2 branches covered.">                currentData.setGroupId( currentData.getRawModel().getGroupId() == null ? parentData.getGroupId()</span>
+                                                                                      : currentData.getRawModel()
+                                                                                          .getGroupId() );
+
+<span class="fc bfc" id="L344" title="All 2 branches covered.">                currentData.setVersion( currentData.getRawModel().getVersion() == null ? parentData.getVersion()</span>
+                                                                                      : currentData.getRawModel()
+                                                                                          .getVersion() );
+
+<span class="fc" id="L348">                currentData.setArtifactId( currentData.getRawModel().getArtifactId() );</span>
+<span class="fc" id="L349">                parentIds.add( currentData.getId() );</span>
+                // Reset - only needed for 'getId'.
+<span class="fc" id="L351">                currentData.setGroupId( null );</span>
+<span class="fc" id="L352">                currentData.setArtifactId( null );</span>
+<span class="fc" id="L353">                currentData.setVersion( null );</span>
+<span class="fc" id="L354">                currentData = parentData;</span>
+            }
+<span class="pc bpc" id="L356" title="1 of 2 branches missed.">            else if ( !parentIds.add( parentData.getId() ) )</span>
+            {
+<span class="nc" id="L358">                String message = &quot;The parents form a cycle: &quot;;</span>
+<span class="nc bnc" id="L359" title="All 2 branches missed.">                for ( String modelId : parentIds )</span>
+                {
+<span class="nc" id="L361">                    message += modelId + &quot; -&gt; &quot;;</span>
+<span class="nc" id="L362">                }</span>
+<span class="nc" id="L363">                message += parentData.getId();</span>
+
+<span class="nc" id="L365">                problems.add( new ModelProblemCollectorRequest( ModelProblem.Severity.FATAL, ModelProblem.Version.BASE )</span>
+                    .setMessage( message ) );
+
+<span class="nc" id="L368">                throw problems.newModelBuildingException();</span>
+            }
+            else
+            {
+<span class="fc" id="L372">                currentData = parentData;</span>
+            }
+<span class="fc" id="L374">        }</span>
+
+<span class="fc" id="L376">        problems.setSource( inputModel );</span>
+<span class="fc" id="L377">        checkPluginVersions( lineage, request, problems );</span>
+
+        // inheritance assembly
+<span class="fc" id="L380">        assembleInheritance( lineage, request, problems );</span>
+
+<span class="fc" id="L382">        Model resultModel = resultData.getModel();</span>
+
+<span class="fc" id="L384">        problems.setSource( resultModel );</span>
+<span class="fc" id="L385">        problems.setRootModel( resultModel );</span>
+
+        // model interpolation
+<span class="fc" id="L388">        resultModel = interpolateModel( resultModel, request, problems );</span>
+<span class="fc" id="L389">        resultData.setModel( resultModel );</span>
+
+        // url normalization
+<span class="fc" id="L392">        modelUrlNormalizer.normalize( resultModel, request );</span>
+
+        // Now the fully interpolated model is available: reconfigure the resolver
+<span class="fc" id="L395">        configureResolver( request.getModelResolver(), resultModel, problems, true );</span>
+
+<span class="fc" id="L397">        resultData.setGroupId( resultModel.getGroupId() );</span>
+<span class="fc" id="L398">        resultData.setArtifactId( resultModel.getArtifactId() );</span>
+<span class="fc" id="L399">        resultData.setVersion( resultModel.getVersion() );</span>
+
+<span class="fc" id="L401">        result.setEffectiveModel( resultModel );</span>
+
+<span class="fc bfc" id="L403" title="All 2 branches covered.">        for ( ModelData currentData : lineage )</span>
+        {
+<span class="fc bfc" id="L405" title="All 2 branches covered.">            String modelId = ( currentData != superData ) ? currentData.getId() : &quot;&quot;;</span>
+
+<span class="fc" id="L407">            result.addModelId( modelId );</span>
+<span class="fc" id="L408">            result.setActivePomProfiles( modelId, currentData.getActiveProfiles() );</span>
+<span class="fc" id="L409">            result.setRawModel( modelId, currentData.getRawModel() );</span>
+<span class="fc" id="L410">        }</span>
+
+<span class="pc bpc" id="L412" title="1 of 2 branches missed.">        if ( !request.isTwoPhaseBuilding() )</span>
+        {
+<span class="fc" id="L414">            build( request, result );</span>
+        }
+
+<span class="fc" id="L417">        return result;</span>
+    }
+
+    @Override
+    public ModelBuildingResult build( ModelBuildingRequest request, ModelBuildingResult result )
+        throws ModelBuildingException
+    {
+<span class="fc" id="L424">        return build( request, result, new LinkedHashSet&lt;String&gt;() );</span>
+    }
+
+    private ModelBuildingResult build( ModelBuildingRequest request, ModelBuildingResult result,
+                                       Collection&lt;String&gt; imports )
+        throws ModelBuildingException
+    {
+        // phase 2
+<span class="fc" id="L432">        Model resultModel = result.getEffectiveModel();</span>
+
+<span class="fc" id="L434">        DefaultModelProblemCollector problems = new DefaultModelProblemCollector( result );</span>
+<span class="fc" id="L435">        problems.setSource( resultModel );</span>
+<span class="fc" id="L436">        problems.setRootModel( resultModel );</span>
+
+        // model path translation
+<span class="fc" id="L439">        modelPathTranslator.alignToBaseDirectory( resultModel, resultModel.getProjectDirectory(), request );</span>
+
+        // plugin management injection
+<span class="fc" id="L442">        pluginManagementInjector.injectManagement( resultModel, request, problems );</span>
+
+<span class="fc" id="L444">        fireEvent( resultModel, request, problems, ModelBuildingEventCatapult.BUILD_EXTENSIONS_ASSEMBLED );</span>
+
+<span class="fc bfc" id="L446" title="All 2 branches covered.">        if ( request.isProcessPlugins() )</span>
+        {
+<span class="pc bpc" id="L448" title="1 of 2 branches missed.">            if ( lifecycleBindingsInjector == null )</span>
+            {
+<span class="nc" id="L450">                throw new IllegalStateException( &quot;lifecycle bindings injector is missing&quot; );</span>
+            }
+
+            // lifecycle bindings injection
+<span class="fc" id="L454">            lifecycleBindingsInjector.injectLifecycleBindings( resultModel, request, problems );</span>
+        }
+
+        // dependency management import
+<span class="fc" id="L458">        importDependencyManagement( resultModel, request, problems, imports );</span>
+
+        // dependency management injection
+<span class="fc" id="L461">        dependencyManagementInjector.injectManagement( resultModel, request, problems );</span>
+
+<span class="fc" id="L463">        modelNormalizer.injectDefaultValues( resultModel, request, problems );</span>
+
+<span class="fc bfc" id="L465" title="All 2 branches covered.">        if ( request.isProcessPlugins() )</span>
+        {
+            // reports configuration
+<span class="fc" id="L468">            reportConfigurationExpander.expandPluginConfiguration( resultModel, request, problems );</span>
+
+            // reports conversion to decoupled site plugin
+<span class="fc" id="L471">            reportingConverter.convertReporting( resultModel, request, problems );</span>
+
+            // plugins configuration
+<span class="fc" id="L474">            pluginConfigurationExpander.expandPluginConfiguration( resultModel, request, problems );</span>
+        }
+
+        // effective model validation
+<span class="fc" id="L478">        modelValidator.validateEffectiveModel( resultModel, request, problems );</span>
+
+<span class="fc bfc" id="L480" title="All 2 branches covered.">        if ( hasModelErrors( problems ) )</span>
+        {
+<span class="fc" id="L482">            throw problems.newModelBuildingException();</span>
+        }
+
+<span class="fc" id="L485">        return result;</span>
+    }
+
+    @Override
+    public Result&lt;? extends Model&gt; buildRawModel( File pomFile, int validationLevel, boolean locationTracking )
+    {
+<span class="nc" id="L491">        final ModelBuildingRequest request = new DefaultModelBuildingRequest().setValidationLevel( validationLevel )</span>
+            .setLocationTracking( locationTracking );
+<span class="nc" id="L493">        final DefaultModelProblemCollector collector =</span>
+            new DefaultModelProblemCollector( new DefaultModelBuildingResult() );
+        try
+        {
+<span class="nc" id="L497">            return newResult( readModel( null, pomFile, request, collector ), collector.getProblems() );</span>
+        }
+<span class="nc" id="L499">        catch ( ModelBuildingException e )</span>
+        {
+<span class="nc" id="L501">            return error( collector.getProblems() );</span>
+        }
+    }
+
+    private Model readModel( ModelSource modelSource, File pomFile, ModelBuildingRequest request,
+                             DefaultModelProblemCollector problems )
+        throws ModelBuildingException
+    {
+        Model model;
+
+<span class="pc bpc" id="L511" title="1 of 2 branches missed.">        if ( modelSource == null )</span>
+        {
+<span class="nc bnc" id="L513" title="All 2 branches missed.">            if ( pomFile != null )</span>
+            {
+<span class="nc" id="L515">                modelSource = new FileModelSource( pomFile );</span>
+            }
+            else
+            {
+<span class="nc" id="L519">                throw new NullPointerException( &quot;neither pomFile nor modelSource can be null&quot; );</span>
+            }
+        }
+
+<span class="fc" id="L523">        problems.setSource( modelSource.getLocation() );</span>
+        try
+        {
+<span class="fc bfc" id="L526" title="All 2 branches covered.">            boolean strict = request.getValidationLevel() &gt;= ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_2_0;</span>
+<span class="fc bfc" id="L527" title="All 2 branches covered.">            InputSource source = request.isLocationTracking() ? new InputSource() : null;</span>
+
+<span class="fc" id="L529">            Map&lt;String, Object&gt; options = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L530">            options.put( ModelProcessor.IS_STRICT, strict );</span>
+<span class="fc" id="L531">            options.put( ModelProcessor.INPUT_SOURCE, source );</span>
+<span class="fc" id="L532">            options.put( ModelProcessor.SOURCE, modelSource );</span>
+
+            try
+            {
+<span class="fc" id="L536">                model = modelProcessor.read( modelSource.getInputStream(), options );</span>
+            }
+<span class="fc" id="L538">            catch ( ModelParseException e )</span>
+            {
+<span class="pc bpc" id="L540" title="1 of 2 branches missed.">                if ( !strict )</span>
+                {
+<span class="fc" id="L542">                    throw e;</span>
+                }
+
+<span class="nc" id="L545">                options.put( ModelProcessor.IS_STRICT, Boolean.FALSE );</span>
+
+                try
+                {
+<span class="nc" id="L549">                    model = modelProcessor.read( modelSource.getInputStream(), options );</span>
+                }
+<span class="nc" id="L551">                catch ( ModelParseException ne )</span>
+                {
+                    // still unreadable even in non-strict mode, rethrow original error
+<span class="nc" id="L554">                    throw e;</span>
+<span class="nc" id="L555">                }</span>
+
+<span class="nc bnc" id="L557" title="All 2 branches missed.">                if ( pomFile != null )</span>
+                {
+<span class="nc" id="L559">                    problems.add( new ModelProblemCollectorRequest( Severity.ERROR, Version.V20 )</span>
+                        .setMessage( &quot;Malformed POM &quot; + modelSource.getLocation() + &quot;: &quot; + e.getMessage() )
+                        .setException( e ) );
+                }
+                else
+                {
+<span class="nc" id="L565">                    problems.add( new ModelProblemCollectorRequest( Severity.WARNING, Version.V20 )</span>
+                        .setMessage( &quot;Malformed POM &quot; + modelSource.getLocation() + &quot;: &quot; + e.getMessage() )
+                        .setException( e ) );
+                }
+<span class="fc" id="L569">            }</span>
+
+<span class="fc bfc" id="L571" title="All 2 branches covered.">            if ( source != null )</span>
+            {
+<span class="fc" id="L573">                source.setModelId( ModelProblemUtils.toId( model ) );</span>
+<span class="fc" id="L574">                source.setLocation( modelSource.getLocation() );</span>
+            }
+        }
+<span class="fc" id="L577">        catch ( ModelParseException e )</span>
+        {
+<span class="fc" id="L579">            problems.add( new ModelProblemCollectorRequest( Severity.FATAL, Version.BASE )</span>
+                .setMessage( &quot;Non-parseable POM &quot; + modelSource.getLocation() + &quot;: &quot; + e.getMessage() )
+                .setException( e ) );
+<span class="fc" id="L582">            throw problems.newModelBuildingException();</span>
+        }
+<span class="fc" id="L584">        catch ( IOException e )</span>
+        {
+<span class="fc" id="L586">            String msg = e.getMessage();</span>
+<span class="pc bpc" id="L587" title="2 of 4 branches missed.">            if ( msg == null || msg.length() &lt;= 0 )</span>
+            {
+                // NOTE: There's java.nio.charset.MalformedInputException and sun.io.MalformedInputException
+<span class="nc bnc" id="L590" title="All 2 branches missed.">                if ( e.getClass().getName().endsWith( &quot;MalformedInputException&quot; ) )</span>
+                {
+<span class="nc" id="L592">                    msg = &quot;Some input bytes do not match the file encoding.&quot;;</span>
+                }
+                else
+                {
+<span class="nc" id="L596">                    msg = e.getClass().getSimpleName();</span>
+                }
+            }
+<span class="fc" id="L599">            problems.add( new ModelProblemCollectorRequest( Severity.FATAL, Version.BASE )</span>
+                .setMessage( &quot;Non-readable POM &quot; + modelSource.getLocation() + &quot;: &quot; + msg ).setException( e ) );
+<span class="fc" id="L601">            throw problems.newModelBuildingException();</span>
+<span class="fc" id="L602">        }</span>
+
+<span class="fc" id="L604">        model.setPomFile( pomFile );</span>
+
+<span class="fc" id="L606">        problems.setSource( model );</span>
+<span class="fc" id="L607">        modelValidator.validateRawModel( model, request, problems );</span>
+
+<span class="fc bfc" id="L609" title="All 2 branches covered.">        if ( hasFatalErrors( problems ) )</span>
+        {
+<span class="fc" id="L611">            throw problems.newModelBuildingException();</span>
+        }
+
+<span class="fc" id="L614">        return model;</span>
+    }
+
+    private DefaultProfileActivationContext getProfileActivationContext( ModelBuildingRequest request )
+    {
+<span class="fc" id="L619">        DefaultProfileActivationContext context = new DefaultProfileActivationContext();</span>
+
+<span class="fc" id="L621">        context.setActiveProfileIds( request.getActiveProfileIds() );</span>
+<span class="fc" id="L622">        context.setInactiveProfileIds( request.getInactiveProfileIds() );</span>
+<span class="fc" id="L623">        context.setSystemProperties( request.getSystemProperties() );</span>
+<span class="fc" id="L624">        context.setUserProperties( request.getUserProperties() );</span>
+<span class="fc bfc" id="L625" title="All 2 branches covered.">        context.setProjectDirectory( ( request.getPomFile() != null ) ? request.getPomFile().getParentFile() : null );</span>
+
+<span class="fc" id="L627">        return context;</span>
+    }
+
+    private void configureResolver( ModelResolver modelResolver, Model model, DefaultModelProblemCollector problems )
+    {
+<span class="fc" id="L632">        configureResolver( modelResolver, model, problems, false );</span>
+<span class="fc" id="L633">    }</span>
+
+    private void configureResolver( ModelResolver modelResolver, Model model, DefaultModelProblemCollector problems,
+                                    boolean replaceRepositories )
+    {
+<span class="pc bpc" id="L638" title="1 of 2 branches missed.">        if ( modelResolver == null )</span>
+        {
+<span class="nc" id="L640">            return;</span>
+        }
+
+<span class="fc" id="L643">        problems.setSource( model );</span>
+
+<span class="fc" id="L645">        List&lt;Repository&gt; repositories = model.getRepositories();</span>
+
+<span class="fc bfc" id="L647" title="All 2 branches covered.">        for ( Repository repository : repositories )</span>
+        {
+            try
+            {
+<span class="fc" id="L651">                modelResolver.addRepository( repository, replaceRepositories );</span>
+            }
+<span class="nc" id="L653">            catch ( InvalidRepositoryException e )</span>
+            {
+<span class="nc" id="L655">                problems.add( new ModelProblemCollectorRequest( Severity.ERROR, Version.BASE )</span>
+                    .setMessage( &quot;Invalid repository &quot; + repository.getId() + &quot;: &quot; + e.getMessage() )
+                    .setLocation( repository.getLocation( &quot;&quot; ) ).setException( e ) );
+<span class="fc" id="L658">            }</span>
+<span class="fc" id="L659">        }</span>
+<span class="fc" id="L660">    }</span>
+
+    private void checkPluginVersions( List&lt;ModelData&gt; lineage, ModelBuildingRequest request,
+                                      ModelProblemCollector problems )
+    {
+<span class="fc bfc" id="L665" title="All 2 branches covered.">        if ( request.getValidationLevel() &lt; ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_2_0 )</span>
+        {
+<span class="fc" id="L667">            return;</span>
+        }
+
+<span class="fc" id="L670">        Map&lt;String, Plugin&gt; plugins = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L671">        Map&lt;String, String&gt; versions = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L672">        Map&lt;String, String&gt; managedVersions = new HashMap&lt;&gt;();</span>
+
+<span class="fc bfc" id="L674" title="All 2 branches covered.">        for ( int i = lineage.size() - 1; i &gt;= 0; i-- )</span>
+        {
+<span class="fc" id="L676">            Model model = lineage.get( i ).getModel();</span>
+<span class="fc" id="L677">            Build build = model.getBuild();</span>
+<span class="fc bfc" id="L678" title="All 2 branches covered.">            if ( build != null )</span>
+            {
+<span class="pc bpc" id="L680" title="1 of 2 branches missed.">                for ( Plugin plugin : build.getPlugins() )</span>
+                {
+<span class="nc" id="L682">                    String key = plugin.getKey();</span>
+<span class="nc bnc" id="L683" title="All 2 branches missed.">                    if ( versions.get( key ) == null )</span>
+                    {
+<span class="nc" id="L685">                        versions.put( key, plugin.getVersion() );</span>
+<span class="nc" id="L686">                        plugins.put( key, plugin );</span>
+                    }
+<span class="nc" id="L688">                }</span>
+<span class="fc" id="L689">                PluginManagement mgmt = build.getPluginManagement();</span>
+<span class="pc bpc" id="L690" title="1 of 2 branches missed.">                if ( mgmt != null )</span>
+                {
+<span class="fc bfc" id="L692" title="All 2 branches covered.">                    for ( Plugin plugin : mgmt.getPlugins() )</span>
+                    {
+<span class="fc" id="L694">                        String key = plugin.getKey();</span>
+<span class="pc bpc" id="L695" title="1 of 2 branches missed.">                        if ( managedVersions.get( key ) == null )</span>
+                        {
+<span class="fc" id="L697">                            managedVersions.put( key, plugin.getVersion() );</span>
+                        }
+<span class="fc" id="L699">                    }</span>
+                }
+            }
+        }
+
+<span class="pc bpc" id="L704" title="1 of 2 branches missed.">        for ( String key : versions.keySet() )</span>
+        {
+<span class="nc bnc" id="L706" title="All 4 branches missed.">            if ( versions.get( key ) == null &amp;&amp; managedVersions.get( key ) == null )</span>
+            {
+<span class="nc" id="L708">                InputLocation location = plugins.get( key ).getLocation( &quot;&quot; );</span>
+<span class="nc" id="L709">                problems</span>
+                    .add( new ModelProblemCollectorRequest( Severity.WARNING, Version.V20 )
+                        .setMessage( &quot;'build.plugins.plugin.version' for &quot; + key + &quot; is missing.&quot; )
+                        .setLocation( location ) );
+            }
+<span class="nc" id="L714">        }</span>
+<span class="fc" id="L715">    }</span>
+
+    private void assembleInheritance( List&lt;ModelData&gt; lineage, ModelBuildingRequest request,
+                                      ModelProblemCollector problems )
+    {
+<span class="fc bfc" id="L720" title="All 2 branches covered.">        for ( int i = lineage.size() - 2; i &gt;= 0; i-- )</span>
+        {
+<span class="fc" id="L722">            Model parent = lineage.get( i + 1 ).getModel();</span>
+<span class="fc" id="L723">            Model child = lineage.get( i ).getModel();</span>
+<span class="fc" id="L724">            inheritanceAssembler.assembleModelInheritance( child, parent, request, problems );</span>
+        }
+<span class="fc" id="L726">    }</span>
+
+    private Map&lt;String, Activation&gt; getProfileActivations( Model model, boolean clone )
+    {
+<span class="fc" id="L730">        Map&lt;String, Activation&gt; activations = new HashMap&lt;&gt;();</span>
+<span class="fc bfc" id="L731" title="All 2 branches covered.">        for ( Profile profile : model.getProfiles() )</span>
+        {
+<span class="fc" id="L733">            Activation activation = profile.getActivation();</span>
+
+<span class="fc bfc" id="L735" title="All 2 branches covered.">            if ( activation == null )</span>
+            {
+<span class="fc" id="L737">                continue;</span>
+            }
+
+<span class="fc bfc" id="L740" title="All 2 branches covered.">            if ( clone )</span>
+            {
+<span class="fc" id="L742">                activation = activation.clone();</span>
+            }
+
+<span class="fc" id="L745">            activations.put( profile.getId(), activation );</span>
+<span class="fc" id="L746">        }</span>
+
+<span class="fc" id="L748">        return activations;</span>
+    }
+
+    private void injectProfileActivations( Model model, Map&lt;String, Activation&gt; activations )
+    {
+<span class="fc bfc" id="L753" title="All 2 branches covered.">        for ( Profile profile : model.getProfiles() )</span>
+        {
+<span class="fc" id="L755">            Activation activation = profile.getActivation();</span>
+
+<span class="fc bfc" id="L757" title="All 2 branches covered.">            if ( activation == null )</span>
+            {
+<span class="fc" id="L759">                continue;</span>
+            }
+
+            // restore activation
+<span class="fc" id="L763">            profile.setActivation( activations.get( profile.getId() ) );</span>
+<span class="fc" id="L764">        }</span>
+<span class="fc" id="L765">    }</span>
+
+    private Model interpolateModel( Model model, ModelBuildingRequest request, ModelProblemCollector problems )
+    {
+        // save profile activations before interpolation, since they are evaluated with limited scope
+<span class="fc" id="L770">        Map&lt;String, Activation&gt; originalActivations = getProfileActivations( model, true );</span>
+
+<span class="fc" id="L772">        Model interpolatedModel =</span>
+            modelInterpolator.interpolateModel( model, model.getProjectDirectory(), request, problems );
+<span class="fc bfc" id="L774" title="All 2 branches covered.">        if ( interpolatedModel.getParent() != null )</span>
+        {
+<span class="fc" id="L776">            StringSearchInterpolator ssi = new StringSearchInterpolator();</span>
+<span class="fc" id="L777">            ssi.addValueSource( new MapBasedValueSource( request.getUserProperties() ) );</span>
+
+<span class="fc" id="L779">            ssi.addValueSource( new MapBasedValueSource( model.getProperties() ) );</span>
+
+<span class="fc" id="L781">            ssi.addValueSource( new MapBasedValueSource( request.getSystemProperties() ) );</span>
+
+            try
+            {
+<span class="fc" id="L785">                String interpolated = ssi.interpolate( interpolatedModel.getParent().getVersion() );</span>
+<span class="fc" id="L786">                interpolatedModel.getParent().setVersion( interpolated );</span>
+            }
+<span class="nc" id="L788">            catch ( Exception e )</span>
+            {
+<span class="nc" id="L790">                ModelProblemCollectorRequest mpcr =</span>
+                    new ModelProblemCollectorRequest( Severity.ERROR,
+                                                      Version.BASE ).setMessage( &quot;Failed to interpolate field: &quot;
+                                                          + interpolatedModel.getParent().getVersion()
+                                                          + &quot; on class: &quot; ).setException( e );
+<span class="nc" id="L795">                problems.add( mpcr );</span>
+<span class="fc" id="L796">            }</span>
+
+            
+        }
+<span class="fc" id="L800">        interpolatedModel.setPomFile( model.getPomFile() );</span>
+
+        // restore profiles with file activation to their value before full interpolation
+<span class="fc" id="L803">        injectProfileActivations( model, originalActivations );</span>
+
+<span class="fc" id="L805">        return interpolatedModel;</span>
+    }
+
+    private ModelData readParent( Model childModel, ModelSource childSource, ModelBuildingRequest request,
+                                  DefaultModelProblemCollector problems )
+        throws ModelBuildingException
+    {
+        ModelData parentData;
+
+<span class="fc" id="L814">        Parent parent = childModel.getParent();</span>
+
+<span class="fc bfc" id="L816" title="All 2 branches covered.">        if ( parent != null )</span>
+        {
+<span class="fc" id="L818">            String groupId = parent.getGroupId();</span>
+<span class="fc" id="L819">            String artifactId = parent.getArtifactId();</span>
+<span class="fc" id="L820">            String version = parent.getVersion();</span>
+
+<span class="fc" id="L822">            parentData = getCache( request.getModelCache(), groupId, artifactId, version, ModelCacheTag.RAW );</span>
+
+<span class="fc bfc" id="L824" title="All 2 branches covered.">            if ( parentData == null )</span>
+            {
+<span class="fc" id="L826">                parentData = readParentLocally( childModel, childSource, request, problems );</span>
+
+<span class="fc bfc" id="L828" title="All 2 branches covered.">                if ( parentData == null )</span>
+                {
+<span class="fc" id="L830">                    parentData = readParentExternally( childModel, request, problems );</span>
+                }
+
+<span class="fc" id="L833">                putCache( request.getModelCache(), groupId, artifactId, version, ModelCacheTag.RAW, parentData );</span>
+            }
+            else
+            {
+                /*
+                 * NOTE: This is a sanity check of the cache hit. If the cached parent POM was locally resolved, the
+                 * child's &lt;relativePath&gt; should point at that parent, too. If it doesn't, we ignore the cache and
+                 * resolve externally, to mimic the behavior if the cache didn't exist in the first place. Otherwise,
+                 * the cache would obscure a bad POM.
+                 */
+
+<span class="fc" id="L844">                File pomFile = parentData.getModel().getPomFile();</span>
+<span class="pc bpc" id="L845" title="1 of 2 branches missed.">                if ( pomFile != null )</span>
+                {
+<span class="nc" id="L847">                    ModelSource expectedParentSource = getParentPomFile( childModel, childSource );</span>
+
+<span class="nc bnc" id="L849" title="All 6 branches missed.">                    if ( expectedParentSource == null || ( expectedParentSource instanceof ModelSource2</span>
+                        &amp;&amp; !pomFile.toURI().equals( ( (ModelSource2) expectedParentSource ).getLocationURI() ) ) )
+                    {
+<span class="nc" id="L852">                        parentData = readParentExternally( childModel, request, problems );</span>
+                    }
+                }
+            }
+
+<span class="fc" id="L857">            Model parentModel = parentData.getModel();</span>
+
+<span class="pc bpc" id="L859" title="1 of 2 branches missed.">            if ( !&quot;pom&quot;.equals( parentModel.getPackaging() ) )</span>
+            {
+<span class="nc" id="L861">                problems.add( new ModelProblemCollectorRequest( Severity.ERROR, Version.BASE )</span>
+                    .setMessage( &quot;Invalid packaging for parent POM &quot; + ModelProblemUtils.toSourceHint( parentModel )
+                                     + &quot;, must be \&quot;pom\&quot; but is \&quot;&quot; + parentModel.getPackaging() + &quot;\&quot;&quot; )
+                    .setLocation( parentModel.getLocation( &quot;packaging&quot; ) ) );
+            }
+<span class="fc" id="L866">        }</span>
+        else
+        {
+<span class="fc" id="L869">            parentData = null;</span>
+        }
+
+<span class="fc" id="L872">        return parentData;</span>
+    }
+
+    private ModelData readParentLocally( Model childModel, ModelSource childSource, ModelBuildingRequest request,
+                                         DefaultModelProblemCollector problems )
+        throws ModelBuildingException
+    {
+<span class="fc" id="L879">        final Parent parent = childModel.getParent();</span>
+        final ModelSource candidateSource;
+        final Model candidateModel;
+<span class="fc" id="L882">        final WorkspaceModelResolver resolver = request.getWorkspaceModelResolver();</span>
+<span class="pc bpc" id="L883" title="1 of 2 branches missed.">        if ( resolver == null )</span>
+        {
+<span class="fc" id="L885">            candidateSource = getParentPomFile( childModel, childSource );</span>
+
+<span class="fc bfc" id="L887" title="All 2 branches covered.">            if ( candidateSource == null )</span>
+            {
+<span class="fc" id="L889">                return null;</span>
+            }
+
+<span class="fc" id="L892">            File pomFile = null;</span>
+<span class="pc bpc" id="L893" title="1 of 2 branches missed.">            if ( candidateSource instanceof FileModelSource )</span>
+            {
+<span class="fc" id="L895">                pomFile = ( (FileModelSource) candidateSource ).getPomFile();</span>
+            }
+
+<span class="fc" id="L898">            candidateModel = readModel( candidateSource, pomFile, request, problems );</span>
+<span class="fc" id="L899">        }</span>
+        else
+        {
+            try
+            {
+<span class="nc" id="L904">                candidateModel =</span>
+                    resolver.resolveRawModel( parent.getGroupId(), parent.getArtifactId(), parent.getVersion() );
+            }
+<span class="nc" id="L907">            catch ( UnresolvableModelException e )</span>
+            {
+<span class="nc" id="L909">                problems.add( new ModelProblemCollectorRequest( Severity.FATAL, Version.BASE ) //</span>
+                .setMessage( e.getMessage().toString() ).setLocation( parent.getLocation( &quot;&quot; ) ).setException( e ) );
+<span class="nc" id="L911">                throw problems.newModelBuildingException();</span>
+<span class="nc" id="L912">            }</span>
+<span class="nc bnc" id="L913" title="All 2 branches missed.">            if ( candidateModel == null )</span>
+            {
+<span class="nc" id="L915">                return null;</span>
+            }
+<span class="nc" id="L917">            candidateSource = new FileModelSource( candidateModel.getPomFile() );</span>
+        }
+
+        //
+        // TODO jvz Why isn't all this checking the job of the duty of the workspace resolver, we know that we
+        // have a model that is suitable, yet more checks are done here and the one for the version is problematic
+        // before because with parents as ranges it will never work in this scenario.
+        //
+
+<span class="fc" id="L926">        String groupId = candidateModel.getGroupId();</span>
+<span class="pc bpc" id="L927" title="1 of 4 branches missed.">        if ( groupId == null &amp;&amp; candidateModel.getParent() != null )</span>
+        {
+<span class="fc" id="L929">            groupId = candidateModel.getParent().getGroupId();</span>
+        }
+<span class="fc" id="L931">        String artifactId = candidateModel.getArtifactId();</span>
+<span class="fc" id="L932">        String version = candidateModel.getVersion();</span>
+<span class="pc bpc" id="L933" title="1 of 4 branches missed.">        if ( version == null &amp;&amp; candidateModel.getParent() != null )</span>
+        {
+<span class="fc" id="L935">            version = candidateModel.getParent().getVersion();</span>
+        }
+
+<span class="pc bpc" id="L938" title="2 of 8 branches missed.">        if ( groupId == null || !groupId.equals( parent.getGroupId() ) || artifactId == null</span>
+            || !artifactId.equals( parent.getArtifactId() ) )
+        {
+<span class="fc" id="L941">            StringBuilder buffer = new StringBuilder( 256 );</span>
+<span class="fc" id="L942">            buffer.append( &quot;'parent.relativePath'&quot; );</span>
+<span class="pc bpc" id="L943" title="1 of 2 branches missed.">            if ( childModel != problems.getRootModel() )</span>
+            {
+<span class="fc" id="L945">                buffer.append( &quot; of POM &quot; ).append( ModelProblemUtils.toSourceHint( childModel ) );</span>
+            }
+<span class="fc" id="L947">            buffer.append( &quot; points at &quot; ).append( groupId ).append( ':' ).append( artifactId );</span>
+<span class="fc" id="L948">            buffer.append( &quot; instead of &quot; ).append( parent.getGroupId() ).append( ':' );</span>
+<span class="fc" id="L949">            buffer.append( parent.getArtifactId() ).append( &quot;, please verify your project structure&quot; );</span>
+
+<span class="fc" id="L951">            problems.setSource( childModel );</span>
+<span class="fc" id="L952">            problems.add( new ModelProblemCollectorRequest( Severity.WARNING, Version.BASE )</span>
+                .setMessage( buffer.toString() ).setLocation( parent.getLocation( &quot;&quot; ) ) );
+<span class="fc" id="L954">            return null;</span>
+        }
+<span class="pc bpc" id="L956" title="2 of 6 branches missed.">        if ( version != null &amp;&amp; parent.getVersion() != null &amp;&amp; !version.equals( parent.getVersion() ) )</span>
+        {
+            try
+            {
+<span class="fc" id="L960">                VersionRange parentRange = VersionRange.createFromVersionSpec( parent.getVersion() );</span>
+<span class="pc bpc" id="L961" title="1 of 2 branches missed.">                if ( !parentRange.hasRestrictions() )</span>
+                {
+                    // the parent version is not a range, we have version skew, drop back to resolution from repo
+<span class="nc" id="L964">                    return null;</span>
+                }
+<span class="pc bpc" id="L966" title="1 of 2 branches missed.">                if ( !parentRange.containsVersion( new DefaultArtifactVersion( version ) ) )</span>
+                {
+                    // version skew drop back to resolution from the repository
+<span class="nc" id="L969">                    return null;</span>
+                }
+
+                // Validate versions aren't inherited when using parent ranges the same way as when read externally.
+<span class="pc bpc" id="L973" title="1 of 2 branches missed.">                if ( childModel.getVersion() == null )</span>
+                {
+                    // Message below is checked for in the MNG-2199 core IT.
+<span class="nc" id="L976">                    problems.add( new ModelProblemCollectorRequest( Severity.FATAL, Version.V31 )</span>
+                        .setMessage( &quot;Version must be a constant&quot; ).setLocation( childModel.getLocation( &quot;&quot; ) ) );
+
+                }
+                else
+                {
+<span class="pc bpc" id="L982" title="1 of 2 branches missed.">                    if ( childModel.getVersion().contains( &quot;${&quot; ) )</span>
+                    {
+                        // Message below is checked for in the MNG-2199 core IT.
+<span class="nc" id="L985">                        problems.add( new ModelProblemCollectorRequest( Severity.FATAL, Version.V31 )</span>
+                            .setMessage( &quot;Version must be a constant&quot; )
+                            .setLocation( childModel.getLocation( &quot;version&quot; ) ) );
+
+                    }
+                }
+
+                // MNG-2199: What else to check here ?
+            }
+<span class="nc" id="L994">            catch ( InvalidVersionSpecificationException e )</span>
+            {
+                // invalid version range, so drop back to resolution from the repository
+<span class="nc" id="L997">                return null;</span>
+<span class="fc" id="L998">            }</span>
+        }
+
+        //
+        // Here we just need to know that a version is fine to use but this validation we can do in our workspace
+        // resolver.
+        //
+
+        /*
+         * if ( version == null || !version.equals( parent.getVersion() ) ) { return null; }
+         */
+
+<span class="fc" id="L1010">        ModelData parentData = new ModelData( candidateSource, candidateModel, groupId, artifactId, version );</span>
+
+<span class="fc" id="L1012">        return parentData;</span>
+    }
+
+    private ModelSource getParentPomFile( Model childModel, ModelSource source )
+    {
+<span class="pc bpc" id="L1017" title="1 of 2 branches missed.">        if ( !( source instanceof ModelSource2 ) )</span>
+        {
+<span class="nc" id="L1019">            return null;</span>
+        }
+
+<span class="fc" id="L1022">        String parentPath = childModel.getParent().getRelativePath();</span>
+
+<span class="pc bpc" id="L1024" title="1 of 4 branches missed.">        if ( parentPath == null || parentPath.length() &lt;= 0 )</span>
+        {
+<span class="fc" id="L1026">            return null;</span>
+        }
+
+<span class="fc" id="L1029">        return ( (ModelSource2) source ).getRelatedSource( parentPath );</span>
+    }
+
+    private ModelData readParentExternally( Model childModel, ModelBuildingRequest request,
+                                            DefaultModelProblemCollector problems )
+        throws ModelBuildingException
+    {
+<span class="fc" id="L1036">        problems.setSource( childModel );</span>
+
+<span class="fc" id="L1038">        Parent parent = childModel.getParent().clone();</span>
+
+<span class="fc" id="L1040">        String groupId = parent.getGroupId();</span>
+<span class="fc" id="L1041">        String artifactId = parent.getArtifactId();</span>
+<span class="fc" id="L1042">        String version = parent.getVersion();</span>
+
+<span class="fc" id="L1044">        ModelResolver modelResolver = request.getModelResolver();</span>
+
+<span class="fc" id="L1046">        Validate.notNull( modelResolver, &quot;request.modelResolver cannot be null (parent POM %s and POM %s)&quot;,</span>
+            ModelProblemUtils.toId( groupId, artifactId, version ), ModelProblemUtils.toSourceHint( childModel ) );
+
+        ModelSource modelSource;
+        try
+        {
+<span class="fc" id="L1052">            modelSource = modelResolver.resolveModel( parent );</span>
+        }
+<span class="fc" id="L1054">        catch ( UnresolvableModelException e )</span>
+        {
+            // Message below is checked for in the MNG-2199 core IT.
+<span class="fc" id="L1057">            StringBuilder buffer = new StringBuilder( 256 );</span>
+<span class="fc" id="L1058">            buffer.append( &quot;Non-resolvable parent POM&quot; );</span>
+<span class="pc bpc" id="L1059" title="1 of 2 branches missed.">            if ( !containsCoordinates( e.getMessage(), groupId, artifactId, version ) )</span>
+            {
+<span class="nc" id="L1061">                buffer.append( ' ' ).append( ModelProblemUtils.toId( groupId, artifactId, version ) );</span>
+            }
+<span class="pc bpc" id="L1063" title="1 of 2 branches missed.">            if ( childModel != problems.getRootModel() )</span>
+            {
+<span class="fc" id="L1065">                buffer.append( &quot; for &quot; ).append( ModelProblemUtils.toId( childModel ) );</span>
+            }
+<span class="fc" id="L1067">            buffer.append( &quot;: &quot; ).append( e.getMessage() );</span>
+<span class="pc bpc" id="L1068" title="1 of 2 branches missed.">            if ( childModel.getProjectDirectory() != null )</span>
+            {
+<span class="pc bpc" id="L1070" title="2 of 4 branches missed.">                if ( parent.getRelativePath() == null || parent.getRelativePath().length() &lt;= 0 )</span>
+                {
+<span class="nc" id="L1072">                    buffer.append( &quot; and 'parent.relativePath' points at no local POM&quot; );</span>
+                }
+                else
+                {
+<span class="fc" id="L1076">                    buffer.append( &quot; and 'parent.relativePath' points at wrong local POM&quot; );</span>
+                }
+            }
+
+<span class="fc" id="L1080">            problems.add( new ModelProblemCollectorRequest( Severity.FATAL, Version.BASE )</span>
+                .setMessage( buffer.toString() ).setLocation( parent.getLocation( &quot;&quot; ) ).setException( e ) );
+<span class="fc" id="L1082">            throw problems.newModelBuildingException();</span>
+<span class="fc" id="L1083">        }</span>
+
+<span class="fc" id="L1085">        ModelBuildingRequest lenientRequest = request;</span>
+<span class="pc bpc" id="L1086" title="1 of 2 branches missed.">        if ( request.getValidationLevel() &gt; ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_2_0 )</span>
+        {
+<span class="nc" id="L1088">            lenientRequest = new FilterModelBuildingRequest( request )</span>
+<span class="nc" id="L1089">            {</span>
+                @Override
+                public int getValidationLevel()
+                {
+<span class="nc" id="L1093">                    return ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_2_0;</span>
+                }
+            };
+        }
+
+<span class="fc" id="L1098">        Model parentModel = readModel( modelSource, null, lenientRequest, problems );</span>
+
+<span class="pc bpc" id="L1100" title="1 of 2 branches missed.">        if ( !parent.getVersion().equals( version ) )</span>
+        {
+<span class="nc bnc" id="L1102" title="All 2 branches missed.">            if ( childModel.getVersion() == null )</span>
+            {
+                // Message below is checked for in the MNG-2199 core IT.
+<span class="nc" id="L1105">                problems.add( new ModelProblemCollectorRequest( Severity.FATAL, Version.V31 )</span>
+                    .setMessage( &quot;Version must be a constant&quot; ).setLocation( childModel.getLocation( &quot;&quot; ) ) );
+
+            }
+            else
+            {
+<span class="nc bnc" id="L1111" title="All 2 branches missed.">                if ( childModel.getVersion().contains( &quot;${&quot; ) )</span>
+                {
+                    // Message below is checked for in the MNG-2199 core IT.
+<span class="nc" id="L1114">                    problems.add( new ModelProblemCollectorRequest( Severity.FATAL, Version.V31 )</span>
+                        .setMessage( &quot;Version must be a constant&quot; )
+                        .setLocation( childModel.getLocation( &quot;version&quot; ) ) );
+
+                }
+            }
+
+            // MNG-2199: What else to check here ?
+        }
+
+<span class="fc" id="L1124">        ModelData parentData = new ModelData( modelSource, parentModel, parent.getGroupId(), parent.getArtifactId(),</span>
+                                              parent.getVersion() );
+
+<span class="fc" id="L1127">        return parentData;</span>
+    }
+
+    private Model getSuperModel()
+    {
+<span class="fc" id="L1132">        return superPomProvider.getSuperModel( &quot;4.0.0&quot; ).clone();</span>
+    }
+
+    @SuppressWarnings( &quot;checkstyle:methodlength&quot; )
+    private void importDependencyManagement( Model model, ModelBuildingRequest request,
+                                             DefaultModelProblemCollector problems, Collection&lt;String&gt; importIds )
+    {
+<span class="fc" id="L1139">        DependencyManagement depMgmt = model.getDependencyManagement();</span>
+
+<span class="fc bfc" id="L1141" title="All 2 branches covered.">        if ( depMgmt == null )</span>
+        {
+<span class="fc" id="L1143">            return;</span>
+        }
+
+<span class="fc" id="L1146">        String importing = model.getGroupId() + ':' + model.getArtifactId() + ':' + model.getVersion();</span>
+
+<span class="fc" id="L1148">        importIds.add( importing );</span>
+
+<span class="fc" id="L1150">        final WorkspaceModelResolver workspaceResolver = request.getWorkspaceModelResolver();</span>
+<span class="fc" id="L1151">        final ModelResolver modelResolver = request.getModelResolver();</span>
+
+<span class="fc" id="L1153">        ModelBuildingRequest importRequest = null;</span>
+
+<span class="fc" id="L1155">        List&lt;DependencyManagement&gt; importMgmts = null;</span>
+
+<span class="fc bfc" id="L1157" title="All 2 branches covered.">        for ( Iterator&lt;Dependency&gt; it = depMgmt.getDependencies().iterator(); it.hasNext(); )</span>
+        {
+<span class="fc" id="L1159">            Dependency dependency = it.next();</span>
+
+<span class="pc bpc" id="L1161" title="1 of 4 branches missed.">            if ( !&quot;pom&quot;.equals( dependency.getType() ) || !&quot;import&quot;.equals( dependency.getScope() ) )</span>
+            {
+<span class="nc" id="L1163">                continue;</span>
+            }
+
+<span class="fc" id="L1166">            it.remove();</span>
+
+<span class="fc" id="L1168">            String groupId = dependency.getGroupId();</span>
+<span class="fc" id="L1169">            String artifactId = dependency.getArtifactId();</span>
+<span class="fc" id="L1170">            String version = dependency.getVersion();</span>
+
+<span class="pc bpc" id="L1172" title="2 of 4 branches missed.">            if ( groupId == null || groupId.length() &lt;= 0 )</span>
+            {
+<span class="nc" id="L1174">                problems.add( new ModelProblemCollectorRequest( Severity.ERROR, Version.BASE )</span>
+                    .setMessage( &quot;'dependencyManagement.dependencies.dependency.groupId' for &quot;
+                                     + dependency.getManagementKey() + &quot; is missing.&quot; )
+                    .setLocation( dependency.getLocation( &quot;&quot; ) ) );
+<span class="nc" id="L1178">                continue;</span>
+            }
+<span class="pc bpc" id="L1180" title="2 of 4 branches missed.">            if ( artifactId == null || artifactId.length() &lt;= 0 )</span>
+            {
+<span class="nc" id="L1182">                problems.add( new ModelProblemCollectorRequest( Severity.ERROR, Version.BASE )</span>
+                    .setMessage( &quot;'dependencyManagement.dependencies.dependency.artifactId' for &quot;
+                                     + dependency.getManagementKey() + &quot; is missing.&quot; )
+                    .setLocation( dependency.getLocation( &quot;&quot; ) ) );
+<span class="nc" id="L1186">                continue;</span>
+            }
+<span class="pc bpc" id="L1188" title="1 of 4 branches missed.">            if ( version == null || version.length() &lt;= 0 )</span>
+            {
+<span class="fc" id="L1190">                problems.add( new ModelProblemCollectorRequest( Severity.ERROR, Version.BASE )</span>
+                    .setMessage( &quot;'dependencyManagement.dependencies.dependency.version' for &quot;
+                                     + dependency.getManagementKey() + &quot; is missing.&quot; )
+                    .setLocation( dependency.getLocation( &quot;&quot; ) ) );
+<span class="fc" id="L1194">                continue;</span>
+            }
+
+<span class="fc" id="L1197">            String imported = groupId + ':' + artifactId + ':' + version;</span>
+
+<span class="pc bpc" id="L1199" title="1 of 2 branches missed.">            if ( importIds.contains( imported ) )</span>
+            {
+<span class="nc" id="L1201">                String message = &quot;The dependencies of type=pom and with scope=import form a cycle: &quot;;</span>
+<span class="nc bnc" id="L1202" title="All 2 branches missed.">                for ( String modelId : importIds )</span>
+                {
+<span class="nc" id="L1204">                    message += modelId + &quot; -&gt; &quot;;</span>
+<span class="nc" id="L1205">                }</span>
+<span class="nc" id="L1206">                message += imported;</span>
+<span class="nc" id="L1207">                problems.add( new ModelProblemCollectorRequest( Severity.ERROR, Version.BASE ).setMessage( message ) );</span>
+
+<span class="nc" id="L1209">                continue;</span>
+            }
+
+<span class="fc" id="L1212">            DependencyManagement importMgmt = getCache( request.getModelCache(), groupId, artifactId, version,</span>
+                                                        ModelCacheTag.IMPORT );
+
+<span class="pc bpc" id="L1215" title="1 of 2 branches missed.">            if ( importMgmt == null )</span>
+            {
+<span class="pc bpc" id="L1217" title="2 of 4 branches missed.">                if ( workspaceResolver == null &amp;&amp; modelResolver == null )</span>
+                {
+<span class="nc" id="L1219">                    throw new NullPointerException( String.format(</span>
+                        &quot;request.workspaceModelResolver and request.modelResolver cannot be null&quot;
+                        + &quot; (parent POM %s and POM %s)&quot;,
+                        ModelProblemUtils.toId( groupId, artifactId, version ),
+                        ModelProblemUtils.toSourceHint( model ) ) );
+                }
+
+<span class="fc" id="L1226">                Model importModel = null;</span>
+<span class="pc bpc" id="L1227" title="1 of 2 branches missed.">                if ( workspaceResolver != null )</span>
+                {
+                    try
+                    {
+<span class="nc" id="L1231">                        importModel = workspaceResolver.resolveEffectiveModel( groupId, artifactId, version );</span>
+                    }
+<span class="nc" id="L1233">                    catch ( UnresolvableModelException e )</span>
+                    {
+<span class="nc" id="L1235">                        problems.add( new ModelProblemCollectorRequest( Severity.FATAL, Version.BASE )</span>
+                            .setMessage( e.getMessage().toString() ).setException( e ) );
+<span class="nc" id="L1237">                        continue;</span>
+<span class="nc" id="L1238">                    }</span>
+                }
+
+                // no workspace resolver or workspace resolver returned null (i.e. model not in workspace)
+<span class="pc bpc" id="L1242" title="1 of 2 branches missed.">                if ( importModel == null )</span>
+                {
+                    final ModelSource importSource;
+                    try
+                    {
+<span class="fc" id="L1247">                        importSource = modelResolver.resolveModel( groupId, artifactId, version );</span>
+                    }
+<span class="nc" id="L1249">                    catch ( UnresolvableModelException e )</span>
+                    {
+<span class="nc" id="L1251">                        StringBuilder buffer = new StringBuilder( 256 );</span>
+<span class="nc" id="L1252">                        buffer.append( &quot;Non-resolvable import POM&quot; );</span>
+<span class="nc bnc" id="L1253" title="All 2 branches missed.">                        if ( !containsCoordinates( e.getMessage(), groupId, artifactId, version ) )</span>
+                        {
+<span class="nc" id="L1255">                            buffer.append( ' ' ).append( ModelProblemUtils.toId( groupId, artifactId, version ) );</span>
+                        }
+<span class="nc" id="L1257">                        buffer.append( &quot;: &quot; ).append( e.getMessage() );</span>
+
+<span class="nc" id="L1259">                        problems.add( new ModelProblemCollectorRequest( Severity.ERROR, Version.BASE )</span>
+                            .setMessage( buffer.toString() ).setLocation( dependency.getLocation( &quot;&quot; ) )
+                            .setException( e ) );
+<span class="nc" id="L1262">                        continue;</span>
+<span class="fc" id="L1263">                    }</span>
+
+<span class="fc bfc" id="L1265" title="All 2 branches covered.">                    if ( importRequest == null )</span>
+                    {
+<span class="fc" id="L1267">                        importRequest = new DefaultModelBuildingRequest();</span>
+<span class="fc" id="L1268">                        importRequest.setValidationLevel( ModelBuildingRequest.VALIDATION_LEVEL_MINIMAL );</span>
+<span class="fc" id="L1269">                        importRequest.setModelCache( request.getModelCache() );</span>
+<span class="fc" id="L1270">                        importRequest.setSystemProperties( request.getSystemProperties() );</span>
+<span class="fc" id="L1271">                        importRequest.setUserProperties( request.getUserProperties() );</span>
+<span class="fc" id="L1272">                        importRequest.setLocationTracking( request.isLocationTracking() );</span>
+                    }
+
+<span class="fc" id="L1275">                    importRequest.setModelSource( importSource );</span>
+<span class="fc" id="L1276">                    importRequest.setModelResolver( modelResolver.newCopy() );</span>
+
+                    final ModelBuildingResult importResult;
+                    try
+                    {
+<span class="fc" id="L1281">                        importResult = build( importRequest );</span>
+                    }
+<span class="nc" id="L1283">                    catch ( ModelBuildingException e )</span>
+                    {
+<span class="nc" id="L1285">                        problems.addAll( e.getProblems() );</span>
+<span class="nc" id="L1286">                        continue;</span>
+<span class="fc" id="L1287">                    }</span>
+
+<span class="fc" id="L1289">                    problems.addAll( importResult.getProblems() );</span>
+
+<span class="fc" id="L1291">                    importModel = importResult.getEffectiveModel();</span>
+                }
+
+<span class="fc" id="L1294">                importMgmt = importModel.getDependencyManagement();</span>
+
+<span class="fc bfc" id="L1296" title="All 2 branches covered.">                if ( importMgmt == null )</span>
+                {
+<span class="fc" id="L1298">                    importMgmt = new DependencyManagement();</span>
+                }
+
+<span class="fc" id="L1301">                putCache( request.getModelCache(), groupId, artifactId, version, ModelCacheTag.IMPORT, importMgmt );</span>
+            }
+
+<span class="fc bfc" id="L1304" title="All 2 branches covered.">            if ( importMgmts == null )</span>
+            {
+<span class="fc" id="L1306">                importMgmts = new ArrayList&lt;&gt;();</span>
+            }
+
+<span class="fc" id="L1309">            importMgmts.add( importMgmt );</span>
+<span class="fc" id="L1310">        }</span>
+
+<span class="fc" id="L1312">        importIds.remove( importing );</span>
+
+<span class="fc" id="L1314">        dependencyManagementImporter.importManagement( model, importMgmts, request, problems );</span>
+<span class="fc" id="L1315">    }</span>
+
+    private &lt;T&gt; void putCache( ModelCache modelCache, String groupId, String artifactId, String version,
+                               ModelCacheTag&lt;T&gt; tag, T data )
+    {
+<span class="fc bfc" id="L1320" title="All 2 branches covered.">        if ( modelCache != null )</span>
+        {
+<span class="fc" id="L1322">            modelCache.put( groupId, artifactId, version, tag.getName(), tag.intoCache( data ) );</span>
+        }
+<span class="fc" id="L1324">    }</span>
+
+    private &lt;T&gt; T getCache( ModelCache modelCache, String groupId, String artifactId, String version,
+                            ModelCacheTag&lt;T&gt; tag )
+    {
+<span class="fc bfc" id="L1329" title="All 2 branches covered.">        if ( modelCache != null )</span>
+        {
+<span class="fc" id="L1331">            Object data = modelCache.get( groupId, artifactId, version, tag.getName() );</span>
+<span class="fc bfc" id="L1332" title="All 2 branches covered.">            if ( data != null )</span>
+            {
+<span class="fc" id="L1334">                return tag.fromCache( tag.getType().cast( data ) );</span>
+            }
+        }
+<span class="fc" id="L1337">        return null;</span>
+    }
+
+    private void fireEvent( Model model, ModelBuildingRequest request, ModelProblemCollector problems,
+                            ModelBuildingEventCatapult catapult )
+        throws ModelBuildingException
+    {
+<span class="fc" id="L1344">        ModelBuildingListener listener = request.getModelBuildingListener();</span>
+
+<span class="fc bfc" id="L1346" title="All 2 branches covered.">        if ( listener != null )</span>
+        {
+<span class="fc" id="L1348">            ModelBuildingEvent event = new DefaultModelBuildingEvent( model, request, problems );</span>
+
+<span class="fc" id="L1350">            catapult.fire( listener, event );</span>
+        }
+<span class="fc" id="L1352">    }</span>
+
+    private boolean containsCoordinates( String message, String groupId, String artifactId, String version )
+    {
+<span class="pc bpc" id="L1356" title="7 of 14 branches missed.">        return message != null &amp;&amp; ( groupId == null || message.contains( groupId ) )</span>
+            &amp;&amp; ( artifactId == null || message.contains( artifactId ) )
+            &amp;&amp; ( version == null || message.contains( version ) );
+    }
+
+    protected boolean hasModelErrors( ModelProblemCollectorExt problems )
+    {
+<span class="pc bpc" id="L1363" title="1 of 2 branches missed.">        if ( problems instanceof DefaultModelProblemCollector )</span>
+        {
+<span class="fc" id="L1365">            return ( (DefaultModelProblemCollector) problems ).hasErrors();</span>
+        }
+        else
+        {
+            // the default execution path only knows the DefaultModelProblemCollector,
+            // only reason it's not in signature is because it's package private
+<span class="nc" id="L1371">            throw new IllegalStateException();</span>
+        }
+    }
+
+    protected boolean hasFatalErrors( ModelProblemCollectorExt problems )
+    {
+<span class="pc bpc" id="L1377" title="1 of 2 branches missed.">        if ( problems instanceof DefaultModelProblemCollector )</span>
+        {
+<span class="fc" id="L1379">            return ( (DefaultModelProblemCollector) problems ).hasFatalErrors();</span>
+        }
+        else
+        {
+            // the default execution path only knows the DefaultModelProblemCollector,
+            // only reason it's not in signature is because it's package private
+<span class="nc" id="L1385">            throw new IllegalStateException();</span>
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

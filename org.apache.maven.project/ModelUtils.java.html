@@ -1,0 +1,369 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ModelUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.project</a> &gt; <span class="el_source">ModelUtils.java</span></div><h1>ModelUtils.java</h1><pre class="source lang-java linenums">package org.apache.maven.project;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.TreeMap;
+
+import org.apache.maven.model.Dependency;
+import org.apache.maven.model.Plugin;
+import org.apache.maven.model.PluginContainer;
+import org.apache.maven.model.PluginExecution;
+import org.apache.maven.model.Repository;
+import org.codehaus.plexus.util.xml.Xpp3Dom;
+
+/** @deprecated */
+@Deprecated
+<span class="nc" id="L38">public final class ModelUtils</span>
+{
+
+    /**
+     * This should be the resulting ordering of plugins after merging:
+     * &lt;p&gt;
+     * Given:
+     * &lt;pre&gt;
+     * parent: X -&amp;gt; A -&amp;gt; B -&amp;gt; D -&amp;gt; E
+     * child: Y -&amp;gt; A -&amp;gt; C -&amp;gt; D -&amp;gt; F
+     * &lt;/pre&gt;
+     * Result:
+     * &lt;pre&gt;
+     * X -&amp;gt; Y -&amp;gt; A -&amp;gt; B -&amp;gt; C -&amp;gt; D -&amp;gt; E -&amp;gt; F
+     * &lt;/pre&gt;
+     */
+    public static void mergePluginLists( PluginContainer childContainer, PluginContainer parentContainer,
+                                         boolean handleAsInheritance )
+    {
+<span class="nc bnc" id="L57" title="All 4 branches missed.">        if ( ( childContainer == null ) || ( parentContainer == null ) )</span>
+        {
+            // nothing to do.
+<span class="nc" id="L60">            return;</span>
+        }
+
+<span class="nc" id="L63">        List&lt;Plugin&gt; parentPlugins = parentContainer.getPlugins();</span>
+
+<span class="nc bnc" id="L65" title="All 4 branches missed.">        if ( ( parentPlugins != null ) &amp;&amp; !parentPlugins.isEmpty() )</span>
+        {
+<span class="nc" id="L67">            parentPlugins = new ArrayList&lt;&gt;( parentPlugins );</span>
+
+            // If we're processing this merge as an inheritance, we have to build up a list of
+            // plugins that were considered for inheritance.
+<span class="nc bnc" id="L71" title="All 2 branches missed.">            if ( handleAsInheritance )</span>
+            {
+<span class="nc bnc" id="L73" title="All 2 branches missed.">                for ( Iterator&lt;Plugin&gt; it = parentPlugins.iterator(); it.hasNext(); )</span>
+                {
+<span class="nc" id="L75">                    Plugin plugin = it.next();</span>
+
+<span class="nc" id="L77">                    String inherited = plugin.getInherited();</span>
+
+<span class="nc bnc" id="L79" title="All 4 branches missed.">                    if ( ( inherited != null ) &amp;&amp; !Boolean.valueOf( inherited ) )</span>
+                    {
+<span class="nc" id="L81">                        it.remove();</span>
+                    }
+<span class="nc" id="L83">                }</span>
+            }
+
+<span class="nc" id="L86">            List&lt;Plugin&gt; assembledPlugins = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L88">            Map&lt;String, Plugin&gt; childPlugins = childContainer.getPluginsAsMap();</span>
+
+<span class="nc bnc" id="L90" title="All 2 branches missed.">            for ( Plugin parentPlugin : parentPlugins )</span>
+            {
+<span class="nc" id="L92">                String parentInherited = parentPlugin.getInherited();</span>
+
+                // only merge plugin definition from the parent if at least one
+                // of these is true:
+                // 1. we're not processing the plugins in an inheritance-based merge
+                // 2. the parent's &lt;inherited/&gt; flag is not set
+                // 3. the parent's &lt;inherited/&gt; flag is set to true
+<span class="nc bnc" id="L99" title="All 6 branches missed.">                if ( !handleAsInheritance || ( parentInherited == null )</span>
+                    || Boolean.valueOf( parentInherited ) )
+                {
+<span class="nc" id="L102">                    Plugin childPlugin = childPlugins.get( parentPlugin.getKey() );</span>
+
+<span class="nc bnc" id="L104" title="All 4 branches missed.">                    if ( ( childPlugin != null ) &amp;&amp; !assembledPlugins.contains( childPlugin ) )</span>
+                    {
+<span class="nc" id="L106">                        Plugin assembledPlugin = childPlugin;</span>
+
+<span class="nc" id="L108">                        mergePluginDefinitions( childPlugin, parentPlugin, handleAsInheritance );</span>
+
+                        // fix for MNG-2221 (assembly cache was not being populated for later reference):
+<span class="nc" id="L111">                        assembledPlugins.add( assembledPlugin );</span>
+                    }
+
+                    // if we're processing this as an inheritance-based merge, and
+                    // the parent's &lt;inherited/&gt; flag is not set, then we need to
+                    // clear the inherited flag in the merge result.
+<span class="nc bnc" id="L117" title="All 4 branches missed.">                    if ( handleAsInheritance &amp;&amp; ( parentInherited == null ) )</span>
+                    {
+<span class="nc" id="L119">                        parentPlugin.unsetInheritanceApplied();</span>
+                    }
+                }
+
+                // very important to use the parentPlugins List, rather than parentContainer.getPlugins()
+                // since this list is a local one, and may have been modified during processing.
+<span class="nc" id="L125">                List&lt;Plugin&gt; results =</span>
+                    ModelUtils.orderAfterMerge( assembledPlugins, parentPlugins, childContainer.getPlugins() );
+
+<span class="nc" id="L128">                childContainer.setPlugins( results );</span>
+
+<span class="nc" id="L130">                childContainer.flushPluginMap();</span>
+<span class="nc" id="L131">            }</span>
+        }
+<span class="nc" id="L133">    }</span>
+
+    public static List&lt;Plugin&gt; orderAfterMerge( List&lt;Plugin&gt; merged, List&lt;Plugin&gt; highPrioritySource,
+                                                List&lt;Plugin&gt; lowPrioritySource )
+    {
+<span class="nc" id="L138">        List&lt;Plugin&gt; results = new ArrayList&lt;&gt;();</span>
+
+<span class="nc bnc" id="L140" title="All 2 branches missed.">        if ( !merged.isEmpty() )</span>
+        {
+<span class="nc" id="L142">            results.addAll( merged );</span>
+        }
+
+<span class="nc" id="L145">        List&lt;Plugin&gt; missingFromResults = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L147">        List&lt;List&lt;Plugin&gt;&gt; sources = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L149">        sources.add( highPrioritySource );</span>
+<span class="nc" id="L150">        sources.add( lowPrioritySource );</span>
+
+<span class="nc bnc" id="L152" title="All 2 branches missed.">        for ( List&lt;Plugin&gt; source : sources )</span>
+        {
+<span class="nc bnc" id="L154" title="All 2 branches missed.">            for ( Plugin item : source )</span>
+            {
+<span class="nc bnc" id="L156" title="All 2 branches missed.">                if ( results.contains( item ) )</span>
+                {
+<span class="nc bnc" id="L158" title="All 2 branches missed.">                    if ( !missingFromResults.isEmpty() )</span>
+                    {
+<span class="nc" id="L160">                        int idx = results.indexOf( item );</span>
+
+<span class="nc bnc" id="L162" title="All 2 branches missed.">                        if ( idx &lt; 0 )</span>
+                        {
+<span class="nc" id="L164">                            idx = 0;</span>
+                        }
+
+<span class="nc" id="L167">                        results.addAll( idx, missingFromResults );</span>
+
+<span class="nc" id="L169">                        missingFromResults.clear();</span>
+<span class="nc" id="L170">                    }</span>
+                }
+                else
+                {
+<span class="nc" id="L174">                    missingFromResults.add( item );</span>
+                }
+<span class="nc" id="L176">            }</span>
+
+<span class="nc bnc" id="L178" title="All 2 branches missed.">            if ( !missingFromResults.isEmpty() )</span>
+            {
+<span class="nc" id="L180">                results.addAll( missingFromResults );</span>
+
+<span class="nc" id="L182">                missingFromResults.clear();</span>
+            }
+<span class="nc" id="L184">        }</span>
+
+<span class="nc" id="L186">        return results;</span>
+    }
+
+
+    public static void mergePluginDefinitions( Plugin child, Plugin parent, boolean handleAsInheritance )
+    {
+<span class="nc bnc" id="L192" title="All 4 branches missed.">        if ( ( child == null ) || ( parent == null ) )</span>
+        {
+            // nothing to do.
+<span class="nc" id="L195">            return;</span>
+        }
+
+<span class="nc bnc" id="L198" title="All 2 branches missed.">        if ( parent.isExtensions() )</span>
+        {
+<span class="nc" id="L200">            child.setExtensions( true );</span>
+        }
+
+<span class="nc bnc" id="L203" title="All 4 branches missed.">        if ( ( child.getVersion() == null ) &amp;&amp; ( parent.getVersion() != null ) )</span>
+        {
+<span class="nc" id="L205">            child.setVersion( parent.getVersion() );</span>
+        }
+
+<span class="nc" id="L208">        Xpp3Dom childConfiguration = (Xpp3Dom) child.getConfiguration();</span>
+<span class="nc" id="L209">        Xpp3Dom parentConfiguration = (Xpp3Dom) parent.getConfiguration();</span>
+
+<span class="nc" id="L211">        childConfiguration = Xpp3Dom.mergeXpp3Dom( childConfiguration, parentConfiguration );</span>
+
+<span class="nc" id="L213">        child.setConfiguration( childConfiguration );</span>
+
+<span class="nc" id="L215">        child.setDependencies( mergeDependencyList( child.getDependencies(), parent.getDependencies() ) );</span>
+
+        // from here to the end of the method is dealing with merging of the &lt;executions/&gt; section.
+<span class="nc" id="L218">        String parentInherited = parent.getInherited();</span>
+
+<span class="nc bnc" id="L220" title="All 4 branches missed.">        boolean parentIsInherited = ( parentInherited == null ) || Boolean.valueOf( parentInherited );</span>
+
+<span class="nc" id="L222">        List&lt;PluginExecution&gt; parentExecutions = parent.getExecutions();</span>
+
+<span class="nc bnc" id="L224" title="All 4 branches missed.">        if ( ( parentExecutions != null ) &amp;&amp; !parentExecutions.isEmpty() )</span>
+        {
+<span class="nc" id="L226">            List&lt;PluginExecution&gt; mergedExecutions = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L228">            Map&lt;String, PluginExecution&gt; assembledExecutions = new TreeMap&lt;&gt;();</span>
+
+<span class="nc" id="L230">            Map&lt;String, PluginExecution&gt; childExecutions = child.getExecutionsAsMap();</span>
+
+<span class="nc bnc" id="L232" title="All 2 branches missed.">            for ( PluginExecution parentExecution : parentExecutions )</span>
+            {
+<span class="nc" id="L234">                String inherited = parentExecution.getInherited();</span>
+
+<span class="nc bnc" id="L236" title="All 6 branches missed.">                boolean parentExecInherited =</span>
+                    parentIsInherited &amp;&amp; ( ( inherited == null ) || Boolean.valueOf( inherited ) );
+
+<span class="nc bnc" id="L239" title="All 4 branches missed.">                if ( !handleAsInheritance || parentExecInherited )</span>
+                {
+<span class="nc" id="L241">                    PluginExecution assembled = parentExecution;</span>
+
+<span class="nc" id="L243">                    PluginExecution childExecution = childExecutions.get( parentExecution.getId() );</span>
+
+<span class="nc bnc" id="L245" title="All 2 branches missed.">                    if ( childExecution != null )</span>
+                    {
+<span class="nc" id="L247">                        mergePluginExecutionDefinitions( childExecution, parentExecution );</span>
+
+<span class="nc" id="L249">                        assembled = childExecution;</span>
+                    }
+<span class="nc bnc" id="L251" title="All 4 branches missed.">                    else if ( handleAsInheritance &amp;&amp; ( parentInherited == null ) )</span>
+                    {
+<span class="nc" id="L253">                        parentExecution.unsetInheritanceApplied();</span>
+                    }
+
+<span class="nc" id="L256">                    assembledExecutions.put( assembled.getId(), assembled );</span>
+<span class="nc" id="L257">                    mergedExecutions.add( assembled );</span>
+                }
+<span class="nc" id="L259">            }</span>
+
+<span class="nc bnc" id="L261" title="All 2 branches missed.">            for ( PluginExecution childExecution : child.getExecutions() )</span>
+            {
+<span class="nc bnc" id="L263" title="All 2 branches missed.">                if ( !assembledExecutions.containsKey( childExecution.getId() ) )</span>
+                {
+<span class="nc" id="L265">                    mergedExecutions.add( childExecution );</span>
+                }
+<span class="nc" id="L267">            }</span>
+
+<span class="nc" id="L269">            child.setExecutions( mergedExecutions );</span>
+
+<span class="nc" id="L271">            child.flushExecutionMap();</span>
+        }
+
+<span class="nc" id="L274">    }</span>
+
+    private static void mergePluginExecutionDefinitions( PluginExecution child, PluginExecution parent )
+    {
+<span class="nc bnc" id="L278" title="All 2 branches missed.">        if ( child.getPhase() == null )</span>
+        {
+<span class="nc" id="L280">            child.setPhase( parent.getPhase() );</span>
+        }
+
+<span class="nc" id="L283">        List&lt;String&gt; parentGoals = parent.getGoals();</span>
+<span class="nc" id="L284">        List&lt;String&gt; childGoals = child.getGoals();</span>
+
+<span class="nc" id="L286">        List&lt;String&gt; goals = new ArrayList&lt;&gt;();</span>
+
+<span class="nc bnc" id="L288" title="All 4 branches missed.">        if ( ( childGoals != null ) &amp;&amp; !childGoals.isEmpty() )</span>
+        {
+<span class="nc" id="L290">            goals.addAll( childGoals );</span>
+        }
+
+<span class="nc bnc" id="L293" title="All 2 branches missed.">        if ( parentGoals != null )</span>
+        {
+<span class="nc bnc" id="L295" title="All 2 branches missed.">            for (  String goal : parentGoals )</span>
+            {
+<span class="nc bnc" id="L297" title="All 2 branches missed.">                if ( !goals.contains( goal ) )</span>
+                {
+<span class="nc" id="L299">                    goals.add( goal );</span>
+                }
+<span class="nc" id="L301">            }</span>
+        }
+
+<span class="nc" id="L304">        child.setGoals( goals );</span>
+
+<span class="nc" id="L306">        Xpp3Dom childConfiguration = (Xpp3Dom) child.getConfiguration();</span>
+<span class="nc" id="L307">        Xpp3Dom parentConfiguration = (Xpp3Dom) parent.getConfiguration();</span>
+
+<span class="nc" id="L309">        childConfiguration = Xpp3Dom.mergeXpp3Dom( childConfiguration, parentConfiguration );</span>
+
+<span class="nc" id="L311">        child.setConfiguration( childConfiguration );</span>
+<span class="nc" id="L312">    }</span>
+
+    public static List&lt;Repository&gt; mergeRepositoryLists( List&lt;Repository&gt; dominant, List&lt;Repository&gt; recessive )
+    {
+<span class="nc" id="L316">        List&lt;Repository&gt; repositories = new ArrayList&lt;&gt;();</span>
+
+<span class="nc bnc" id="L318" title="All 2 branches missed.">        for ( Repository repository : dominant )</span>
+        {
+<span class="nc" id="L320">            repositories.add( repository );</span>
+<span class="nc" id="L321">        }</span>
+
+<span class="nc bnc" id="L323" title="All 2 branches missed.">        for ( Repository repository : recessive )</span>
+        {
+<span class="nc bnc" id="L325" title="All 2 branches missed.">            if ( !repositories.contains( repository ) )</span>
+            {
+<span class="nc" id="L327">                repositories.add( repository );</span>
+            }
+<span class="nc" id="L329">        }</span>
+
+<span class="nc" id="L331">        return repositories;</span>
+    }
+
+    public static void mergeFilterLists( List&lt;String&gt; childFilters, List&lt;String&gt; parentFilters )
+    {
+<span class="nc bnc" id="L336" title="All 2 branches missed.">        for ( String f : parentFilters )</span>
+        {
+<span class="nc bnc" id="L338" title="All 2 branches missed.">            if ( !childFilters.contains( f ) )</span>
+            {
+<span class="nc" id="L340">                childFilters.add( f );</span>
+            }
+<span class="nc" id="L342">        }</span>
+<span class="nc" id="L343">    }</span>
+
+    private static List&lt;Dependency&gt; mergeDependencyList( List&lt;Dependency&gt; child, List&lt;Dependency&gt; parent )
+    {
+<span class="nc" id="L347">        Map&lt;String, Dependency&gt; depsMap = new LinkedHashMap&lt;&gt;();</span>
+
+<span class="nc bnc" id="L349" title="All 2 branches missed.">        if ( parent != null )</span>
+        {
+<span class="nc bnc" id="L351" title="All 2 branches missed.">            for ( Dependency dependency : parent )</span>
+            {
+<span class="nc" id="L353">                depsMap.put( dependency.getManagementKey(), dependency );</span>
+<span class="nc" id="L354">            }</span>
+        }
+
+<span class="nc bnc" id="L357" title="All 2 branches missed.">        if ( child != null )</span>
+        {
+<span class="nc bnc" id="L359" title="All 2 branches missed.">            for ( Dependency dependency : child )</span>
+            {
+<span class="nc" id="L361">                depsMap.put( dependency.getManagementKey(), dependency );</span>
+<span class="nc" id="L362">            }</span>
+        }
+
+<span class="nc" id="L365">        return new ArrayList&lt;&gt;( depsMap.values() );</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

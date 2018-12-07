@@ -1,0 +1,170 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ConsoleMavenTransferListener.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.cli.transfer</a> &gt; <span class="el_source">ConsoleMavenTransferListener.java</span></div><h1>ConsoleMavenTransferListener.java</h1><pre class="source lang-java linenums">package org.apache.maven.cli.transfer;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.PrintStream;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
+
+import org.apache.commons.lang3.StringUtils;
+import org.eclipse.aether.transfer.TransferCancelledException;
+import org.eclipse.aether.transfer.TransferEvent;
+import org.eclipse.aether.transfer.TransferResource;
+
+/**
+ * Console download progress meter.
+ *
+ * @author &lt;a href=&quot;mailto:brett@apache.org&quot;&gt;Brett Porter&lt;/a&gt;
+ */
+public class ConsoleMavenTransferListener
+    extends AbstractMavenTransferListener
+{
+
+<span class="nc" id="L43">    private Map&lt;TransferResource, Long&gt; transfers = Collections.synchronizedMap(</span>
+                                                        new LinkedHashMap&lt;TransferResource, Long&gt;() );
+
+    private boolean printResourceNames;
+    private int lastLength;
+
+    public ConsoleMavenTransferListener( PrintStream out, boolean printResourceNames )
+    {
+<span class="nc" id="L51">        super( out );</span>
+<span class="nc" id="L52">        this.printResourceNames = printResourceNames;</span>
+<span class="nc" id="L53">    }</span>
+
+    @Override
+    public synchronized void transferInitiated( TransferEvent event )
+    {
+<span class="nc" id="L58">        overridePreviousTransfer( event );</span>
+
+<span class="nc" id="L60">        super.transferInitiated( event );</span>
+<span class="nc" id="L61">    }</span>
+
+    @Override
+    public synchronized void transferCorrupted( TransferEvent event )
+        throws TransferCancelledException
+    {
+<span class="nc" id="L67">        overridePreviousTransfer( event );</span>
+
+<span class="nc" id="L69">        super.transferCorrupted( event );</span>
+<span class="nc" id="L70">    }</span>
+
+    @Override
+    public synchronized void transferProgressed( TransferEvent event )
+        throws TransferCancelledException
+    {
+<span class="nc" id="L76">        TransferResource resource = event.getResource();</span>
+<span class="nc" id="L77">        transfers.put( resource, event.getTransferredBytes() );</span>
+
+<span class="nc" id="L79">        StringBuilder buffer = new StringBuilder( 128 );</span>
+<span class="nc" id="L80">        buffer.append( &quot;Progress (&quot; ).append(  transfers.size() ).append( &quot;): &quot; );</span>
+
+<span class="nc" id="L82">        synchronized ( transfers )</span>
+        {
+<span class="nc" id="L84">            Iterator&lt;Map.Entry&lt;TransferResource, Long&gt;&gt; entries = transfers.entrySet().iterator();</span>
+<span class="nc bnc" id="L85" title="All 2 branches missed.">            while ( entries.hasNext() )</span>
+            {
+<span class="nc" id="L87">                Map.Entry&lt;TransferResource, Long&gt; entry = entries.next();</span>
+<span class="nc" id="L88">                long total = entry.getKey().getContentLength();</span>
+<span class="nc" id="L89">                Long complete = entry.getValue();</span>
+<span class="nc" id="L90">                buffer.append( getStatus( entry.getKey().getResourceName(), complete, total ) );</span>
+<span class="nc bnc" id="L91" title="All 2 branches missed.">                if ( entries.hasNext() )</span>
+                {
+<span class="nc" id="L93">                    buffer.append( &quot; | &quot; );</span>
+                }
+<span class="nc" id="L95">            }</span>
+<span class="nc" id="L96">        }</span>
+
+<span class="nc" id="L98">        int pad = lastLength - buffer.length();</span>
+<span class="nc" id="L99">        lastLength = buffer.length();</span>
+<span class="nc" id="L100">        pad( buffer, pad );</span>
+<span class="nc" id="L101">        buffer.append( '\r' );</span>
+<span class="nc" id="L102">        out.print( buffer );</span>
+<span class="nc" id="L103">        out.flush();</span>
+<span class="nc" id="L104">    }</span>
+
+    private String getStatus( String resourceName, long complete, long total )
+    {
+<span class="nc" id="L108">        FileSizeFormat format = new FileSizeFormat( Locale.ENGLISH );</span>
+<span class="nc" id="L109">        StringBuilder status = new StringBuilder();</span>
+
+<span class="nc bnc" id="L111" title="All 2 branches missed.">        if ( printResourceNames )</span>
+        {
+<span class="nc" id="L113">            status.append( StringUtils.substringAfterLast( resourceName,  &quot;/&quot; ) );</span>
+<span class="nc" id="L114">            status.append( &quot; (&quot; );</span>
+        }
+
+<span class="nc" id="L117">        status.append( format.formatProgress( complete, total ) );</span>
+
+<span class="nc bnc" id="L119" title="All 2 branches missed.">        if ( printResourceNames )</span>
+        {
+<span class="nc" id="L121">            status.append( &quot;)&quot; );</span>
+        }
+
+<span class="nc" id="L124">        return status.toString();</span>
+    }
+
+    private void pad( StringBuilder buffer, int spaces )
+    {
+<span class="nc" id="L129">        String block = &quot;                                        &quot;;</span>
+<span class="nc bnc" id="L130" title="All 2 branches missed.">        while ( spaces &gt; 0 )</span>
+        {
+<span class="nc" id="L132">            int n = Math.min( spaces, block.length() );</span>
+<span class="nc" id="L133">            buffer.append( block, 0, n );</span>
+<span class="nc" id="L134">            spaces -= n;</span>
+<span class="nc" id="L135">        }</span>
+<span class="nc" id="L136">    }</span>
+
+    @Override
+    public synchronized void transferSucceeded( TransferEvent event )
+    {
+<span class="nc" id="L141">        transfers.remove( event.getResource() );</span>
+<span class="nc" id="L142">        overridePreviousTransfer( event );</span>
+
+<span class="nc" id="L144">        super.transferSucceeded( event );</span>
+<span class="nc" id="L145">    }</span>
+
+    @Override
+    public synchronized void transferFailed( TransferEvent event )
+    {
+<span class="nc" id="L150">        transfers.remove( event.getResource() );</span>
+<span class="nc" id="L151">        overridePreviousTransfer( event );</span>
+
+<span class="nc" id="L153">        super.transferFailed( event );</span>
+<span class="nc" id="L154">    }</span>
+
+    private void overridePreviousTransfer( TransferEvent event )
+    {
+<span class="nc bnc" id="L158" title="All 2 branches missed.">        if ( lastLength &gt; 0 )</span>
+        {
+<span class="nc" id="L160">            StringBuilder buffer = new StringBuilder( 128 );</span>
+<span class="nc" id="L161">            pad( buffer, lastLength );</span>
+<span class="nc" id="L162">            buffer.append( '\r' );</span>
+<span class="nc" id="L163">            out.print( buffer );</span>
+<span class="nc" id="L164">            out.flush();</span>
+<span class="nc" id="L165">            lastLength = 0;</span>
+        }
+<span class="nc" id="L167">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

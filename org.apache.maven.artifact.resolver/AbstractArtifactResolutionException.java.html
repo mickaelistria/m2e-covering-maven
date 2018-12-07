@@ -1,0 +1,348 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractArtifactResolutionException.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.artifact.resolver</a> &gt; <span class="el_source">AbstractArtifactResolutionException.java</span></div><h1>AbstractArtifactResolutionException.java</h1><pre class="source lang-java linenums">package org.apache.maven.artifact.resolver;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.Iterator;
+import java.util.List;
+
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.repository.ArtifactRepository;
+import org.apache.maven.artifact.repository.ArtifactRepositoryPolicy;
+
+/**
+ * Base class for artifact resolution exceptions.
+ *
+ * @author &lt;a href=&quot;mailto:brett@apache.org&quot;&gt;Brett Porter&lt;/a&gt;
+ */
+public class AbstractArtifactResolutionException
+    extends Exception
+{
+    private String groupId;
+
+    private String artifactId;
+
+    private String version;
+
+    private String type;
+
+    private String classifier;
+
+    private Artifact artifact;
+
+    private List&lt;ArtifactRepository&gt; remoteRepositories;
+
+    private final String originalMessage;
+
+    private final String path;
+
+<span class="nc" id="L55">    static final String LS = System.getProperty( &quot;line.separator&quot; );</span>
+
+    @SuppressWarnings( &quot;checkstyle:parameternumber&quot; )
+    protected AbstractArtifactResolutionException( String message,
+                                                   String groupId,
+                                                   String artifactId,
+                                                   String version,
+                                                   String type,
+                                                   String classifier,
+                                                   List&lt;ArtifactRepository&gt; remoteRepositories,
+                                                   List&lt;String&gt; path )
+    {
+<span class="nc" id="L67">        this( message, groupId, artifactId, version, type, classifier, remoteRepositories, path, null );</span>
+<span class="nc" id="L68">    }</span>
+
+    @SuppressWarnings( &quot;checkstyle:parameternumber&quot; )
+    protected AbstractArtifactResolutionException( String message,
+                                                   String groupId,
+                                                   String artifactId,
+                                                   String version,
+                                                   String type,
+                                                   String classifier,
+                                                   List&lt;ArtifactRepository&gt; remoteRepositories,
+                                                   List&lt;String&gt; path,
+                                                   Throwable t )
+    {
+<span class="nc" id="L81">        super( constructMessageBase( message, groupId, artifactId, version, type, remoteRepositories, path ), t );</span>
+
+<span class="nc" id="L83">        this.originalMessage = message;</span>
+<span class="nc" id="L84">        this.groupId = groupId;</span>
+<span class="nc" id="L85">        this.artifactId = artifactId;</span>
+<span class="nc" id="L86">        this.type = type;</span>
+<span class="nc" id="L87">        this.classifier = classifier;</span>
+<span class="nc" id="L88">        this.version = version;</span>
+<span class="nc" id="L89">        this.remoteRepositories = remoteRepositories;</span>
+<span class="nc" id="L90">        this.path = constructArtifactPath( path, &quot;&quot; );</span>
+<span class="nc" id="L91">    }</span>
+
+    protected AbstractArtifactResolutionException( String message,
+                                                   Artifact artifact )
+    {
+<span class="nc" id="L96">        this( message, artifact, null );</span>
+<span class="nc" id="L97">    }</span>
+
+    protected AbstractArtifactResolutionException( String message,
+                                                   Artifact artifact,
+                                                   List&lt;ArtifactRepository&gt; remoteRepositories )
+    {
+<span class="nc" id="L103">        this( message, artifact, remoteRepositories, null );</span>
+<span class="nc" id="L104">    }</span>
+
+    protected AbstractArtifactResolutionException( String message,
+                                                   Artifact artifact,
+                                                   List&lt;ArtifactRepository&gt; remoteRepositories,
+                                                   Throwable t )
+    {
+<span class="nc" id="L111">        this( message, artifact.getGroupId(), artifact.getArtifactId(), artifact.getVersion(), artifact.getType(),</span>
+            artifact.getClassifier(), remoteRepositories, artifact.getDependencyTrail(), t );
+<span class="nc" id="L113">        this.artifact = artifact;</span>
+<span class="nc" id="L114">    }</span>
+
+    public Artifact getArtifact()
+    {
+<span class="nc" id="L118">        return artifact;</span>
+    }
+
+    public String getGroupId()
+    {
+<span class="nc" id="L123">        return groupId;</span>
+    }
+
+    public String getArtifactId()
+    {
+<span class="nc" id="L128">        return artifactId;</span>
+    }
+
+    public String getVersion()
+    {
+<span class="nc" id="L133">        return version;</span>
+    }
+
+    public String getType()
+    {
+<span class="nc" id="L138">        return type;</span>
+    }
+
+    /** @return the classifier */
+    public String getClassifier()
+    {
+<span class="nc" id="L144">        return this.classifier;</span>
+    }
+
+    /** @return the path */
+    public String getPath()
+    {
+<span class="nc" id="L150">        return this.path;</span>
+    }
+
+    public List&lt;ArtifactRepository&gt; getRemoteRepositories()
+    {
+<span class="nc" id="L155">        return remoteRepositories;</span>
+    }
+
+    public String getOriginalMessage()
+    {
+<span class="nc" id="L160">        return originalMessage;</span>
+    }
+
+    protected static String constructArtifactPath( List&lt;String&gt; path,
+                                                   String indentation )
+    {
+<span class="nc" id="L166">        StringBuilder sb = new StringBuilder();</span>
+
+<span class="nc bnc" id="L168" title="All 2 branches missed.">        if ( path != null )</span>
+        {
+<span class="nc" id="L170">            sb.append( LS );</span>
+<span class="nc" id="L171">            sb.append( indentation );</span>
+<span class="nc" id="L172">            sb.append( &quot;Path to dependency: &quot; );</span>
+<span class="nc" id="L173">            sb.append( LS );</span>
+<span class="nc" id="L174">            int num = 1;</span>
+<span class="nc bnc" id="L175" title="All 2 branches missed.">            for ( Iterator&lt;String&gt; i = path.iterator(); i.hasNext(); num++ )</span>
+            {
+<span class="nc" id="L177">                sb.append( indentation );</span>
+<span class="nc" id="L178">                sb.append( '\t' );</span>
+<span class="nc" id="L179">                sb.append( num );</span>
+<span class="nc" id="L180">                sb.append( &quot;) &quot; );</span>
+<span class="nc" id="L181">                sb.append( i.next() );</span>
+<span class="nc" id="L182">                sb.append( LS );</span>
+            }
+        }
+
+<span class="nc" id="L186">        return sb.toString();</span>
+    }
+
+    private static String constructMessageBase( String message,
+                                                String groupId,
+                                                String artifactId,
+                                                String version,
+                                                String type,
+                                                List&lt;ArtifactRepository&gt; remoteRepositories,
+                                                List&lt;String&gt; path )
+    {
+<span class="nc" id="L197">        StringBuilder sb = new StringBuilder();</span>
+
+<span class="nc" id="L199">        sb.append( message );</span>
+
+<span class="nc bnc" id="L201" title="All 4 branches missed.">        if ( message == null || !message.contains( &quot;from the specified remote repositories:&quot; ) )</span>
+        {
+<span class="nc" id="L203">            sb.append( LS );</span>
+<span class="nc" id="L204">            sb.append( &quot;  &quot; ).append( groupId ).append( ':' ).append( artifactId ).append( ':' ).append( type ).append(</span>
+                ':' ).append( version );
+<span class="nc" id="L206">            sb.append( LS );</span>
+<span class="nc bnc" id="L207" title="All 2 branches missed.">            if ( remoteRepositories != null )</span>
+            {
+<span class="nc" id="L209">                sb.append( LS );</span>
+<span class="nc" id="L210">                sb.append( &quot;from the specified remote repositories:&quot; );</span>
+<span class="nc" id="L211">                sb.append( LS ).append( &quot;  &quot; );</span>
+
+<span class="nc bnc" id="L213" title="All 2 branches missed.">                if ( remoteRepositories.isEmpty() )</span>
+                {
+<span class="nc" id="L215">                    sb.append( &quot;(none)&quot; );</span>
+                }
+
+<span class="nc bnc" id="L218" title="All 2 branches missed.">                for ( Iterator&lt;ArtifactRepository&gt; i = remoteRepositories.iterator(); i.hasNext(); )</span>
+                {
+<span class="nc" id="L220">                    ArtifactRepository remoteRepository = i.next();</span>
+
+<span class="nc" id="L222">                    sb.append( remoteRepository.getId() );</span>
+<span class="nc" id="L223">                    sb.append( &quot; (&quot; );</span>
+<span class="nc" id="L224">                    sb.append( remoteRepository.getUrl() );</span>
+
+<span class="nc" id="L226">                    ArtifactRepositoryPolicy releases = remoteRepository.getReleases();</span>
+<span class="nc bnc" id="L227" title="All 2 branches missed.">                    if ( releases != null )</span>
+                    {
+<span class="nc" id="L229">                        sb.append( &quot;, releases=&quot; ).append( releases.isEnabled() );</span>
+                    }
+
+<span class="nc" id="L232">                    ArtifactRepositoryPolicy snapshots = remoteRepository.getSnapshots();</span>
+<span class="nc bnc" id="L233" title="All 2 branches missed.">                    if ( snapshots != null )</span>
+                    {
+<span class="nc" id="L235">                        sb.append( &quot;, snapshots=&quot; ).append( snapshots.isEnabled() );</span>
+                    }
+
+<span class="nc" id="L238">                    sb.append( ')' );</span>
+<span class="nc bnc" id="L239" title="All 2 branches missed.">                    if ( i.hasNext() )</span>
+                    {
+<span class="nc" id="L241">                        sb.append( ',' ).append( LS ).append( &quot;  &quot; );</span>
+                    }
+<span class="nc" id="L243">                }</span>
+            }
+
+<span class="nc" id="L246">            sb.append( constructArtifactPath( path, &quot;&quot; ) );</span>
+<span class="nc" id="L247">            sb.append( LS );</span>
+        }
+
+<span class="nc" id="L250">        return sb.toString();</span>
+    }
+
+    @SuppressWarnings( &quot;checkstyle:parameternumber&quot; )
+    protected static String constructMissingArtifactMessage( String message,
+                                                             String indentation,
+                                                             String groupId,
+                                                             String artifactId,
+                                                             String version,
+                                                             String type,
+                                                             String classifier,
+                                                             String downloadUrl,
+                                                             List&lt;String&gt; path )
+    {
+<span class="nc" id="L264">        StringBuilder sb = new StringBuilder( message );</span>
+
+<span class="nc bnc" id="L266" title="All 2 branches missed.">        if ( !&quot;pom&quot;.equals( type ) )</span>
+        {
+<span class="nc bnc" id="L268" title="All 2 branches missed.">            if ( downloadUrl != null )</span>
+            {
+<span class="nc" id="L270">                sb.append( LS );</span>
+<span class="nc" id="L271">                sb.append( LS );</span>
+<span class="nc" id="L272">                sb.append( indentation );</span>
+<span class="nc" id="L273">                sb.append( &quot;Try downloading the file manually from: &quot; );</span>
+<span class="nc" id="L274">                sb.append( LS );</span>
+<span class="nc" id="L275">                sb.append( indentation );</span>
+<span class="nc" id="L276">                sb.append( &quot;    &quot; );</span>
+<span class="nc" id="L277">                sb.append( downloadUrl );</span>
+            }
+            else
+            {
+<span class="nc" id="L281">                sb.append( LS );</span>
+<span class="nc" id="L282">                sb.append( LS );</span>
+<span class="nc" id="L283">                sb.append( indentation );</span>
+<span class="nc" id="L284">                sb.append( &quot;Try downloading the file manually from the project website.&quot; );</span>
+            }
+
+<span class="nc" id="L287">            sb.append( LS );</span>
+<span class="nc" id="L288">            sb.append( LS );</span>
+<span class="nc" id="L289">            sb.append( indentation );</span>
+<span class="nc" id="L290">            sb.append( &quot;Then, install it using the command: &quot; );</span>
+<span class="nc" id="L291">            sb.append( LS );</span>
+<span class="nc" id="L292">            sb.append( indentation );</span>
+<span class="nc" id="L293">            sb.append( &quot;    mvn install:install-file -DgroupId=&quot; );</span>
+<span class="nc" id="L294">            sb.append( groupId );</span>
+<span class="nc" id="L295">            sb.append( &quot; -DartifactId=&quot; );</span>
+<span class="nc" id="L296">            sb.append( artifactId );</span>
+<span class="nc" id="L297">            sb.append( &quot; -Dversion=&quot; );</span>
+<span class="nc" id="L298">            sb.append( version );</span>
+
+            //insert classifier only if it was used in the artifact
+<span class="nc bnc" id="L301" title="All 4 branches missed.">            if ( classifier != null &amp;&amp; !classifier.equals( &quot;&quot; ) )</span>
+            {
+<span class="nc" id="L303">                sb.append( &quot; -Dclassifier=&quot; );</span>
+<span class="nc" id="L304">                sb.append( classifier );</span>
+            }
+<span class="nc" id="L306">            sb.append( &quot; -Dpackaging=&quot; );</span>
+<span class="nc" id="L307">            sb.append( type );</span>
+<span class="nc" id="L308">            sb.append( &quot; -Dfile=/path/to/file&quot; );</span>
+<span class="nc" id="L309">            sb.append( LS );</span>
+
+            // If people want to deploy it
+<span class="nc" id="L312">            sb.append( LS );</span>
+<span class="nc" id="L313">            sb.append( indentation );</span>
+<span class="nc" id="L314">            sb.append( &quot;Alternatively, if you host your own repository you can deploy the file there: &quot; );</span>
+<span class="nc" id="L315">            sb.append( LS );</span>
+<span class="nc" id="L316">            sb.append( indentation );</span>
+<span class="nc" id="L317">            sb.append( &quot;    mvn deploy:deploy-file -DgroupId=&quot; );</span>
+<span class="nc" id="L318">            sb.append( groupId );</span>
+<span class="nc" id="L319">            sb.append( &quot; -DartifactId=&quot; );</span>
+<span class="nc" id="L320">            sb.append( artifactId );</span>
+<span class="nc" id="L321">            sb.append( &quot; -Dversion=&quot; );</span>
+<span class="nc" id="L322">            sb.append( version );</span>
+
+            //insert classifier only if it was used in the artifact
+<span class="nc bnc" id="L325" title="All 4 branches missed.">            if ( classifier != null &amp;&amp; !classifier.equals( &quot;&quot; ) )</span>
+            {
+<span class="nc" id="L327">                sb.append( &quot; -Dclassifier=&quot; );</span>
+<span class="nc" id="L328">                sb.append( classifier );</span>
+            }
+<span class="nc" id="L330">            sb.append( &quot; -Dpackaging=&quot; );</span>
+<span class="nc" id="L331">            sb.append( type );</span>
+<span class="nc" id="L332">            sb.append( &quot; -Dfile=/path/to/file&quot; );</span>
+<span class="nc" id="L333">            sb.append( &quot; -Durl=[url] -DrepositoryId=[id]&quot; );</span>
+<span class="nc" id="L334">            sb.append( LS );</span>
+        }
+
+<span class="nc" id="L337">        sb.append( constructArtifactPath( path, indentation ) );</span>
+<span class="nc" id="L338">        sb.append( LS );</span>
+
+<span class="nc" id="L340">        return sb.toString();</span>
+    }
+
+    public String getArtifactPath()
+    {
+<span class="nc" id="L345">        return path;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

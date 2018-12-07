@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultMavenProfilesBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.profiles</a> &gt; <span class="el_source">DefaultMavenProfilesBuilder.java</span></div><h1>DefaultMavenProfilesBuilder.java</h1><pre class="source lang-java linenums">package org.apache.maven.profiles;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.maven.profiles.io.xpp3.ProfilesXpp3Reader;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.interpolation.EnvarBasedValueSource;
+import org.codehaus.plexus.interpolation.RegexBasedInterpolator;
+import org.codehaus.plexus.logging.AbstractLogEnabled;
+import org.codehaus.plexus.util.IOUtil;
+import org.codehaus.plexus.util.ReaderFactory;
+import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
+
+import java.io.File;
+import java.io.IOException;
+import java.io.Reader;
+import java.io.StringReader;
+import java.io.StringWriter;
+
+/**
+ * DefaultMavenProfilesBuilder
+ */
+@Deprecated
+@Component( role = MavenProfilesBuilder.class )
+<span class="nc" id="L42">public class DefaultMavenProfilesBuilder</span>
+    extends AbstractLogEnabled
+    implements MavenProfilesBuilder
+{
+    private static final String PROFILES_XML_FILE = &quot;profiles.xml&quot;;
+
+    public ProfilesRoot buildProfiles( File basedir )
+        throws IOException, XmlPullParserException
+    {
+<span class="nc" id="L51">        File profilesXml = new File( basedir, PROFILES_XML_FILE );</span>
+
+<span class="nc" id="L53">        ProfilesRoot profilesRoot = null;</span>
+
+<span class="nc bnc" id="L55" title="All 2 branches missed.">        if ( profilesXml.exists() )</span>
+        {
+<span class="nc" id="L57">            ProfilesXpp3Reader reader = new ProfilesXpp3Reader();</span>
+<span class="nc" id="L58">            try ( Reader profileReader = ReaderFactory.newXmlReader( profilesXml );</span>
+<span class="nc" id="L59">                  StringWriter sWriter = new StringWriter() )</span>
+            {
+<span class="nc" id="L61">                IOUtil.copy( profileReader, sWriter );</span>
+
+<span class="nc" id="L63">                String rawInput = sWriter.toString();</span>
+
+                try
+                {
+<span class="nc" id="L67">                    RegexBasedInterpolator interpolator = new RegexBasedInterpolator();</span>
+<span class="nc" id="L68">                    interpolator.addValueSource( new EnvarBasedValueSource() );</span>
+
+<span class="nc" id="L70">                    rawInput = interpolator.interpolate( rawInput, &quot;settings&quot; );</span>
+                }
+<span class="nc" id="L72">                catch ( Exception e )</span>
+                {
+<span class="nc" id="L74">                    getLogger().warn(</span>
+                        &quot;Failed to initialize environment variable resolver. Skipping environment &quot; + &quot;substitution in &quot;
+                            + PROFILES_XML_FILE + &quot;.&quot; );
+<span class="nc" id="L77">                    getLogger().debug( &quot;Failed to initialize envar resolver. Skipping resolution.&quot;, e );</span>
+<span class="nc" id="L78">                }</span>
+
+<span class="nc" id="L80">                StringReader sReader = new StringReader( rawInput );</span>
+
+<span class="nc" id="L82">                profilesRoot = reader.read( sReader );</span>
+            }
+
+        }
+
+<span class="nc" id="L87">        return profilesRoot;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

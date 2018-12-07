@@ -1,0 +1,191 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultToolchain.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.toolchain</a> &gt; <span class="el_source">DefaultToolchain.java</span></div><h1>DefaultToolchain.java</h1><pre class="source lang-java linenums">package org.apache.maven.toolchain;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Properties;
+
+import org.apache.maven.toolchain.model.ToolchainModel;
+import org.codehaus.plexus.logging.Logger;
+
+/**
+ * Default abstract toolchain implementation, to be used as base class for any toolchain implementation
+ * to avoid rewriting usual code.
+ *
+ * @author mkleint
+ * @since 2.0.9
+ */
+public abstract class DefaultToolchain // should have been AbstractToolchain...
+    implements Toolchain, ToolchainPrivate
+{
+
+    private String type;
+
+<span class="nc" id="L43">    private Map&lt;String, RequirementMatcher&gt; provides = new HashMap&lt;&gt;();</span>
+
+    public static final String KEY_TYPE = &quot;type&quot;; //NOI18N
+
+    private ToolchainModel model;
+
+    private Logger logger;
+
+    /**
+     * 
+     * @param model the model, must not be {@code null}
+     * @param logger the logger, must not be {@code null}
+     */
+    protected DefaultToolchain( ToolchainModel model, Logger logger )
+<span class="nc" id="L57">    {</span>
+<span class="nc" id="L58">        this.model = model;</span>
+
+<span class="nc" id="L60">        this.logger = logger;</span>
+<span class="nc" id="L61">    }</span>
+
+    /**
+     * 
+     * @param model the model, must not be {@code null}
+     * @param type the type
+     * @param logger the logger, must not be {@code null}
+     */
+    protected DefaultToolchain( ToolchainModel model, String type, Logger logger )
+    {
+<span class="nc" id="L71">        this( model, logger );</span>
+<span class="nc" id="L72">        this.type = type;</span>
+<span class="nc" id="L73">    }</span>
+
+    @Override
+    public final String getType()
+    {
+<span class="nc bnc" id="L78" title="All 2 branches missed.">        return type != null ? type : model.getType();</span>
+    }
+
+    @Override
+    public final ToolchainModel getModel()
+    {
+<span class="nc" id="L84">        return model;</span>
+    }
+
+    public final void addProvideToken( String type, RequirementMatcher matcher )
+    {
+<span class="nc" id="L89">        provides.put( type, matcher );</span>
+<span class="nc" id="L90">    }</span>
+
+    @Override
+    public boolean matchesRequirements( Map&lt;String, String&gt; requirements )
+    {
+<span class="nc bnc" id="L95" title="All 2 branches missed.">        for ( Map.Entry&lt;String, String&gt; requirement : requirements.entrySet() )</span>
+        {
+<span class="nc" id="L97">            String key = requirement.getKey();</span>
+
+<span class="nc" id="L99">            RequirementMatcher matcher = provides.get( key );</span>
+
+<span class="nc bnc" id="L101" title="All 2 branches missed.">            if ( matcher == null )</span>
+            {
+<span class="nc" id="L103">                getLog().debug( &quot;Toolchain &quot; + this + &quot; is missing required property: &quot; + key );</span>
+<span class="nc" id="L104">                return false;</span>
+            }
+<span class="nc bnc" id="L106" title="All 2 branches missed.">            if ( !matcher.matches( requirement.getValue() ) )</span>
+            {
+<span class="nc" id="L108">                getLog().debug( &quot;Toolchain &quot; + this + &quot; doesn't match required property: &quot; + key );</span>
+<span class="nc" id="L109">                return false;</span>
+            }
+<span class="nc" id="L111">        }</span>
+<span class="nc" id="L112">        return true;</span>
+    }
+
+    protected Logger getLog()
+    {
+<span class="nc" id="L117">        return logger;</span>
+    }
+
+    @Override
+    public boolean equals( Object obj )
+    {
+<span class="nc bnc" id="L123" title="All 2 branches missed.">        if ( obj == null )</span>
+        {
+<span class="nc" id="L125">            return false;</span>
+        }
+
+<span class="nc bnc" id="L128" title="All 2 branches missed.">        if ( this == obj )</span>
+        {
+<span class="nc" id="L130">            return true;</span>
+        }
+
+<span class="nc bnc" id="L133" title="All 2 branches missed.">        if ( !( obj instanceof DefaultToolchain ) )</span>
+        {
+<span class="nc" id="L135">            return false;</span>
+        }
+
+<span class="nc" id="L138">        DefaultToolchain other = (DefaultToolchain) obj;</span>
+
+<span class="nc bnc" id="L140" title="All 6 branches missed.">        if ( type == null ? other.type != null : !type.equals( other.type ) )</span>
+        {
+<span class="nc" id="L142">            return false;</span>
+        }
+
+<span class="nc" id="L145">        Properties thisProvides = this.getModel().getProvides();</span>
+<span class="nc" id="L146">        Properties otherProvides = other.getModel().getProvides();</span>
+
+<span class="nc bnc" id="L148" title="All 6 branches missed.">        if ( thisProvides == null ? otherProvides != null : !thisProvides.equals( otherProvides ) )</span>
+        {
+<span class="nc" id="L150">            return false;</span>
+        }
+
+<span class="nc" id="L153">        return true;</span>
+    }
+
+    @Override
+    public int hashCode()
+    {
+<span class="nc bnc" id="L159" title="All 2 branches missed.">        int hashCode = ( type == null ) ? 0 : type.hashCode();</span>
+
+<span class="nc bnc" id="L161" title="All 2 branches missed.">        if ( this.getModel().getProvides() != null )</span>
+        {
+<span class="nc" id="L163">            hashCode = 31 * hashCode + this.getModel().getProvides().hashCode();</span>
+        }
+<span class="nc" id="L165">        return hashCode;</span>
+    }
+    
+    @Override
+    public String toString()
+    {
+<span class="nc" id="L171">        StringBuilder builder = new StringBuilder();</span>
+<span class="nc" id="L172">        builder.append( &quot;type:&quot; ).append( getType() );</span>
+<span class="nc" id="L173">        builder.append( '{' );</span>
+
+<span class="nc" id="L175">        Iterator&lt;Map.Entry&lt;String, RequirementMatcher&gt;&gt; providesIter = provides.entrySet().iterator();</span>
+<span class="nc bnc" id="L176" title="All 2 branches missed.">        while ( providesIter.hasNext() )</span>
+        {
+<span class="nc" id="L178">            Map.Entry&lt;String, RequirementMatcher&gt; provideEntry = providesIter.next();</span>
+<span class="nc" id="L179">            builder.append( provideEntry.getKey() ).append( &quot; = &quot; ).append( provideEntry.getValue() );</span>
+<span class="nc bnc" id="L180" title="All 2 branches missed.">            if ( providesIter.hasNext() )</span>
+            {
+<span class="nc" id="L182">                builder.append( ';' );</span>
+            }
+<span class="nc" id="L184">        }</span>
+        
+<span class="nc" id="L186">        builder.append( '}' );</span>
+        
+<span class="nc" id="L188">        return builder.toString();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

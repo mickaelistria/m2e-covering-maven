@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultProfileSelector.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.model.profile</a> &gt; <span class="el_source">DefaultProfileSelector.java</span></div><h1>DefaultProfileSelector.java</h1><pre class="source lang-java linenums">package org.apache.maven.model.profile;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+
+import org.apache.maven.model.Activation;
+import org.apache.maven.model.Profile;
+import org.apache.maven.model.building.ModelProblemCollector;
+import org.apache.maven.model.building.ModelProblem.Severity;
+import org.apache.maven.model.building.ModelProblem.Version;
+import org.apache.maven.model.building.ModelProblemCollectorRequest;
+import org.apache.maven.model.profile.activation.ProfileActivator;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
+
+/**
+ * Calculates the active profiles among a given collection of profiles.
+ *
+ * @author Benjamin Bentmann
+ */
+@Component( role = ProfileSelector.class )
+<span class="fc" id="L43">public class DefaultProfileSelector</span>
+    implements ProfileSelector
+{
+
+<span class="fc" id="L47">    @Requirement( role = ProfileActivator.class )</span>
+    private List&lt;ProfileActivator&gt; activators = new ArrayList&lt;&gt;();
+
+    public DefaultProfileSelector addProfileActivator( ProfileActivator profileActivator )
+    {
+<span class="nc bnc" id="L52" title="All 2 branches missed.">        if ( profileActivator != null )</span>
+        {
+<span class="nc" id="L54">            activators.add( profileActivator );</span>
+        }
+<span class="nc" id="L56">        return this;</span>
+    }
+
+    @Override
+    public List&lt;Profile&gt; getActiveProfiles( Collection&lt;Profile&gt; profiles, ProfileActivationContext context,
+                                            ModelProblemCollector problems )
+    {
+<span class="fc" id="L63">        Collection&lt;String&gt; activatedIds = new HashSet&lt;&gt;( context.getActiveProfileIds() );</span>
+<span class="fc" id="L64">        Collection&lt;String&gt; deactivatedIds = new HashSet&lt;&gt;( context.getInactiveProfileIds() );</span>
+
+<span class="fc" id="L66">        List&lt;Profile&gt; activeProfiles = new ArrayList&lt;&gt;( profiles.size() );</span>
+<span class="fc" id="L67">        List&lt;Profile&gt; activePomProfilesByDefault = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L68">        boolean activatedPomProfileNotByDefault = false;</span>
+
+<span class="fc bfc" id="L70" title="All 2 branches covered.">        for ( Profile profile : profiles )</span>
+        {
+<span class="fc bfc" id="L72" title="All 2 branches covered.">            if ( !deactivatedIds.contains( profile.getId() ) )</span>
+            {
+<span class="fc bfc" id="L74" title="All 4 branches covered.">                if ( activatedIds.contains( profile.getId() ) || isActive( profile, context, problems ) )</span>
+                {
+<span class="fc" id="L76">                    activeProfiles.add( profile );</span>
+
+<span class="fc bfc" id="L78" title="All 2 branches covered.">                    if ( Profile.SOURCE_POM.equals( profile.getSource() ) )</span>
+                    {
+<span class="fc" id="L80">                        activatedPomProfileNotByDefault = true;</span>
+                    }
+                }
+<span class="fc bfc" id="L83" title="All 2 branches covered.">                else if ( isActiveByDefault( profile ) )</span>
+                {
+<span class="fc bfc" id="L85" title="All 2 branches covered.">                    if ( Profile.SOURCE_POM.equals( profile.getSource() ) )</span>
+                    {
+<span class="fc" id="L87">                        activePomProfilesByDefault.add( profile );</span>
+                    }
+                    else
+                    {
+<span class="fc" id="L91">                        activeProfiles.add( profile );</span>
+                    }
+                }
+
+            }
+<span class="fc" id="L96">        }</span>
+
+<span class="fc bfc" id="L98" title="All 2 branches covered.">        if ( !activatedPomProfileNotByDefault )</span>
+        {
+<span class="fc" id="L100">            activeProfiles.addAll( activePomProfilesByDefault );</span>
+        }
+
+<span class="fc" id="L103">        return activeProfiles;</span>
+    }
+
+    private boolean isActive( Profile profile, ProfileActivationContext context, ModelProblemCollector problems )
+    {
+<span class="fc" id="L108">        boolean isActive = false;</span>
+<span class="fc bfc" id="L109" title="All 2 branches covered.">        for ( ProfileActivator activator : activators )</span>
+        {
+<span class="fc bfc" id="L111" title="All 2 branches covered.">            if ( activator.presentInConfig( profile, context, problems ) )</span>
+            {
+<span class="fc" id="L113">                isActive = true;</span>
+            }
+<span class="fc" id="L115">        }</span>
+<span class="fc bfc" id="L116" title="All 2 branches covered.">        for ( ProfileActivator activator : activators )</span>
+        {
+            try
+            {
+<span class="fc bfc" id="L120" title="All 2 branches covered.">                if ( activator.presentInConfig( profile, context, problems ) )</span>
+                {
+<span class="fc" id="L122">                    isActive &amp;=  activator.isActive( profile, context, problems );</span>
+                }
+            }
+<span class="nc" id="L125">            catch ( RuntimeException e )</span>
+            {
+<span class="nc" id="L127">                problems.add( new ModelProblemCollectorRequest( Severity.ERROR, Version.BASE )</span>
+                        .setMessage( &quot;Failed to determine activation for profile &quot; + profile.getId() )
+                        .setLocation( profile.getLocation( &quot;&quot; ) )
+                        .setException( e ) );
+<span class="nc" id="L131">                return false;</span>
+<span class="fc" id="L132">            }</span>
+<span class="fc" id="L133">        }</span>
+<span class="fc" id="L134">        return isActive;</span>
+    }
+
+    private boolean isActiveByDefault( Profile profile )
+    {
+<span class="fc" id="L139">        Activation activation = profile.getActivation();</span>
+<span class="fc bfc" id="L140" title="All 4 branches covered.">        return activation != null &amp;&amp; activation.isActiveByDefault();</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

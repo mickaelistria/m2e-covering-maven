@@ -1,0 +1,357 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultMavenMetadataCache.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.project.artifact</a> &gt; <span class="el_source">DefaultMavenMetadataCache.java</span></div><h1>DefaultMavenMetadataCache.java</h1><pre class="source lang-java linenums">package org.apache.maven.project.artifact;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.ArtifactUtils;
+import org.apache.maven.artifact.metadata.ResolutionGroup;
+import org.apache.maven.artifact.repository.ArtifactRepository;
+import org.apache.maven.artifact.repository.ArtifactRepositoryPolicy;
+import org.codehaus.plexus.component.annotations.Component;
+
+/**
+ * DefaultMavenMetadataCache
+ */
+@Component( role = MavenMetadataCache.class )
+<span class="fc" id="L43">public class DefaultMavenMetadataCache</span>
+    implements MavenMetadataCache
+{
+
+<span class="fc" id="L47">    protected final Map&lt;CacheKey, CacheRecord&gt; cache = new ConcurrentHashMap&lt;&gt;();</span>
+
+    /**
+     * CacheKey
+     */
+    public static class CacheKey
+    {
+        private final Artifact artifact;
+        private final long pomHash;
+        private final boolean resolveManagedVersions;
+<span class="nc" id="L57">        private final List&lt;ArtifactRepository&gt; repositories = new ArrayList&lt;&gt;();</span>
+        private final int hashCode;
+
+        public CacheKey( Artifact artifact, boolean resolveManagedVersions, ArtifactRepository localRepository,
+                         List&lt;ArtifactRepository&gt; remoteRepositories )
+<span class="nc" id="L62">        {</span>
+<span class="nc" id="L63">            File file = artifact.getFile();</span>
+<span class="nc" id="L64">            this.artifact = ArtifactUtils.copyArtifact( artifact );</span>
+<span class="nc bnc" id="L65" title="All 4 branches missed.">            if ( &quot;pom&quot;.equals( artifact.getType() ) &amp;&amp; file != null )</span>
+            {
+<span class="nc" id="L67">                pomHash = file.getPath().hashCode() + file.lastModified();</span>
+            }
+            else
+            {
+<span class="nc" id="L71">                pomHash = 0;</span>
+            }
+<span class="nc" id="L73">            this.resolveManagedVersions = resolveManagedVersions;</span>
+<span class="nc" id="L74">            this.repositories.add( localRepository );</span>
+<span class="nc" id="L75">            this.repositories.addAll( remoteRepositories );</span>
+
+<span class="nc" id="L77">            int hash = 17;</span>
+<span class="nc" id="L78">            hash = hash * 31 + artifactHashCode( artifact );</span>
+<span class="nc bnc" id="L79" title="All 2 branches missed.">            hash = hash * 31 + ( resolveManagedVersions ? 1 : 2 );</span>
+<span class="nc" id="L80">            hash = hash * 31 + repositoriesHashCode( repositories );</span>
+<span class="nc" id="L81">            this.hashCode = hash;</span>
+<span class="nc" id="L82">        }</span>
+
+        @Override
+        public int hashCode()
+        {
+<span class="nc" id="L87">            return hashCode;</span>
+        }
+
+        @Override
+        public boolean equals( Object o )
+        {
+<span class="nc bnc" id="L93" title="All 2 branches missed.">            if ( o == this )</span>
+            {
+<span class="nc" id="L95">                return true;</span>
+            }
+
+<span class="nc bnc" id="L98" title="All 2 branches missed.">            if ( !( o instanceof CacheKey ) )</span>
+            {
+<span class="nc" id="L100">                return false;</span>
+            }
+
+<span class="nc" id="L103">            CacheKey other = (CacheKey) o;</span>
+
+<span class="nc bnc" id="L105" title="All 8 branches missed.">            return pomHash == other.pomHash &amp;&amp; artifactEquals( artifact, other.artifact )</span>
+                &amp;&amp; resolveManagedVersions == other.resolveManagedVersions
+                &amp;&amp; repositoriesEquals( repositories, other.repositories );
+        }
+    }
+
+    private static int artifactHashCode( Artifact a )
+    {
+<span class="nc" id="L113">        int result = 17;</span>
+<span class="nc" id="L114">        result = 31 * result + a.getGroupId().hashCode();</span>
+<span class="nc" id="L115">        result = 31 * result + a.getArtifactId().hashCode();</span>
+<span class="nc" id="L116">        result = 31 * result + a.getType().hashCode();</span>
+<span class="nc bnc" id="L117" title="All 2 branches missed.">        if ( a.getVersion() != null )</span>
+        {
+<span class="nc" id="L119">            result = 31 * result + a.getVersion().hashCode();</span>
+        }
+<span class="nc bnc" id="L121" title="All 2 branches missed.">        result = 31 * result + ( a.getClassifier() != null ? a.getClassifier().hashCode() : 0 );</span>
+<span class="nc bnc" id="L122" title="All 2 branches missed.">        result = 31 * result + ( a.getScope() != null ? a.getScope().hashCode() : 0 );</span>
+<span class="nc bnc" id="L123" title="All 2 branches missed.">        result = 31 * result + ( a.getDependencyFilter() != null ? a.getDependencyFilter().hashCode() : 0 );</span>
+<span class="nc bnc" id="L124" title="All 2 branches missed.">        result = 31 * result + ( a.isOptional() ? 1 : 0 );</span>
+<span class="nc" id="L125">        return result;</span>
+    }
+
+    private static boolean artifactEquals( Artifact a1, Artifact a2 )
+    {
+<span class="nc bnc" id="L130" title="All 2 branches missed.">        if ( a1 == a2 )</span>
+        {
+<span class="nc" id="L132">            return true;</span>
+        }
+
+<span class="nc bnc" id="L135" title="All 16 branches missed.">        return eq( a1.getGroupId(), a2.getGroupId() )</span>
+            &amp;&amp; eq( a1.getArtifactId(), a2.getArtifactId() )
+            &amp;&amp; eq( a1.getType(), a2.getType() )
+            &amp;&amp; eq( a1.getVersion(), a2.getVersion() )
+            &amp;&amp; eq( a1.getClassifier(), a2.getClassifier() )
+            &amp;&amp; eq( a1.getScope(), a2.getScope() )
+            &amp;&amp; eq( a1.getDependencyFilter(), a2.getDependencyFilter() )
+            &amp;&amp; a1.isOptional() == a2.isOptional();
+    }
+
+    private static int repositoryHashCode( ArtifactRepository repository )
+    {
+<span class="nc" id="L147">        int result = 17;</span>
+<span class="nc bnc" id="L148" title="All 2 branches missed.">        result = 31 * result + ( repository.getId() != null ? repository.getId().hashCode() : 0 );</span>
+<span class="nc" id="L149">        return result;</span>
+    }
+
+    private static int repositoriesHashCode( List&lt;ArtifactRepository&gt; repositories )
+    {
+<span class="nc" id="L154">        int result = 17;</span>
+<span class="nc bnc" id="L155" title="All 2 branches missed.">        for ( ArtifactRepository repository : repositories )</span>
+        {
+<span class="nc" id="L157">            result = 31 * result + repositoryHashCode( repository );</span>
+<span class="nc" id="L158">        }</span>
+<span class="nc" id="L159">        return result;</span>
+    }
+
+    private static boolean repositoryEquals( ArtifactRepository r1, ArtifactRepository r2 )
+    {
+<span class="nc bnc" id="L164" title="All 2 branches missed.">        if ( r1 == r2 )</span>
+        {
+<span class="nc" id="L166">            return true;</span>
+        }
+
+<span class="nc bnc" id="L169" title="All 8 branches missed.">        return eq( r1.getId(), r2.getId() ) &amp;&amp; eq( r1.getUrl(), r2.getUrl() )</span>
+            &amp;&amp; repositoryPolicyEquals( r1.getReleases(), r2.getReleases() )
+            &amp;&amp; repositoryPolicyEquals( r1.getSnapshots(), r2.getSnapshots() );
+    }
+
+    private static boolean repositoryPolicyEquals( ArtifactRepositoryPolicy p1, ArtifactRepositoryPolicy p2 )
+    {
+<span class="nc bnc" id="L176" title="All 2 branches missed.">        if ( p1 == p2 )</span>
+        {
+<span class="nc" id="L178">            return true;</span>
+        }
+
+<span class="nc bnc" id="L181" title="All 4 branches missed.">        return p1.isEnabled() == p2.isEnabled() &amp;&amp; eq( p1.getUpdatePolicy(), p2.getUpdatePolicy() );</span>
+    }
+
+    private static boolean repositoriesEquals( List&lt;ArtifactRepository&gt; r1, List&lt;ArtifactRepository&gt; r2 )
+    {
+<span class="nc bnc" id="L186" title="All 2 branches missed.">        if ( r1.size() != r2.size() )</span>
+        {
+<span class="nc" id="L188">            return false;</span>
+        }
+
+<span class="nc bnc" id="L191" title="All 2 branches missed.">        for ( Iterator&lt;ArtifactRepository&gt; it1 = r1.iterator(), it2 = r2.iterator(); it1.hasNext(); )</span>
+        {
+<span class="nc bnc" id="L193" title="All 2 branches missed.">            if ( !repositoryEquals( it1.next(), it2.next() ) )</span>
+            {
+<span class="nc" id="L195">                return false;</span>
+            }
+        }
+
+<span class="nc" id="L199">        return true;</span>
+    }
+
+    private static &lt;T&gt; boolean eq( T s1, T s2 )
+    {
+<span class="nc bnc" id="L204" title="All 4 branches missed.">        return s1 != null ? s1.equals( s2 ) : s2 == null;</span>
+    }
+
+    /**
+     * CacheRecord
+     */
+<span class="fc" id="L210">    public class CacheRecord</span>
+    {
+        private Artifact pomArtifact;
+        private Artifact relocatedArtifact;
+        private List&lt;Artifact&gt; artifacts;
+        private Map&lt;String, Artifact&gt; managedVersions;
+        private List&lt;ArtifactRepository&gt; remoteRepositories;
+
+        private long length;
+        private long timestamp;
+
+        CacheRecord( Artifact pomArtifact, Artifact relocatedArtifact, Set&lt;Artifact&gt; artifacts,
+                     Map&lt;String, Artifact&gt; managedVersions, List&lt;ArtifactRepository&gt; remoteRepositories )
+<span class="nc" id="L223">        {</span>
+<span class="nc" id="L224">            this.pomArtifact = ArtifactUtils.copyArtifact( pomArtifact );</span>
+<span class="nc" id="L225">            this.relocatedArtifact = ArtifactUtils.copyArtifactSafe( relocatedArtifact );</span>
+<span class="nc" id="L226">            this.artifacts = ArtifactUtils.copyArtifacts( artifacts, new ArrayList&lt;Artifact&gt;() );</span>
+<span class="nc" id="L227">            this.remoteRepositories = new ArrayList&lt;&gt;( remoteRepositories );</span>
+
+<span class="nc" id="L229">            this.managedVersions = managedVersions;</span>
+<span class="nc bnc" id="L230" title="All 2 branches missed.">            if ( managedVersions != null )</span>
+            {
+<span class="nc" id="L232">                this.managedVersions =</span>
+                    ArtifactUtils.copyArtifacts( managedVersions, new LinkedHashMap&lt;String, Artifact&gt;() );
+            }
+
+<span class="nc" id="L236">            File pomFile = pomArtifact.getFile();</span>
+<span class="nc bnc" id="L237" title="All 4 branches missed.">            if ( pomFile != null &amp;&amp; pomFile.canRead() )</span>
+            {
+<span class="nc" id="L239">                this.length = pomFile.length();</span>
+<span class="nc" id="L240">                this.timestamp = pomFile.lastModified();</span>
+            }
+            else
+            {
+<span class="nc" id="L244">                this.length = -1;</span>
+<span class="nc" id="L245">                this.timestamp = -1;</span>
+            }
+<span class="nc" id="L247">        }</span>
+
+        public Artifact getArtifact()
+        {
+<span class="nc" id="L251">            return pomArtifact;</span>
+        }
+
+        public Artifact getRelocatedArtifact()
+        {
+<span class="nc" id="L256">            return relocatedArtifact;</span>
+        }
+
+        public List&lt;Artifact&gt; getArtifacts()
+        {
+<span class="nc" id="L261">            return artifacts;</span>
+        }
+
+        public Map&lt;String, Artifact&gt; getManagedVersions()
+        {
+<span class="nc" id="L266">            return managedVersions;</span>
+        }
+
+        public List&lt;ArtifactRepository&gt; getRemoteRepositories()
+        {
+<span class="nc" id="L271">            return remoteRepositories;</span>
+        }
+
+        public boolean isStale()
+        {
+<span class="nc" id="L276">            File pomFile = pomArtifact.getFile();</span>
+<span class="nc bnc" id="L277" title="All 2 branches missed.">            if ( pomFile != null )</span>
+            {
+<span class="nc bnc" id="L279" title="All 2 branches missed.">                if ( pomFile.canRead() )</span>
+                {
+<span class="nc bnc" id="L281" title="All 4 branches missed.">                    return length != pomFile.length() || timestamp != pomFile.lastModified();</span>
+                }
+                else
+                {
+                    // if the POM didn't exist, retry if any repo is configured to always update
+<span class="nc" id="L286">                    boolean snapshot = pomArtifact.isSnapshot();</span>
+<span class="nc bnc" id="L287" title="All 2 branches missed.">                    for ( ArtifactRepository repository : remoteRepositories )</span>
+                    {
+<span class="nc bnc" id="L289" title="All 2 branches missed.">                        ArtifactRepositoryPolicy policy =</span>
+                            snapshot ? repository.getSnapshots() : repository.getReleases();
+<span class="nc bnc" id="L291" title="All 2 branches missed.">                        if ( ArtifactRepositoryPolicy.UPDATE_POLICY_ALWAYS.equals( policy.getUpdatePolicy() ) )</span>
+                        {
+<span class="nc" id="L293">                            return true;</span>
+                        }
+<span class="nc" id="L295">                    }</span>
+                }
+            }
+
+<span class="nc bnc" id="L299" title="All 4 branches missed.">            return length != -1 || timestamp != -1;</span>
+        }
+    }
+
+
+    public ResolutionGroup get( Artifact artifact, boolean resolveManagedVersions, ArtifactRepository localRepository,
+                                List&lt;ArtifactRepository&gt; remoteRepositories )
+    {
+<span class="nc" id="L307">        CacheKey cacheKey = newCacheKey( artifact, resolveManagedVersions, localRepository, remoteRepositories );</span>
+
+<span class="nc" id="L309">        CacheRecord cacheRecord = cache.get( cacheKey );</span>
+
+<span class="nc bnc" id="L311" title="All 4 branches missed.">        if ( cacheRecord != null &amp;&amp; !cacheRecord.isStale() )</span>
+        {
+<span class="nc" id="L313">            Artifact pomArtifact = ArtifactUtils.copyArtifact( cacheRecord.getArtifact() );</span>
+<span class="nc" id="L314">            Artifact relocatedArtifact = ArtifactUtils.copyArtifactSafe( cacheRecord.getRelocatedArtifact() );</span>
+<span class="nc" id="L315">            Set&lt;Artifact&gt; artifacts =</span>
+                ArtifactUtils.copyArtifacts( cacheRecord.getArtifacts(), new LinkedHashSet&lt;Artifact&gt;() );
+<span class="nc" id="L317">            Map&lt;String, Artifact&gt; managedVersions = cacheRecord.getManagedVersions();</span>
+<span class="nc bnc" id="L318" title="All 2 branches missed.">            if ( managedVersions != null )</span>
+            {
+<span class="nc" id="L320">                managedVersions = ArtifactUtils.copyArtifacts( managedVersions, new LinkedHashMap&lt;String, Artifact&gt;() );</span>
+            }
+<span class="nc" id="L322">            return new ResolutionGroup( pomArtifact, relocatedArtifact, artifacts, managedVersions,</span>
+                                        cacheRecord.getRemoteRepositories() );
+        }
+
+<span class="nc" id="L326">        cache.remove( cacheKey );</span>
+
+<span class="nc" id="L328">        return null;</span>
+    }
+
+    public void put( Artifact artifact, boolean resolveManagedVersions, ArtifactRepository localRepository,
+                     List&lt;ArtifactRepository&gt; remoteRepositories, ResolutionGroup result )
+    {
+<span class="nc" id="L334">        put( newCacheKey( artifact, resolveManagedVersions, localRepository, remoteRepositories ), result );</span>
+<span class="nc" id="L335">    }</span>
+
+    protected CacheKey newCacheKey( Artifact artifact, boolean resolveManagedVersions,
+                                    ArtifactRepository localRepository, List&lt;ArtifactRepository&gt; remoteRepositories )
+    {
+<span class="nc" id="L340">        return new CacheKey( artifact, resolveManagedVersions, localRepository, remoteRepositories );</span>
+    }
+
+    protected void put( CacheKey cacheKey, ResolutionGroup result )
+    {
+<span class="nc" id="L345">        CacheRecord cacheRecord =</span>
+            new CacheRecord( result.getPomArtifact(), result.getRelocatedArtifact(), result.getArtifacts(),
+                             result.getManagedVersions(), result.getResolutionRepositories() );
+
+<span class="nc" id="L349">        cache.put( cacheKey, cacheRecord );</span>
+<span class="nc" id="L350">    }</span>
+
+    public void flush()
+    {
+<span class="nc" id="L354">        cache.clear();</span>
+<span class="nc" id="L355">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

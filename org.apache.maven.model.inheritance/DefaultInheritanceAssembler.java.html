@@ -1,0 +1,360 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultInheritanceAssembler.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.model.inheritance</a> &gt; <span class="el_source">DefaultInheritanceAssembler.java</span></div><h1>DefaultInheritanceAssembler.java</h1><pre class="source lang-java linenums">package org.apache.maven.model.inheritance;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Properties;
+
+import org.apache.maven.model.InputLocation;
+import org.apache.maven.model.Model;
+import org.apache.maven.model.ModelBase;
+import org.apache.maven.model.Plugin;
+import org.apache.maven.model.PluginContainer;
+import org.apache.maven.model.ReportPlugin;
+import org.apache.maven.model.Reporting;
+import org.apache.maven.model.building.ModelBuildingRequest;
+import org.apache.maven.model.building.ModelProblemCollector;
+import org.apache.maven.model.merge.MavenModelMerger;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.util.StringUtils;
+
+/**
+ * Handles inheritance of model values.
+ *
+ * @author Benjamin Bentmann
+ */
+@SuppressWarnings( { &quot;checkstyle:methodname&quot; } )
+@Component( role = InheritanceAssembler.class )
+<span class="fc" id="L49">public class DefaultInheritanceAssembler</span>
+    implements InheritanceAssembler
+{
+
+<span class="fc" id="L53">    private InheritanceModelMerger merger = new InheritanceModelMerger();</span>
+
+    private static final String CHILD_DIRECTORY = &quot;child-directory&quot;;
+
+    private static final String CHILD_DIRECTORY_PROPERTY = &quot;project.directory&quot;;
+
+    @Override
+    public void assembleModelInheritance( Model child, Model parent, ModelBuildingRequest request,
+                                          ModelProblemCollector problems )
+    {
+<span class="fc" id="L63">        Map&lt;Object, Object&gt; hints = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L64">        String childPath = child.getProperties().getProperty( CHILD_DIRECTORY_PROPERTY, child.getArtifactId() );</span>
+<span class="fc" id="L65">        hints.put( CHILD_DIRECTORY, childPath );</span>
+<span class="fc" id="L66">        hints.put( MavenModelMerger.CHILD_PATH_ADJUSTMENT, getChildPathAdjustment( child, parent, childPath ) );</span>
+<span class="fc" id="L67">        merger.merge( child, parent, false, hints );</span>
+<span class="fc" id="L68">    }</span>
+
+    /**
+     * Calculates the relative path from the base directory of the parent to the parent directory of the base directory
+     * of the child. The general idea is to adjust inherited URLs to match the project layout (in SCM).
+     *
+     * &lt;p&gt;This calculation is only a heuristic based on our conventions.
+     * In detail, the algo relies on the following assumptions: &lt;ul&gt;
+     * &lt;li&gt;The parent uses aggregation and refers to the child via the modules section&lt;/li&gt;
+     * &lt;li&gt;The module path to the child is considered to
+     * point at the POM rather than its base directory if the path ends with &quot;.xml&quot; (ignoring case)&lt;/li&gt;
+     * &lt;li&gt;The name of the child's base directory matches the artifact id of the child.&lt;/li&gt;
+     * &lt;/ul&gt;
+     * Note that for the sake of independence from the user
+     * environment, the filesystem is intentionally not used for the calculation.&lt;/p&gt;
+     *
+     * @param child The child model, must not be &lt;code&gt;null&lt;/code&gt;.
+     * @param parent The parent model, may be &lt;code&gt;null&lt;/code&gt;.
+     * @param childDirectory The directory defined in child model, may be &lt;code&gt;null&lt;/code&gt;.
+     * @return The path adjustment, can be empty but never &lt;code&gt;null&lt;/code&gt;.
+     */
+    private String getChildPathAdjustment( Model child, Model parent, String childDirectory )
+    {
+<span class="fc" id="L91">        String adjustment = &quot;&quot;;</span>
+
+<span class="pc bpc" id="L93" title="1 of 2 branches missed.">        if ( parent != null )</span>
+        {
+<span class="fc" id="L95">            String childName = child.getArtifactId();</span>
+
+            /*
+             * This logic (using filesystem, against wanted independence from the user environment) exists only for the
+             * sake of backward-compat with 2.x (MNG-5000). In general, it is wrong to
+             * base URL inheritance on the module directory names as this information is unavailable for POMs in the
+             * repository. In other words, modules where artifactId != moduleDirName will see different effective URLs
+             * depending on how the model was constructed (from filesystem or from repository).
+             */
+<span class="fc bfc" id="L104" title="All 2 branches covered.">            if ( child.getProjectDirectory() != null )</span>
+            {
+<span class="fc" id="L106">                childName = child.getProjectDirectory().getName();</span>
+            }
+
+<span class="fc bfc" id="L109" title="All 2 branches covered.">            for ( String module : parent.getModules() )</span>
+            {
+<span class="fc" id="L111">                module = module.replace( '\\', '/' );</span>
+
+<span class="pc bpc" id="L113" title="1 of 2 branches missed.">                if ( module.regionMatches( true, module.length() - 4, &quot;.xml&quot;, 0, 4 ) )</span>
+                {
+<span class="nc" id="L115">                    module = module.substring( 0, module.lastIndexOf( '/' ) + 1 );</span>
+                }
+
+<span class="fc" id="L118">                String moduleName = module;</span>
+<span class="pc bpc" id="L119" title="1 of 2 branches missed.">                if ( moduleName.endsWith( &quot;/&quot; ) )</span>
+                {
+<span class="nc" id="L121">                    moduleName = moduleName.substring( 0, moduleName.length() - 1 );</span>
+                }
+
+<span class="fc" id="L124">                int lastSlash = moduleName.lastIndexOf( '/' );</span>
+
+<span class="fc" id="L126">                moduleName = moduleName.substring( lastSlash + 1 );</span>
+
+<span class="pc bpc" id="L128" title="2 of 6 branches missed.">                if ( ( moduleName.equals( childName ) || ( moduleName.equals( childDirectory ) ) ) &amp;&amp; lastSlash &gt;= 0 )</span>
+                {
+<span class="nc" id="L130">                    adjustment = module.substring( 0, lastSlash );</span>
+<span class="nc" id="L131">                    break;</span>
+                }
+<span class="fc" id="L133">            }</span>
+        }
+
+<span class="fc" id="L136">        return adjustment;</span>
+    }
+
+    /**
+     * InheritanceModelMerger
+     */
+<span class="fc" id="L142">    protected static class InheritanceModelMerger</span>
+        extends MavenModelMerger
+    {
+
+        @Override
+        protected String extrapolateChildUrl( String parentUrl, Map&lt;Object, Object&gt; context )
+        {
+<span class="fc" id="L149">            Object childDirectory = context.get( CHILD_DIRECTORY );</span>
+<span class="fc" id="L150">            Object childPathAdjustment = context.get( CHILD_PATH_ADJUSTMENT );</span>
+
+<span class="pc bpc" id="L152" title="3 of 6 branches missed.">            if ( StringUtils.isBlank( parentUrl ) || childDirectory == null || childPathAdjustment == null )</span>
+            {
+<span class="nc" id="L154">                return parentUrl;</span>
+            }
+
+            // append childPathAdjustment and childDirectory to parent url
+<span class="fc" id="L158">            return appendPath( parentUrl, childDirectory.toString(), childPathAdjustment.toString() );</span>
+        }
+
+        private String appendPath( String parentUrl, String childPath, String pathAdjustment )
+        {
+<span class="pc bpc" id="L163" title="1 of 2 branches missed.">            StringBuilder url = new StringBuilder( parentUrl.length() + pathAdjustment.length() + childPath.length()</span>
+                + ( ( pathAdjustment.length() == 0 ) ? 1 : 2 ) );
+
+<span class="fc" id="L166">            url.append( parentUrl );</span>
+<span class="fc" id="L167">            concatPath( url, pathAdjustment );</span>
+<span class="fc" id="L168">            concatPath( url, childPath );</span>
+
+<span class="fc" id="L170">            return url.toString();</span>
+        }
+
+        private void concatPath( StringBuilder url, String path )
+        {
+<span class="fc bfc" id="L175" title="All 2 branches covered.">            if ( path.length() &gt; 0 )</span>
+            {
+<span class="fc bfc" id="L177" title="All 2 branches covered.">                boolean initialUrlEndsWithSlash = url.charAt( url.length() - 1 ) == '/';</span>
+<span class="pc bpc" id="L178" title="1 of 2 branches missed.">                boolean pathStartsWithSlash = path.charAt( 0 ) ==  '/';</span>
+
+<span class="pc bpc" id="L180" title="1 of 2 branches missed.">                if ( pathStartsWithSlash )</span>
+                {
+<span class="nc bnc" id="L182" title="All 2 branches missed.">                    if ( initialUrlEndsWithSlash )</span>
+                    {
+                        // 1 extra '/' to remove
+<span class="nc" id="L185">                        url.setLength( url.length() - 1 );</span>
+                    }
+                }
+<span class="fc bfc" id="L188" title="All 2 branches covered.">                else if ( !initialUrlEndsWithSlash )</span>
+                {
+                    // add missing '/' between url and path
+<span class="fc" id="L191">                    url.append( '/' );</span>
+                }
+
+<span class="fc" id="L194">                url.append( path );</span>
+
+                // ensure resulting url ends with slash if initial url was
+<span class="pc bpc" id="L197" title="1 of 4 branches missed.">                if ( initialUrlEndsWithSlash &amp;&amp; !path.endsWith( &quot;/&quot; ) )</span>
+                {
+<span class="fc" id="L199">                    url.append( '/' );</span>
+                }
+            }
+<span class="fc" id="L202">        }</span>
+
+        @Override
+        protected void mergeModelBase_Properties( ModelBase target, ModelBase source, boolean sourceDominant,
+                                                  Map&lt;Object, Object&gt; context )
+        {
+<span class="fc" id="L208">            Properties merged = new Properties();</span>
+<span class="pc bpc" id="L209" title="1 of 2 branches missed.">            if ( sourceDominant )</span>
+            {
+<span class="nc" id="L211">                merged.putAll( target.getProperties() );</span>
+<span class="nc" id="L212">                putAll( merged, source.getProperties(), CHILD_DIRECTORY_PROPERTY );</span>
+            }
+            else
+            {
+<span class="fc" id="L216">                putAll( merged, source.getProperties(), CHILD_DIRECTORY_PROPERTY );</span>
+<span class="fc" id="L217">                merged.putAll( target.getProperties() );</span>
+            }
+<span class="fc" id="L219">            target.setProperties( merged );</span>
+<span class="fc" id="L220">            target.setLocation( &quot;properties&quot;,</span>
+                                InputLocation.merge( target.getLocation( &quot;properties&quot; ),
+                                                     source.getLocation( &quot;properties&quot; ), sourceDominant ) );
+<span class="fc" id="L223">        }</span>
+
+        private void putAll( Map&lt;Object, Object&gt; s, Map&lt;Object, Object&gt; t, Object excludeKey )
+        {
+<span class="fc bfc" id="L227" title="All 2 branches covered.">            for ( Map.Entry&lt;Object, Object&gt; e : t.entrySet() )</span>
+            {
+<span class="pc bpc" id="L229" title="1 of 2 branches missed.">                if ( !e.getKey().equals( excludeKey ) )</span>
+                {
+<span class="fc" id="L231">                    s.put( e.getKey(), e.getValue() );</span>
+                }
+<span class="fc" id="L233">            }</span>
+<span class="fc" id="L234">        }</span>
+
+        @Override
+        protected void mergePluginContainer_Plugins( PluginContainer target, PluginContainer source,
+                                                     boolean sourceDominant, Map&lt;Object, Object&gt; context )
+        {
+<span class="fc" id="L240">            List&lt;Plugin&gt; src = source.getPlugins();</span>
+<span class="fc bfc" id="L241" title="All 2 branches covered.">            if ( !src.isEmpty() )</span>
+            {
+<span class="fc" id="L243">                List&lt;Plugin&gt; tgt = target.getPlugins();</span>
+<span class="fc" id="L244">                Map&lt;Object, Plugin&gt; master = new LinkedHashMap&lt;&gt;( src.size() * 2 );</span>
+
+<span class="fc bfc" id="L246" title="All 2 branches covered.">                for ( Plugin element : src )</span>
+                {
+<span class="pc bpc" id="L248" title="3 of 4 branches missed.">                    if ( element.isInherited() || !element.getExecutions().isEmpty() )</span>
+                    {
+                        // NOTE: Enforce recursive merge to trigger merging/inheritance logic for executions
+<span class="fc" id="L251">                        Plugin plugin = new Plugin();</span>
+<span class="fc" id="L252">                        plugin.setLocation( &quot;&quot;, element.getLocation( &quot;&quot; ) );</span>
+<span class="fc" id="L253">                        plugin.setGroupId( null );</span>
+<span class="fc" id="L254">                        mergePlugin( plugin, element, sourceDominant, context );</span>
+
+<span class="fc" id="L256">                        Object key = getPluginKey( element );</span>
+
+<span class="fc" id="L258">                        master.put( key, plugin );</span>
+                    }
+<span class="fc" id="L260">                }</span>
+
+<span class="fc" id="L262">                Map&lt;Object, List&lt;Plugin&gt;&gt; predecessors = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L263">                List&lt;Plugin&gt; pending = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L264" title="All 2 branches covered.">                for ( Plugin element : tgt )</span>
+                {
+<span class="fc" id="L266">                    Object key = getPluginKey( element );</span>
+<span class="fc" id="L267">                    Plugin existing = master.get( key );</span>
+<span class="fc bfc" id="L268" title="All 2 branches covered.">                    if ( existing != null )</span>
+                    {
+<span class="fc" id="L270">                        mergePlugin( element, existing, sourceDominant, context );</span>
+
+<span class="fc" id="L272">                        master.put( key, element );</span>
+
+<span class="fc bfc" id="L274" title="All 2 branches covered.">                        if ( !pending.isEmpty() )</span>
+                        {
+<span class="fc" id="L276">                            predecessors.put( key, pending );</span>
+<span class="fc" id="L277">                            pending = new ArrayList&lt;&gt;();</span>
+                        }
+                    }
+                    else
+                    {
+<span class="fc" id="L282">                        pending.add( element );</span>
+                    }
+<span class="fc" id="L284">                }</span>
+
+<span class="fc" id="L286">                List&lt;Plugin&gt; result = new ArrayList&lt;&gt;( src.size() + tgt.size() );</span>
+<span class="fc bfc" id="L287" title="All 2 branches covered.">                for ( Map.Entry&lt;Object, Plugin&gt; entry : master.entrySet() )</span>
+                {
+<span class="fc" id="L289">                    List&lt;Plugin&gt; pre = predecessors.get( entry.getKey() );</span>
+<span class="fc bfc" id="L290" title="All 2 branches covered.">                    if ( pre != null )</span>
+                    {
+<span class="fc" id="L292">                        result.addAll( pre );</span>
+                    }
+<span class="fc" id="L294">                    result.add( entry.getValue() );</span>
+<span class="fc" id="L295">                }</span>
+<span class="fc" id="L296">                result.addAll( pending );</span>
+
+<span class="fc" id="L298">                target.setPlugins( result );</span>
+            }
+<span class="fc" id="L300">        }</span>
+
+        @Override
+        protected void mergePlugin( Plugin target, Plugin source, boolean sourceDominant, Map&lt;Object, Object&gt; context )
+        {
+<span class="pc bpc" id="L305" title="1 of 2 branches missed.">            if ( source.isInherited() )</span>
+            {
+<span class="fc" id="L307">                mergeConfigurationContainer( target, source, sourceDominant, context );</span>
+            }
+<span class="fc" id="L309">            mergePlugin_GroupId( target, source, sourceDominant, context );</span>
+<span class="fc" id="L310">            mergePlugin_ArtifactId( target, source, sourceDominant, context );</span>
+<span class="fc" id="L311">            mergePlugin_Version( target, source, sourceDominant, context );</span>
+<span class="fc" id="L312">            mergePlugin_Extensions( target, source, sourceDominant, context );</span>
+<span class="fc" id="L313">            mergePlugin_Dependencies( target, source, sourceDominant, context );</span>
+<span class="fc" id="L314">            mergePlugin_Executions( target, source, sourceDominant, context );</span>
+<span class="fc" id="L315">        }</span>
+
+        @Override
+        protected void mergeReporting_Plugins( Reporting target, Reporting source, boolean sourceDominant,
+                                               Map&lt;Object, Object&gt; context )
+        {
+<span class="fc" id="L321">            List&lt;ReportPlugin&gt; src = source.getPlugins();</span>
+<span class="fc bfc" id="L322" title="All 2 branches covered.">            if ( !src.isEmpty() )</span>
+            {
+<span class="fc" id="L324">                List&lt;ReportPlugin&gt; tgt = target.getPlugins();</span>
+<span class="fc" id="L325">                Map&lt;Object, ReportPlugin&gt; merged =</span>
+                    new LinkedHashMap&lt;&gt;( ( src.size() + tgt.size() ) * 2 );
+
+<span class="fc bfc" id="L328" title="All 2 branches covered.">                for ( ReportPlugin element :  src )</span>
+                {
+<span class="fc" id="L330">                    Object key = getReportPluginKey( element );</span>
+<span class="pc bpc" id="L331" title="1 of 2 branches missed.">                    if ( element.isInherited() )</span>
+                    {
+                        // NOTE: Enforce recursive merge to trigger merging/inheritance logic for executions as well
+<span class="fc" id="L334">                        ReportPlugin plugin = new ReportPlugin();</span>
+<span class="fc" id="L335">                        plugin.setLocation( &quot;&quot;, element.getLocation( &quot;&quot; ) );</span>
+<span class="fc" id="L336">                        plugin.setGroupId( null );</span>
+<span class="fc" id="L337">                        mergeReportPlugin( plugin, element, sourceDominant, context );</span>
+
+<span class="fc" id="L339">                        merged.put( key, plugin );</span>
+                    }
+<span class="fc" id="L341">                }</span>
+
+<span class="fc bfc" id="L343" title="All 2 branches covered.">                for ( ReportPlugin element : tgt )</span>
+                {
+<span class="fc" id="L345">                    Object key = getReportPluginKey( element );</span>
+<span class="fc" id="L346">                    ReportPlugin existing = merged.get( key );</span>
+<span class="fc bfc" id="L347" title="All 2 branches covered.">                    if ( existing != null )</span>
+                    {
+<span class="fc" id="L349">                        mergeReportPlugin( element, existing, sourceDominant, context );</span>
+                    }
+<span class="fc" id="L351">                    merged.put( key, element );</span>
+<span class="fc" id="L352">                }</span>
+
+<span class="fc" id="L354">                target.setPlugins( new ArrayList&lt;&gt;( merged.values() ) );</span>
+            }
+<span class="fc" id="L356">        }</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

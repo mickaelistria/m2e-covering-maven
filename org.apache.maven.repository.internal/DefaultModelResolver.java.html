@@ -1,0 +1,282 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultModelResolver.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository.internal</a> &gt; <span class="el_source">DefaultModelResolver.java</span></div><h1>DefaultModelResolver.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository.internal;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Set;
+
+import org.apache.maven.model.Dependency;
+import org.apache.maven.model.Parent;
+import org.apache.maven.model.Repository;
+import org.apache.maven.model.building.FileModelSource;
+import org.apache.maven.model.building.ModelSource;
+import org.apache.maven.model.resolution.InvalidRepositoryException;
+import org.apache.maven.model.resolution.ModelResolver;
+import org.apache.maven.model.resolution.UnresolvableModelException;
+import org.eclipse.aether.RepositorySystemSession;
+import org.eclipse.aether.RequestTrace;
+import org.eclipse.aether.artifact.Artifact;
+import org.eclipse.aether.artifact.DefaultArtifact;
+import org.eclipse.aether.impl.ArtifactResolver;
+import org.eclipse.aether.impl.RemoteRepositoryManager;
+import org.eclipse.aether.impl.VersionRangeResolver;
+import org.eclipse.aether.repository.RemoteRepository;
+import org.eclipse.aether.resolution.ArtifactRequest;
+import org.eclipse.aether.resolution.ArtifactResolutionException;
+import org.eclipse.aether.resolution.VersionRangeRequest;
+import org.eclipse.aether.resolution.VersionRangeResolutionException;
+import org.eclipse.aether.resolution.VersionRangeResult;
+
+/**
+ * A model resolver to assist building of dependency POMs. This resolver gives priority to those repositories that have
+ * been initially specified and repositories discovered in dependency POMs are recessively merged into the search chain.
+ *
+ * @author Benjamin Bentmann
+ * @see DefaultArtifactDescriptorReader
+ */
+class DefaultModelResolver
+    implements ModelResolver
+{
+
+    private final RepositorySystemSession session;
+
+    private final RequestTrace trace;
+
+    private final String context;
+
+    private List&lt;RemoteRepository&gt; repositories;
+
+    private final List&lt;RemoteRepository&gt; externalRepositories;
+
+    private final ArtifactResolver resolver;
+
+    private final VersionRangeResolver versionRangeResolver;
+
+    private final RemoteRepositoryManager remoteRepositoryManager;
+
+    private final Set&lt;String&gt; repositoryIds;
+
+    DefaultModelResolver( RepositorySystemSession session, RequestTrace trace, String context,
+                          ArtifactResolver resolver, VersionRangeResolver versionRangeResolver,
+                          RemoteRepositoryManager remoteRepositoryManager, List&lt;RemoteRepository&gt; repositories )
+<span class="fc" id="L84">    {</span>
+<span class="fc" id="L85">        this.session = session;</span>
+<span class="fc" id="L86">        this.trace = trace;</span>
+<span class="fc" id="L87">        this.context = context;</span>
+<span class="fc" id="L88">        this.resolver = resolver;</span>
+<span class="fc" id="L89">        this.versionRangeResolver = versionRangeResolver;</span>
+<span class="fc" id="L90">        this.remoteRepositoryManager = remoteRepositoryManager;</span>
+<span class="fc" id="L91">        this.repositories = repositories;</span>
+<span class="fc" id="L92">        List&lt;RemoteRepository&gt; externalRepositories = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L93">        externalRepositories.addAll( repositories );</span>
+<span class="fc" id="L94">        this.externalRepositories = Collections.unmodifiableList( externalRepositories );</span>
+
+<span class="fc" id="L96">        this.repositoryIds = new HashSet&lt;&gt;();</span>
+<span class="fc" id="L97">    }</span>
+
+    private DefaultModelResolver( DefaultModelResolver original )
+<span class="fc" id="L100">    {</span>
+<span class="fc" id="L101">        this.session = original.session;</span>
+<span class="fc" id="L102">        this.trace = original.trace;</span>
+<span class="fc" id="L103">        this.context = original.context;</span>
+<span class="fc" id="L104">        this.resolver = original.resolver;</span>
+<span class="fc" id="L105">        this.versionRangeResolver = original.versionRangeResolver;</span>
+<span class="fc" id="L106">        this.remoteRepositoryManager = original.remoteRepositoryManager;</span>
+<span class="fc" id="L107">        this.repositories = new ArrayList&lt;&gt;( original.repositories );</span>
+<span class="fc" id="L108">        this.externalRepositories = original.externalRepositories;</span>
+<span class="fc" id="L109">        this.repositoryIds = new HashSet&lt;&gt;( original.repositoryIds );</span>
+<span class="fc" id="L110">    }</span>
+
+    @Override
+    public void addRepository( Repository repository )
+        throws InvalidRepositoryException
+    {
+<span class="nc" id="L116">        addRepository( repository, false );</span>
+<span class="nc" id="L117">    }</span>
+
+    @Override
+    public void addRepository( final Repository repository, boolean replace )
+        throws InvalidRepositoryException
+    {
+<span class="pc bpc" id="L123" title="1 of 2 branches missed.">        if ( session.isIgnoreArtifactDescriptorRepositories() )</span>
+        {
+<span class="nc" id="L125">            return;</span>
+        }
+
+<span class="fc bfc" id="L128" title="All 2 branches covered.">        if ( !repositoryIds.add( repository.getId() ) )</span>
+        {
+<span class="fc bfc" id="L130" title="All 2 branches covered.">            if ( !replace )</span>
+            {
+<span class="fc" id="L132">                return;</span>
+            }
+
+<span class="fc" id="L135">            removeMatchingRepository( repositories, repository.getId() );</span>
+        }
+
+<span class="fc" id="L138">        List&lt;RemoteRepository&gt; newRepositories =</span>
+            Collections.singletonList( ArtifactDescriptorUtils.toRemoteRepository( repository ) );
+
+<span class="fc" id="L141">        this.repositories =</span>
+            remoteRepositoryManager.aggregateRepositories( session, repositories, newRepositories, true );
+<span class="fc" id="L143">    }</span>
+
+    private static void removeMatchingRepository( Iterable&lt;RemoteRepository&gt; repositories, final String id )
+    {
+<span class="fc" id="L147">        Iterator&lt;RemoteRepository&gt; iterator = repositories.iterator();</span>
+<span class="fc bfc" id="L148" title="All 2 branches covered.">        while ( iterator.hasNext() )</span>
+        {
+<span class="fc" id="L150">            RemoteRepository remoteRepository = iterator.next();</span>
+<span class="fc bfc" id="L151" title="All 2 branches covered.">            if ( remoteRepository.getId().equals( id ) )</span>
+            {
+<span class="fc" id="L153">                iterator.remove();</span>
+            }
+<span class="fc" id="L155">        }</span>
+<span class="fc" id="L156">    }</span>
+
+    @Override
+    public ModelResolver newCopy()
+    {
+<span class="fc" id="L161">        return new DefaultModelResolver( this );</span>
+    }
+
+    @Override
+    public ModelSource resolveModel( String groupId, String artifactId, String version )
+        throws UnresolvableModelException
+    {
+<span class="fc" id="L168">        Artifact pomArtifact = new DefaultArtifact( groupId, artifactId, &quot;&quot;, &quot;pom&quot;, version );</span>
+
+        try
+        {
+<span class="fc" id="L172">            ArtifactRequest request = new ArtifactRequest( pomArtifact, repositories, context );</span>
+<span class="fc" id="L173">            request.setTrace( trace );</span>
+<span class="fc" id="L174">            pomArtifact = resolver.resolveArtifact( session, request ).getArtifact();</span>
+        }
+<span class="nc" id="L176">        catch ( ArtifactResolutionException e )</span>
+        {
+<span class="nc" id="L178">            throw new UnresolvableModelException( e.getMessage(), groupId, artifactId, version, e );</span>
+<span class="fc" id="L179">        }</span>
+
+<span class="fc" id="L181">        File pomFile = pomArtifact.getFile();</span>
+
+<span class="fc" id="L183">        return new FileModelSource( pomFile );</span>
+    }
+
+    @Override
+    public ModelSource resolveModel( final Parent parent )
+        throws UnresolvableModelException
+    {
+        try
+        {
+<span class="fc" id="L192">            final Artifact artifact = new DefaultArtifact( parent.getGroupId(), parent.getArtifactId(), &quot;&quot;, &quot;pom&quot;,</span>
+                                                           parent.getVersion() );
+
+<span class="fc" id="L195">            final VersionRangeRequest versionRangeRequest = new VersionRangeRequest( artifact, repositories, context );</span>
+<span class="fc" id="L196">            versionRangeRequest.setTrace( trace );</span>
+
+<span class="fc" id="L198">            final VersionRangeResult versionRangeResult =</span>
+                versionRangeResolver.resolveVersionRange( session, versionRangeRequest );
+
+<span class="pc bpc" id="L201" title="1 of 2 branches missed.">            if ( versionRangeResult.getHighestVersion() == null )</span>
+            {
+<span class="nc" id="L203">                throw new UnresolvableModelException(</span>
+                    String.format( &quot;No versions matched the requested parent version range '%s'&quot;,
+                                   parent.getVersion() ),
+                    parent.getGroupId(), parent.getArtifactId(), parent.getVersion() );
+
+            }
+
+<span class="pc bpc" id="L210" title="4 of 6 branches missed.">            if ( versionRangeResult.getVersionConstraint() != null</span>
+                     &amp;&amp; versionRangeResult.getVersionConstraint().getRange() != null
+                     &amp;&amp; versionRangeResult.getVersionConstraint().getRange().getUpperBound() == null )
+            {
+                // Message below is checked for in the MNG-2199 core IT.
+<span class="nc" id="L215">                throw new UnresolvableModelException(</span>
+                    String.format( &quot;The requested parent version range '%s' does not specify an upper bound&quot;,
+                                   parent.getVersion() ),
+                    parent.getGroupId(), parent.getArtifactId(), parent.getVersion() );
+
+            }
+
+<span class="fc" id="L222">            parent.setVersion( versionRangeResult.getHighestVersion().toString() );</span>
+
+<span class="fc" id="L224">            return resolveModel( parent.getGroupId(), parent.getArtifactId(), parent.getVersion() );</span>
+        }
+<span class="nc" id="L226">        catch ( final VersionRangeResolutionException e )</span>
+        {
+<span class="nc" id="L228">            throw new UnresolvableModelException( e.getMessage(), parent.getGroupId(), parent.getArtifactId(),</span>
+                                                  parent.getVersion(), e );
+
+        }
+    }
+
+    @Override
+    public ModelSource resolveModel( final Dependency dependency )
+        throws UnresolvableModelException
+    {
+        try
+        {
+<span class="nc" id="L240">            final Artifact artifact = new DefaultArtifact( dependency.getGroupId(), dependency.getArtifactId(), &quot;&quot;,</span>
+                                                           &quot;pom&quot;, dependency.getVersion() );
+
+<span class="nc" id="L243">            final VersionRangeRequest versionRangeRequest = new VersionRangeRequest( artifact, repositories, context );</span>
+<span class="nc" id="L244">            versionRangeRequest.setTrace( trace );</span>
+
+<span class="nc" id="L246">            final VersionRangeResult versionRangeResult =</span>
+                versionRangeResolver.resolveVersionRange( session, versionRangeRequest );
+
+<span class="nc bnc" id="L249" title="All 2 branches missed.">            if ( versionRangeResult.getHighestVersion() == null )</span>
+            {
+<span class="nc" id="L251">                throw new UnresolvableModelException(</span>
+                    String.format( &quot;No versions matched the requested dependency version range '%s'&quot;,
+                                   dependency.getVersion() ),
+                    dependency.getGroupId(), dependency.getArtifactId(), dependency.getVersion() );
+
+            }
+
+<span class="nc bnc" id="L258" title="All 6 branches missed.">            if ( versionRangeResult.getVersionConstraint() != null</span>
+                     &amp;&amp; versionRangeResult.getVersionConstraint().getRange() != null
+                     &amp;&amp; versionRangeResult.getVersionConstraint().getRange().getUpperBound() == null )
+            {
+                // Message below is checked for in the MNG-4463 core IT.
+<span class="nc" id="L263">                throw new UnresolvableModelException(</span>
+                    String.format( &quot;The requested dependency version range '%s' does not specify an upper bound&quot;,
+                                   dependency.getVersion() ),
+                    dependency.getGroupId(), dependency.getArtifactId(), dependency.getVersion() );
+
+            }
+
+<span class="nc" id="L270">            dependency.setVersion( versionRangeResult.getHighestVersion().toString() );</span>
+
+<span class="nc" id="L272">            return resolveModel( dependency.getGroupId(), dependency.getArtifactId(), dependency.getVersion() );</span>
+        }
+<span class="nc" id="L274">        catch ( VersionRangeResolutionException e )</span>
+        {
+<span class="nc" id="L276">            throw new UnresolvableModelException( e.getMessage(), dependency.getGroupId(), dependency.getArtifactId(),</span>
+                                                  dependency.getVersion(), e );
+
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MultiThreadedBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.lifecycle.internal.builder.multithreaded</a> &gt; <span class="el_source">MultiThreadedBuilder.java</span></div><h1>MultiThreadedBuilder.java</h1><pre class="source lang-java linenums">package org.apache.maven.lifecycle.internal.builder.multithreaded;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CompletionService;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorCompletionService;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+
+import org.apache.maven.execution.MavenSession;
+import org.apache.maven.lifecycle.internal.BuildThreadFactory;
+import org.apache.maven.lifecycle.internal.LifecycleModuleBuilder;
+import org.apache.maven.lifecycle.internal.ProjectBuildList;
+import org.apache.maven.lifecycle.internal.ProjectSegment;
+import org.apache.maven.lifecycle.internal.ReactorBuildStatus;
+import org.apache.maven.lifecycle.internal.ReactorContext;
+import org.apache.maven.lifecycle.internal.TaskSegment;
+import org.apache.maven.lifecycle.internal.builder.Builder;
+import org.apache.maven.project.MavenProject;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
+import org.codehaus.plexus.logging.Logger;
+
+/**
+ * Builds the full lifecycle in weave-mode (phase by phase as opposed to project-by-project).
+ * &lt;p&gt;
+ * This builder uses a number of threads equal to the minimum of the degree of concurrency (which is the thread count
+ * set with &lt;code&gt;-T&lt;/code&gt; on the command-line) and the number of projects to build. As such, building a single project
+ * will always result in a sequential build, regardless of the thread count.
+ * &lt;/p&gt; 
+ * &lt;strong&gt;NOTE:&lt;/strong&gt; This class is not part of any public api and can be changed or deleted without prior notice.
+ *
+ * @since 3.0
+ * @author Kristian Rosenvold
+ *         Builds one or more lifecycles for a full module
+ *         NOTE: This class is not part of any public api and can be changed or deleted without prior notice.
+ */
+@Component( role = Builder.class, hint = &quot;multithreaded&quot; )
+public class MultiThreadedBuilder
+    implements Builder
+{
+
+    @Requirement
+    private Logger logger;
+
+    @Requirement
+    private LifecycleModuleBuilder lifecycleModuleBuilder;
+
+    public MultiThreadedBuilder()
+<span class="nc" id="L72">    {</span>
+<span class="nc" id="L73">    }</span>
+
+    @Override
+    public void build( MavenSession session, ReactorContext reactorContext, ProjectBuildList projectBuilds,
+                       List&lt;TaskSegment&gt; taskSegments, ReactorBuildStatus reactorBuildStatus )
+        throws ExecutionException, InterruptedException
+    {
+<span class="nc" id="L80">        int nThreads = Math.min( session.getRequest().getDegreeOfConcurrency(), session.getProjects().size() );</span>
+<span class="nc bnc" id="L81" title="All 2 branches missed.">        boolean parallel = nThreads &gt;= 2;</span>
+        // Propagate the parallel flag to the root session and all of the cloned sessions in each project segment
+<span class="nc" id="L83">        session.setParallel( parallel );</span>
+<span class="nc bnc" id="L84" title="All 2 branches missed.">        for ( ProjectSegment segment : projectBuilds )</span>
+        {
+<span class="nc" id="L86">            segment.getSession().setParallel( parallel );</span>
+<span class="nc" id="L87">        }</span>
+<span class="nc" id="L88">        ExecutorService executor = Executors.newFixedThreadPool( nThreads, new BuildThreadFactory() );</span>
+<span class="nc" id="L89">        CompletionService&lt;ProjectSegment&gt; service = new ExecutorCompletionService&lt;&gt;( executor );</span>
+<span class="nc" id="L90">        ConcurrencyDependencyGraph analyzer =</span>
+            new ConcurrencyDependencyGraph( projectBuilds, session.getProjectDependencyGraph() );
+
+        // Currently disabled
+<span class="nc" id="L94">        ThreadOutputMuxer muxer = null; // new ThreadOutputMuxer( analyzer.getProjectBuilds(), System.out );</span>
+
+<span class="nc bnc" id="L96" title="All 2 branches missed.">        for ( TaskSegment taskSegment : taskSegments )</span>
+        {
+<span class="nc" id="L98">            Map&lt;MavenProject, ProjectSegment&gt; projectBuildMap = projectBuilds.selectSegment( taskSegment );</span>
+            try
+            {
+<span class="nc" id="L101">                multiThreadedProjectTaskSegmentBuild( analyzer, reactorContext, session, service, taskSegment,</span>
+                                                      projectBuildMap, muxer );
+<span class="nc bnc" id="L103" title="All 2 branches missed.">                if ( reactorContext.getReactorBuildStatus().isHalted() )</span>
+                {
+<span class="nc" id="L105">                    break;</span>
+                }
+            }
+<span class="nc" id="L108">            catch ( Exception e )</span>
+            {
+<span class="nc" id="L110">                session.getResult().addException( e );</span>
+<span class="nc" id="L111">                break;</span>
+<span class="nc" id="L112">            }</span>
+
+<span class="nc" id="L114">        }</span>
+<span class="nc" id="L115">    }</span>
+
+    private void multiThreadedProjectTaskSegmentBuild( ConcurrencyDependencyGraph analyzer,
+                                                       ReactorContext reactorContext, MavenSession rootSession,
+                                                       CompletionService&lt;ProjectSegment&gt; service,
+                                                       TaskSegment taskSegment,
+                                                       Map&lt;MavenProject, ProjectSegment&gt; projectBuildList,
+                                                       ThreadOutputMuxer muxer )
+    {
+
+        // schedule independent projects
+<span class="nc bnc" id="L126" title="All 2 branches missed.">        for ( MavenProject mavenProject : analyzer.getRootSchedulableBuilds() )</span>
+        {
+<span class="nc" id="L128">            ProjectSegment projectSegment = projectBuildList.get( mavenProject );</span>
+<span class="nc" id="L129">            logger.debug( &quot;Scheduling: &quot; + projectSegment.getProject() );</span>
+<span class="nc" id="L130">            Callable&lt;ProjectSegment&gt; cb =</span>
+                createBuildCallable( rootSession, projectSegment, reactorContext, taskSegment, muxer );
+<span class="nc" id="L132">            service.submit( cb );</span>
+<span class="nc" id="L133">        }</span>
+
+        // for each finished project
+<span class="nc bnc" id="L136" title="All 2 branches missed.">        for ( int i = 0; i &lt; analyzer.getNumberOfBuilds(); i++ )</span>
+        {
+            try
+            {
+<span class="nc" id="L140">                ProjectSegment projectBuild = service.take().get();</span>
+<span class="nc bnc" id="L141" title="All 2 branches missed.">                if ( reactorContext.getReactorBuildStatus().isHalted() )</span>
+                {
+<span class="nc" id="L143">                    break;</span>
+                }
+
+                // MNG-6170: Only schedule other modules from reactor if we have more modules to build than one. 
+<span class="nc bnc" id="L147" title="All 2 branches missed.">                if ( analyzer.getNumberOfBuilds() &gt; 1 )</span>
+                {
+<span class="nc" id="L149">                    final List&lt;MavenProject&gt; newItemsThatCanBeBuilt =</span>
+                        analyzer.markAsFinished( projectBuild.getProject() );
+<span class="nc bnc" id="L151" title="All 2 branches missed.">                    for ( MavenProject mavenProject : newItemsThatCanBeBuilt )</span>
+                    {
+<span class="nc" id="L153">                        ProjectSegment scheduledDependent = projectBuildList.get( mavenProject );</span>
+<span class="nc" id="L154">                        logger.debug( &quot;Scheduling: &quot; + scheduledDependent );</span>
+<span class="nc" id="L155">                        Callable&lt;ProjectSegment&gt; cb =</span>
+                            createBuildCallable( rootSession, scheduledDependent, reactorContext, taskSegment, muxer );
+<span class="nc" id="L157">                        service.submit( cb );</span>
+<span class="nc" id="L158">                    }</span>
+                }
+            }
+<span class="nc" id="L161">            catch ( InterruptedException e )</span>
+            {
+<span class="nc" id="L163">                rootSession.getResult().addException( e );</span>
+<span class="nc" id="L164">                break;</span>
+            }
+<span class="nc" id="L166">            catch ( ExecutionException e )</span>
+            {
+                // TODO MNG-5766 changes likely made this redundant
+<span class="nc" id="L169">                rootSession.getResult().addException( e );</span>
+<span class="nc" id="L170">                break;</span>
+<span class="nc" id="L171">            }</span>
+        }
+
+        // cancel outstanding builds (if any) - this can happen if an exception is thrown in above block
+
+        Future&lt;ProjectSegment&gt; unprocessed;
+<span class="nc bnc" id="L177" title="All 2 branches missed.">        while ( ( unprocessed = service.poll() ) != null )</span>
+        {
+            try
+            {
+<span class="nc" id="L181">                unprocessed.get();</span>
+            }
+<span class="nc" id="L183">            catch ( InterruptedException | ExecutionException e )</span>
+            {
+<span class="nc" id="L185">                throw new RuntimeException( e );</span>
+<span class="nc" id="L186">            }</span>
+        }
+<span class="nc" id="L188">    }</span>
+
+    private Callable&lt;ProjectSegment&gt; createBuildCallable( final MavenSession rootSession,
+                                                          final ProjectSegment projectBuild,
+                                                          final ReactorContext reactorContext,
+                                                          final TaskSegment taskSegment, final ThreadOutputMuxer muxer )
+    {
+<span class="nc" id="L195">        return new Callable&lt;ProjectSegment&gt;()</span>
+<span class="nc" id="L196">        {</span>
+            public ProjectSegment call()
+            {
+                // muxer.associateThreadWithProjectSegment( projectBuild );
+<span class="nc" id="L200">                lifecycleModuleBuilder.buildProject( projectBuild.getSession(), rootSession, reactorContext,</span>
+                                                     projectBuild.getProject(), taskSegment );
+                // muxer.setThisModuleComplete( projectBuild );
+
+<span class="nc" id="L204">                return projectBuild;</span>
+            }
+        };
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

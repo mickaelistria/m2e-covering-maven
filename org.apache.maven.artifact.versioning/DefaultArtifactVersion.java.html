@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultArtifactVersion.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.artifact.versioning</a> &gt; <span class="el_source">DefaultArtifactVersion.java</span></div><h1>DefaultArtifactVersion.java</h1><pre class="source lang-java linenums">package org.apache.maven.artifact.versioning;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.StringTokenizer;
+import java.util.regex.Pattern;
+import java.util.NoSuchElementException;
+
+/**
+ * Default implementation of artifact versioning.
+ *
+ * @author &lt;a href=&quot;mailto:brett@apache.org&quot;&gt;Brett Porter&lt;/a&gt;
+ */
+public class DefaultArtifactVersion
+    implements ArtifactVersion
+{
+    private Integer majorVersion;
+
+    private Integer minorVersion;
+
+    private Integer incrementalVersion;
+
+    private Integer buildNumber;
+
+    private String qualifier;
+
+    private ComparableVersion comparable;
+
+    public DefaultArtifactVersion( String version )
+<span class="fc" id="L47">    {</span>
+<span class="fc" id="L48">        parseVersion( version );</span>
+<span class="fc" id="L49">    }</span>
+
+    @Override
+    public int hashCode()
+    {
+<span class="nc" id="L54">        return 11 + comparable.hashCode();</span>
+    }
+
+    @Override
+    public boolean equals( Object other )
+    {
+<span class="nc bnc" id="L60" title="All 2 branches missed.">        if ( this == other )</span>
+        {
+<span class="nc" id="L62">            return true;</span>
+        }
+
+<span class="nc bnc" id="L65" title="All 2 branches missed.">        if ( !( other instanceof ArtifactVersion ) )</span>
+        {
+<span class="nc" id="L67">            return false;</span>
+        }
+
+<span class="nc bnc" id="L70" title="All 2 branches missed.">        return compareTo( (ArtifactVersion) other ) == 0;</span>
+    }
+
+    public int compareTo( ArtifactVersion otherVersion )
+    {
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">        if ( otherVersion instanceof DefaultArtifactVersion )</span>
+        {
+<span class="fc" id="L77">            return this.comparable.compareTo( ( (DefaultArtifactVersion) otherVersion ).comparable );</span>
+        }
+        else
+        {
+<span class="nc" id="L81">            return compareTo( new DefaultArtifactVersion( otherVersion.toString() ) );</span>
+        }
+    }
+
+    public int getMajorVersion()
+    {
+<span class="nc bnc" id="L87" title="All 2 branches missed.">        return majorVersion != null ? majorVersion : 0;</span>
+    }
+
+    public int getMinorVersion()
+    {
+<span class="nc bnc" id="L92" title="All 2 branches missed.">        return minorVersion != null ? minorVersion : 0;</span>
+    }
+
+    public int getIncrementalVersion()
+    {
+<span class="nc bnc" id="L97" title="All 2 branches missed.">        return incrementalVersion != null ? incrementalVersion : 0;</span>
+    }
+
+    public int getBuildNumber()
+    {
+<span class="nc bnc" id="L102" title="All 2 branches missed.">        return buildNumber != null ? buildNumber : 0;</span>
+    }
+
+    public String getQualifier()
+    {
+<span class="nc" id="L107">        return qualifier;</span>
+    }
+
+    public final void parseVersion( String version )
+    {
+<span class="fc" id="L112">        comparable = new ComparableVersion( version );</span>
+
+<span class="fc" id="L114">        int index = version.indexOf( '-' );</span>
+
+        String part1;
+<span class="fc" id="L117">        String part2 = null;</span>
+
+<span class="fc bfc" id="L119" title="All 2 branches covered.">        if ( index &lt; 0 )</span>
+        {
+<span class="fc" id="L121">            part1 = version;</span>
+        }
+        else
+        {
+<span class="fc" id="L125">            part1 = version.substring( 0, index );</span>
+<span class="fc" id="L126">            part2 = version.substring( index + 1 );</span>
+        }
+
+<span class="fc bfc" id="L129" title="All 2 branches covered.">        if ( part2 != null )</span>
+        {
+            try
+            {
+<span class="pc bpc" id="L133" title="1 of 4 branches missed.">                if ( ( part2.length() == 1 ) || !part2.startsWith( &quot;0&quot; ) )</span>
+                {
+<span class="fc" id="L135">                    buildNumber = Integer.valueOf( part2 );</span>
+                }
+                else
+                {
+<span class="fc" id="L139">                    qualifier = part2;</span>
+                }
+            }
+<span class="fc" id="L142">            catch ( NumberFormatException e )</span>
+            {
+<span class="fc" id="L144">                qualifier = part2;</span>
+<span class="fc" id="L145">            }</span>
+        }
+
+<span class="fc bfc" id="L148" title="All 4 branches covered.">        if ( ( !part1.contains( &quot;.&quot; ) ) &amp;&amp; !part1.startsWith( &quot;0&quot; ) )</span>
+        {
+            try
+            {
+<span class="fc" id="L152">                majorVersion = Integer.valueOf( part1 );</span>
+            }
+<span class="fc" id="L154">            catch ( NumberFormatException e )</span>
+            {
+                // qualifier is the whole version, including &quot;-&quot;
+<span class="fc" id="L157">                qualifier = version;</span>
+<span class="fc" id="L158">                buildNumber = null;</span>
+<span class="fc" id="L159">            }</span>
+        }
+        else
+        {
+<span class="fc" id="L163">            boolean fallback = false;</span>
+
+<span class="fc" id="L165">            StringTokenizer tok = new StringTokenizer( part1, &quot;.&quot; );</span>
+            try
+            {
+<span class="fc" id="L168">                majorVersion = getNextIntegerToken( tok );</span>
+<span class="fc bfc" id="L169" title="All 2 branches covered.">                if ( tok.hasMoreTokens() )</span>
+                {
+<span class="fc" id="L171">                    minorVersion = getNextIntegerToken( tok );</span>
+                }
+<span class="fc bfc" id="L173" title="All 2 branches covered.">                if ( tok.hasMoreTokens() )</span>
+                {
+<span class="fc" id="L175">                    incrementalVersion = getNextIntegerToken( tok );</span>
+                }
+<span class="fc bfc" id="L177" title="All 2 branches covered.">                if ( tok.hasMoreTokens() )</span>
+                {
+<span class="fc" id="L179">                    qualifier = tok.nextToken();</span>
+<span class="fc" id="L180">                    fallback = Pattern.compile( &quot;\\d+&quot; ).matcher( qualifier ).matches();</span>
+                }
+
+                // string tokenizer won't detect these and ignores them
+<span class="pc bpc" id="L184" title="3 of 6 branches missed.">                if ( part1.contains( &quot;..&quot; ) || part1.startsWith( &quot;.&quot; ) || part1.endsWith( &quot;.&quot; ) )</span>
+                {
+<span class="nc" id="L186">                    fallback = true;</span>
+                }
+            }
+<span class="fc" id="L189">            catch ( NumberFormatException e )</span>
+            {
+<span class="fc" id="L191">                fallback = true;</span>
+<span class="fc" id="L192">            }</span>
+
+<span class="fc bfc" id="L194" title="All 2 branches covered.">            if ( fallback )</span>
+            {
+                // qualifier is the whole version, including &quot;-&quot;
+<span class="fc" id="L197">                qualifier = version;</span>
+<span class="fc" id="L198">                majorVersion = null;</span>
+<span class="fc" id="L199">                minorVersion = null;</span>
+<span class="fc" id="L200">                incrementalVersion = null;</span>
+<span class="fc" id="L201">                buildNumber = null;</span>
+            }
+        }
+<span class="fc" id="L204">    }</span>
+
+    private static Integer getNextIntegerToken( StringTokenizer tok )
+    {
+        try
+        {
+<span class="fc" id="L210">            String s = tok.nextToken();</span>
+<span class="fc bfc" id="L211" title="All 4 branches covered.">            if ( ( s.length() &gt; 1 ) &amp;&amp; s.startsWith( &quot;0&quot; ) )</span>
+            {
+<span class="fc" id="L213">                throw new NumberFormatException( &quot;Number part has a leading 0: '&quot; + s + &quot;'&quot; );</span>
+            }
+<span class="fc" id="L215">            return Integer.valueOf( s );</span>
+        }
+<span class="nc" id="L217">        catch ( NoSuchElementException e )</span>
+        {
+<span class="nc" id="L219">            throw new NumberFormatException( &quot;Number is invalid&quot; );</span>
+        }
+    }
+
+    @Override
+    public String toString()
+    {
+<span class="fc" id="L226">        return comparable.toString();</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

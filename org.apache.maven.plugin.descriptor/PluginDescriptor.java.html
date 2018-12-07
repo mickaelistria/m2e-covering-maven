@@ -1,0 +1,440 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>PluginDescriptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.plugin.descriptor</a> &gt; <span class="el_source">PluginDescriptor.java</span></div><h1>PluginDescriptor.java</h1><pre class="source lang-java linenums">package org.apache.maven.plugin.descriptor;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.ArtifactUtils;
+import org.apache.maven.model.Plugin;
+import org.apache.maven.plugin.lifecycle.Lifecycle;
+import org.apache.maven.plugin.lifecycle.LifecycleConfiguration;
+import org.apache.maven.plugin.lifecycle.io.xpp3.LifecycleMappingsXpp3Reader;
+import org.codehaus.plexus.classworlds.realm.ClassRealm;
+import org.codehaus.plexus.component.repository.ComponentSetDescriptor;
+import org.codehaus.plexus.util.ReaderFactory;
+import org.codehaus.plexus.util.xml.pull.XmlPullParserException;
+
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.Reader;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * @author Jason van Zyl
+ */
+<span class="fc" id="L49">public class PluginDescriptor</span>
+    extends ComponentSetDescriptor
+    implements Cloneable
+{
+
+    private static final String LIFECYCLE_DESCRIPTOR = &quot;META-INF/maven/lifecycle.xml&quot;;
+
+    private String groupId;
+
+    private String artifactId;
+
+    private String version;
+
+    private String goalPrefix;
+
+    private String source;
+
+<span class="fc" id="L66">    private boolean inheritedByDefault = true;</span>
+
+    private List&lt;Artifact&gt; artifacts;
+
+    private ClassRealm classRealm;
+
+    // calculated on-demand.
+    private Map&lt;String, Artifact&gt; artifactMap;
+
+    private Set&lt;Artifact&gt; introducedDependencyArtifacts;
+
+    private String name;
+
+    private String description;
+
+    private String requiredMavenVersion;
+
+    private Plugin plugin;
+
+    private Artifact pluginArtifact;
+
+    private Map&lt;String, Lifecycle&gt; lifecycleMappings;
+
+    // ----------------------------------------------------------------------
+    //
+    // ----------------------------------------------------------------------
+
+    @SuppressWarnings( { &quot;unchecked&quot;, &quot;rawtypes&quot; } )
+    public List&lt;MojoDescriptor&gt; getMojos()
+    {
+<span class="fc" id="L96">        return (List) getComponents();</span>
+    }
+
+    public void addMojo( MojoDescriptor mojoDescriptor )
+        throws DuplicateMojoDescriptorException
+    {
+<span class="fc" id="L102">        MojoDescriptor existing = null;</span>
+        // this relies heavily on the equals() and hashCode() for ComponentDescriptor,
+        // which uses role:roleHint for identity...and roleHint == goalPrefix:goal.
+        // role does not vary for Mojos.
+<span class="fc" id="L106">        List&lt;MojoDescriptor&gt; mojos = getMojos();</span>
+
+<span class="pc bpc" id="L108" title="2 of 4 branches missed.">        if ( mojos != null &amp;&amp; mojos.contains( mojoDescriptor ) )</span>
+        {
+<span class="nc" id="L110">            int indexOf = mojos.indexOf( mojoDescriptor );</span>
+
+<span class="nc" id="L112">            existing = mojos.get( indexOf );</span>
+        }
+
+<span class="pc bpc" id="L115" title="1 of 2 branches missed.">        if ( existing != null )</span>
+        {
+<span class="nc" id="L117">            throw new DuplicateMojoDescriptorException( getGoalPrefix(), mojoDescriptor.getGoal(),</span>
+                                                        existing.getImplementation(),
+                                                        mojoDescriptor.getImplementation() );
+        }
+        else
+        {
+<span class="fc" id="L123">            addComponentDescriptor( mojoDescriptor );</span>
+        }
+<span class="fc" id="L125">    }</span>
+
+    public String getGroupId()
+    {
+<span class="fc" id="L129">        return groupId;</span>
+    }
+
+    public void setGroupId( String groupId )
+    {
+<span class="fc" id="L134">        this.groupId = groupId;</span>
+<span class="fc" id="L135">    }</span>
+
+    public String getArtifactId()
+    {
+<span class="fc" id="L139">        return artifactId;</span>
+    }
+
+    public void setArtifactId( String artifactId )
+    {
+<span class="fc" id="L144">        this.artifactId = artifactId;</span>
+<span class="fc" id="L145">    }</span>
+
+    // ----------------------------------------------------------------------
+    // Dependencies
+    // ----------------------------------------------------------------------
+
+    public static String constructPluginKey( String groupId, String artifactId, String version )
+    {
+<span class="fc" id="L153">        return groupId + &quot;:&quot; + artifactId + &quot;:&quot; + version;</span>
+    }
+
+    public String getPluginLookupKey()
+    {
+<span class="fc" id="L158">        return groupId + &quot;:&quot; + artifactId;</span>
+    }
+
+    public String getId()
+    {
+<span class="fc" id="L163">        return constructPluginKey( groupId, artifactId, version );</span>
+    }
+
+    public static String getDefaultPluginArtifactId( String id )
+    {
+<span class="nc" id="L168">        return &quot;maven-&quot; + id + &quot;-plugin&quot;;</span>
+    }
+
+    public static String getDefaultPluginGroupId()
+    {
+<span class="nc" id="L173">        return &quot;org.apache.maven.plugins&quot;;</span>
+    }
+
+    /**
+     * Parse maven-...-plugin.
+     *
+     * TODO move to plugin-tools-api as a default only
+     */
+    public static String getGoalPrefixFromArtifactId( String artifactId )
+    {
+<span class="nc bnc" id="L183" title="All 2 branches missed.">        if ( &quot;maven-plugin-plugin&quot;.equals( artifactId ) )</span>
+        {
+<span class="nc" id="L185">            return &quot;plugin&quot;;</span>
+        }
+        else
+        {
+<span class="nc" id="L189">            return artifactId.replaceAll( &quot;-?maven-?&quot;, &quot;&quot; ).replaceAll( &quot;-?plugin-?&quot;, &quot;&quot; );</span>
+        }
+    }
+
+    public String getGoalPrefix()
+    {
+<span class="fc" id="L195">        return goalPrefix;</span>
+    }
+
+    public void setGoalPrefix( String goalPrefix )
+    {
+<span class="fc" id="L200">        this.goalPrefix = goalPrefix;</span>
+<span class="fc" id="L201">    }</span>
+
+    public void setVersion( String version )
+    {
+<span class="fc" id="L205">        this.version = version;</span>
+<span class="fc" id="L206">    }</span>
+
+    public String getVersion()
+    {
+<span class="fc" id="L210">        return version;</span>
+    }
+
+    public void setSource( String source )
+    {
+<span class="fc" id="L215">        this.source = source;</span>
+<span class="fc" id="L216">    }</span>
+
+    public String getSource()
+    {
+<span class="fc" id="L220">        return source;</span>
+    }
+
+    public boolean isInheritedByDefault()
+    {
+<span class="fc" id="L225">        return inheritedByDefault;</span>
+    }
+
+    public void setInheritedByDefault( boolean inheritedByDefault )
+    {
+<span class="fc" id="L230">        this.inheritedByDefault = inheritedByDefault;</span>
+<span class="fc" id="L231">    }</span>
+
+    /**
+     * Gets the artifacts that make up the plugin's class realm, excluding artifacts shadowed by the Maven core realm
+     * like {@code maven-project}.
+     *
+     * @return The plugin artifacts, never {@code null}.
+     */
+    public List&lt;Artifact&gt; getArtifacts()
+    {
+<span class="fc" id="L241">        return artifacts;</span>
+    }
+
+    public void setArtifacts( List&lt;Artifact&gt; artifacts )
+    {
+<span class="fc" id="L246">        this.artifacts = artifacts;</span>
+
+        // clear the calculated artifactMap
+<span class="fc" id="L249">        artifactMap = null;</span>
+<span class="fc" id="L250">    }</span>
+
+    /**
+     * The map of artifacts accessible by the versionlessKey, i.e. groupId:artifactId
+     *
+     * @return a Map of artifacts, never {@code null}
+     * @see #getArtifacts()
+     */
+    public Map&lt;String, Artifact&gt; getArtifactMap()
+    {
+<span class="nc bnc" id="L260" title="All 2 branches missed.">        if ( artifactMap == null )</span>
+        {
+<span class="nc" id="L262">            artifactMap = ArtifactUtils.artifactMapByVersionlessId( getArtifacts() );</span>
+        }
+
+<span class="nc" id="L265">        return artifactMap;</span>
+    }
+
+    public boolean equals( Object object )
+    {
+<span class="nc bnc" id="L270" title="All 2 branches missed.">        if ( this == object )</span>
+        {
+<span class="nc" id="L272">            return true;</span>
+        }
+
+<span class="nc bnc" id="L275" title="All 4 branches missed.">        return object instanceof PluginDescriptor &amp;&amp; getId().equals( ( (PluginDescriptor) object ).getId() );</span>
+    }
+
+    public int hashCode()
+    {
+<span class="nc" id="L280">        return 10 + getId().hashCode();</span>
+    }
+
+    public MojoDescriptor getMojo( String goal )
+    {
+<span class="pc bpc" id="L285" title="1 of 2 branches missed.">        if ( getMojos() == null )</span>
+        {
+<span class="nc" id="L287">            return null; // no mojo in this POM</span>
+        }
+
+        // TODO could we use a map? Maybe if the parent did that for components too, as this is too vulnerable to
+        // changes above not being propagated to the map
+<span class="pc bpc" id="L292" title="1 of 2 branches missed.">        for ( MojoDescriptor desc : getMojos() )</span>
+        {
+<span class="fc bfc" id="L294" title="All 2 branches covered.">            if ( goal.equals( desc.getGoal() ) )</span>
+            {
+<span class="fc" id="L296">                return desc;</span>
+            }
+<span class="fc" id="L298">        }</span>
+<span class="nc" id="L299">        return null;</span>
+    }
+
+    public void setClassRealm( ClassRealm classRealm )
+    {
+<span class="fc" id="L304">        this.classRealm = classRealm;</span>
+<span class="fc" id="L305">    }</span>
+
+    public ClassRealm getClassRealm()
+    {
+<span class="fc" id="L309">        return classRealm;</span>
+    }
+
+    public void setIntroducedDependencyArtifacts( Set&lt;Artifact&gt; introducedDependencyArtifacts )
+    {
+<span class="nc" id="L314">        this.introducedDependencyArtifacts = introducedDependencyArtifacts;</span>
+<span class="nc" id="L315">    }</span>
+
+    public Set&lt;Artifact&gt; getIntroducedDependencyArtifacts()
+    {
+<span class="nc bnc" id="L319" title="All 2 branches missed.">        return ( introducedDependencyArtifacts != null )</span>
+            ? introducedDependencyArtifacts
+            : Collections.&lt;Artifact&gt;emptySet();
+    }
+
+    public void setName( String name )
+    {
+<span class="fc" id="L326">        this.name = name;</span>
+<span class="fc" id="L327">    }</span>
+
+    public String getName()
+    {
+<span class="fc" id="L331">        return name;</span>
+    }
+
+    public void setDescription( String description )
+    {
+<span class="fc" id="L336">        this.description = description;</span>
+<span class="fc" id="L337">    }</span>
+
+    public String getDescription()
+    {
+<span class="fc" id="L341">        return description;</span>
+    }
+
+    public void setRequiredMavenVersion( String requiredMavenVersion )
+    {
+<span class="fc" id="L346">        this.requiredMavenVersion = requiredMavenVersion;</span>
+<span class="fc" id="L347">    }</span>
+
+    public String getRequiredMavenVersion()
+    {
+<span class="fc" id="L351">        return requiredMavenVersion;</span>
+    }
+
+    public void setPlugin( Plugin plugin )
+    {
+<span class="fc" id="L356">        this.plugin = plugin;</span>
+<span class="fc" id="L357">    }</span>
+
+    public Plugin getPlugin()
+    {
+<span class="fc" id="L361">        return plugin;</span>
+    }
+
+    public Artifact getPluginArtifact()
+    {
+<span class="fc" id="L366">        return pluginArtifact;</span>
+    }
+
+    public void setPluginArtifact( Artifact pluginArtifact )
+    {
+<span class="fc" id="L371">        this.pluginArtifact = pluginArtifact;</span>
+<span class="fc" id="L372">    }</span>
+
+    public Lifecycle getLifecycleMapping( String lifecycleId )
+        throws IOException, XmlPullParserException
+    {
+<span class="nc bnc" id="L377" title="All 2 branches missed.">        if ( lifecycleMappings == null )</span>
+        {
+            LifecycleConfiguration lifecycleConfiguration;
+
+<span class="nc" id="L381">            try ( Reader reader = ReaderFactory.newXmlReader( getDescriptorStream( LIFECYCLE_DESCRIPTOR ) ) )</span>
+            {
+<span class="nc" id="L383">                lifecycleConfiguration = new LifecycleMappingsXpp3Reader().read( reader );</span>
+            }
+
+<span class="nc" id="L386">            lifecycleMappings = new HashMap&lt;&gt;();</span>
+
+<span class="nc bnc" id="L388" title="All 2 branches missed.">            for ( Lifecycle lifecycle : lifecycleConfiguration.getLifecycles() )</span>
+            {
+<span class="nc" id="L390">                lifecycleMappings.put( lifecycle.getId(), lifecycle );</span>
+<span class="nc" id="L391">            }</span>
+        }
+
+<span class="nc" id="L394">        return lifecycleMappings.get( lifecycleId );</span>
+    }
+
+    private InputStream getDescriptorStream( String descriptor )
+        throws IOException
+    {
+<span class="nc bnc" id="L400" title="All 2 branches missed.">        File pluginFile = ( pluginArtifact != null ) ? pluginArtifact.getFile() : null;</span>
+<span class="nc bnc" id="L401" title="All 2 branches missed.">        if ( pluginFile == null )</span>
+        {
+<span class="nc" id="L403">            throw new IllegalStateException( &quot;plugin main artifact has not been resolved for &quot; + getId() );</span>
+        }
+
+<span class="nc bnc" id="L406" title="All 2 branches missed.">        if ( pluginFile.isFile() )</span>
+        {
+            try
+            {
+<span class="nc" id="L410">                return new URL( &quot;jar:&quot; + pluginFile.toURI() + &quot;!/&quot; + descriptor ).openStream();</span>
+            }
+<span class="nc" id="L412">            catch ( MalformedURLException e )</span>
+            {
+<span class="nc" id="L414">                throw new IllegalStateException( e );</span>
+            }
+        }
+        else
+        {
+<span class="nc" id="L419">            return new FileInputStream( new File( pluginFile, descriptor ) );</span>
+        }
+    }
+
+    /**
+     * Creates a shallow copy of this plugin descriptor.
+     */
+    @Override
+    public PluginDescriptor clone()
+    {
+        try
+        {
+<span class="nc" id="L431">            return (PluginDescriptor) super.clone();</span>
+        }
+<span class="nc" id="L433">        catch ( CloneNotSupportedException e )</span>
+        {
+<span class="nc" id="L435">            throw new UnsupportedOperationException( e );</span>
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

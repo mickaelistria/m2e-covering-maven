@@ -1,0 +1,174 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SnapshotTransformation.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository.legacy.resolver.transform</a> &gt; <span class="el_source">SnapshotTransformation.java</span></div><h1>SnapshotTransformation.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository.legacy.resolver.transform;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
+import java.util.Date;
+import java.util.GregorianCalendar;
+import java.util.TimeZone;
+
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.deployer.ArtifactDeploymentException;
+import org.apache.maven.artifact.repository.ArtifactRepository;
+import org.apache.maven.artifact.repository.RepositoryRequest;
+import org.apache.maven.artifact.repository.metadata.Metadata;
+import org.apache.maven.artifact.repository.metadata.RepositoryMetadata;
+import org.apache.maven.artifact.repository.metadata.RepositoryMetadataResolutionException;
+import org.apache.maven.artifact.repository.metadata.Snapshot;
+import org.apache.maven.artifact.repository.metadata.SnapshotArtifactRepositoryMetadata;
+import org.apache.maven.artifact.repository.metadata.Versioning;
+import org.apache.maven.artifact.resolver.ArtifactResolutionException;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.util.StringUtils;
+
+/**
+ * @author &lt;a href=&quot;mailto:brett@apache.org&quot;&gt;Brett Porter&lt;/a&gt;
+ * @author &lt;a href=&quot;mailto:mmaczka@interia.pl&quot;&gt;Michal Maczka&lt;/a&gt;
+ */
+@Component( role = ArtifactTransformation.class, hint = &quot;snapshot&quot; )
+<span class="nc" id="L47">public class SnapshotTransformation</span>
+    extends AbstractVersionTransformation
+{
+    private static final String DEFAULT_SNAPSHOT_TIMESTAMP_FORMAT = &quot;yyyyMMdd.HHmmss&quot;;
+
+<span class="nc" id="L52">    private static final TimeZone DEFAULT_SNAPSHOT_TIME_ZONE = TimeZone.getTimeZone( &quot;Etc/UTC&quot; );</span>
+
+    private String deploymentTimestamp;
+
+    public void transformForResolve( Artifact artifact, RepositoryRequest request )
+        throws ArtifactResolutionException
+    {
+        // Only select snapshots that are unresolved (eg 1.0-SNAPSHOT, not 1.0-20050607.123456)
+<span class="nc bnc" id="L60" title="All 4 branches missed.">        if ( artifact.isSnapshot() &amp;&amp; artifact.getBaseVersion().equals( artifact.getVersion() ) )</span>
+        {
+            try
+            {
+<span class="nc" id="L64">                String version = resolveVersion( artifact, request );</span>
+<span class="nc" id="L65">                artifact.updateVersion( version, request.getLocalRepository() );</span>
+            }
+<span class="nc" id="L67">            catch ( RepositoryMetadataResolutionException e )</span>
+            {
+<span class="nc" id="L69">                throw new ArtifactResolutionException( e.getMessage(), artifact, e );</span>
+<span class="nc" id="L70">            }</span>
+        }
+<span class="nc" id="L72">    }</span>
+
+    public void transformForInstall( Artifact artifact, ArtifactRepository localRepository )
+    {
+<span class="nc bnc" id="L76" title="All 2 branches missed.">        if ( artifact.isSnapshot() )</span>
+        {
+<span class="nc" id="L78">            Snapshot snapshot = new Snapshot();</span>
+<span class="nc" id="L79">            snapshot.setLocalCopy( true );</span>
+<span class="nc" id="L80">            RepositoryMetadata metadata = new SnapshotArtifactRepositoryMetadata( artifact, snapshot );</span>
+
+<span class="nc" id="L82">            artifact.addMetadata( metadata );</span>
+        }
+<span class="nc" id="L84">    }</span>
+
+    public void transformForDeployment( Artifact artifact, ArtifactRepository remoteRepository,
+                                        ArtifactRepository localRepository )
+        throws ArtifactDeploymentException
+    {
+<span class="nc bnc" id="L90" title="All 2 branches missed.">        if ( artifact.isSnapshot() )</span>
+        {
+<span class="nc" id="L92">            Snapshot snapshot = new Snapshot();</span>
+
+<span class="nc" id="L94">            snapshot.setTimestamp( getDeploymentTimestamp() );</span>
+
+            // we update the build number anyway so that it doesn't get lost. It requires the timestamp to take effect
+            try
+            {
+<span class="nc" id="L99">                int buildNumber = resolveLatestSnapshotBuildNumber( artifact, localRepository, remoteRepository );</span>
+
+<span class="nc" id="L101">                snapshot.setBuildNumber( buildNumber + 1 );</span>
+            }
+<span class="nc" id="L103">            catch ( RepositoryMetadataResolutionException e )</span>
+            {
+<span class="nc" id="L105">                throw new ArtifactDeploymentException( &quot;Error retrieving previous build number for artifact '&quot;</span>
+                    + artifact.getDependencyConflictId() + &quot;': &quot; + e.getMessage(), e );
+<span class="nc" id="L107">            }</span>
+
+<span class="nc" id="L109">            RepositoryMetadata metadata = new SnapshotArtifactRepositoryMetadata( artifact, snapshot );</span>
+
+<span class="nc" id="L111">            artifact.setResolvedVersion(</span>
+                constructVersion( metadata.getMetadata().getVersioning(), artifact.getBaseVersion() ) );
+
+<span class="nc" id="L114">            artifact.addMetadata( metadata );</span>
+        }
+<span class="nc" id="L116">    }</span>
+
+    public String getDeploymentTimestamp()
+    {
+<span class="nc bnc" id="L120" title="All 2 branches missed.">        if ( deploymentTimestamp == null )</span>
+        {
+<span class="nc" id="L122">            deploymentTimestamp = getUtcDateFormatter().format( new Date() );</span>
+        }
+<span class="nc" id="L124">        return deploymentTimestamp;</span>
+    }
+
+    protected String constructVersion( Versioning versioning, String baseVersion )
+    {
+<span class="nc" id="L129">        String version = null;</span>
+<span class="nc" id="L130">        Snapshot snapshot = versioning.getSnapshot();</span>
+<span class="nc bnc" id="L131" title="All 2 branches missed.">        if ( snapshot != null )</span>
+        {
+<span class="nc bnc" id="L133" title="All 4 branches missed.">            if ( snapshot.getTimestamp() != null &amp;&amp; snapshot.getBuildNumber() &gt; 0 )</span>
+            {
+<span class="nc" id="L135">                String newVersion = snapshot.getTimestamp() + &quot;-&quot; + snapshot.getBuildNumber();</span>
+<span class="nc" id="L136">                version = StringUtils.replace( baseVersion, Artifact.SNAPSHOT_VERSION, newVersion );</span>
+<span class="nc" id="L137">            }</span>
+            else
+            {
+<span class="nc" id="L140">                version = baseVersion;</span>
+            }
+        }
+<span class="nc" id="L143">        return version;</span>
+    }
+
+    private int resolveLatestSnapshotBuildNumber( Artifact artifact, ArtifactRepository localRepository,
+                                                  ArtifactRepository remoteRepository )
+        throws RepositoryMetadataResolutionException
+    {
+<span class="nc" id="L150">        RepositoryMetadata metadata = new SnapshotArtifactRepositoryMetadata( artifact );</span>
+
+<span class="nc" id="L152">        getLogger().info( &quot;Retrieving previous build number from &quot; + remoteRepository.getId() );</span>
+<span class="nc" id="L153">        repositoryMetadataManager.resolveAlways( metadata, localRepository, remoteRepository );</span>
+
+<span class="nc" id="L155">        int buildNumber = 0;</span>
+<span class="nc" id="L156">        Metadata repoMetadata = metadata.getMetadata();</span>
+<span class="nc bnc" id="L157" title="All 6 branches missed.">        if ( ( repoMetadata != null )</span>
+            &amp;&amp; ( repoMetadata.getVersioning() != null &amp;&amp; repoMetadata.getVersioning().getSnapshot() != null ) )
+        {
+<span class="nc" id="L160">            buildNumber = repoMetadata.getVersioning().getSnapshot().getBuildNumber();</span>
+        }
+<span class="nc" id="L162">        return buildNumber;</span>
+    }
+
+    public static DateFormat getUtcDateFormatter()
+    {
+<span class="nc" id="L167">        DateFormat utcDateFormatter = new SimpleDateFormat( DEFAULT_SNAPSHOT_TIMESTAMP_FORMAT );</span>
+<span class="nc" id="L168">        utcDateFormatter.setCalendar( new GregorianCalendar() );</span>
+<span class="nc" id="L169">        utcDateFormatter.setTimeZone( DEFAULT_SNAPSHOT_TIME_ZONE );</span>
+<span class="nc" id="L170">        return utcDateFormatter;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

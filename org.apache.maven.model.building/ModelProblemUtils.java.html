@@ -1,0 +1,172 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ModelProblemUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.model.building</a> &gt; <span class="el_source">ModelProblemUtils.java</span></div><h1>ModelProblemUtils.java</h1><pre class="source lang-java linenums">package org.apache.maven.model.building;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+
+import org.apache.maven.model.Model;
+
+/**
+ * Assists in the handling of model problems.
+ *
+ * @author Benjamin Bentmann
+ */
+<span class="nc" id="L31">public class ModelProblemUtils</span>
+{
+
+    /**
+     * Creates a user-friendly source hint for the specified model.
+     *
+     * @param model The model to create a source hint for, may be {@code null}.
+     * @return The user-friendly source hint, never {@code null}.
+     */
+    static String toSourceHint( Model model )
+    {
+<span class="pc bpc" id="L42" title="1 of 2 branches missed.">        if ( model == null )</span>
+        {
+<span class="nc" id="L44">            return &quot;&quot;;</span>
+        }
+
+<span class="fc" id="L47">        StringBuilder buffer = new StringBuilder( 128 );</span>
+
+<span class="fc" id="L49">        buffer.append( toId( model ) );</span>
+
+<span class="fc" id="L51">        File pomFile = model.getPomFile();</span>
+<span class="fc bfc" id="L52" title="All 2 branches covered.">        if ( pomFile != null )</span>
+        {
+<span class="fc" id="L54">            buffer.append( &quot; (&quot; ).append( pomFile ).append( ')' );</span>
+        }
+
+<span class="fc" id="L57">        return buffer.toString();</span>
+    }
+
+    static String toPath( Model model )
+    {
+<span class="fc" id="L62">        String path = &quot;&quot;;</span>
+
+<span class="pc bpc" id="L64" title="1 of 2 branches missed.">        if ( model != null )</span>
+        {
+<span class="fc" id="L66">            File pomFile = model.getPomFile();</span>
+
+<span class="pc bpc" id="L68" title="1 of 2 branches missed.">            if ( pomFile != null )</span>
+            {
+<span class="fc" id="L70">                path = pomFile.getAbsolutePath();</span>
+            }
+        }
+
+<span class="fc" id="L74">        return path;</span>
+    }
+
+    static String toId( Model model )
+    {
+<span class="fc bfc" id="L79" title="All 2 branches covered.">        if ( model == null )</span>
+        {
+<span class="fc" id="L81">            return &quot;&quot;;</span>
+        }
+
+<span class="fc" id="L84">        String groupId = model.getGroupId();</span>
+<span class="fc bfc" id="L85" title="All 4 branches covered.">        if ( groupId == null &amp;&amp; model.getParent() != null )</span>
+        {
+<span class="fc" id="L87">            groupId = model.getParent().getGroupId();</span>
+        }
+
+<span class="fc" id="L90">        String artifactId = model.getArtifactId();</span>
+
+<span class="fc" id="L92">        String version = model.getVersion();</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">        if ( version == null )</span>
+        {
+<span class="fc" id="L95">            version = &quot;[unknown-version]&quot;;</span>
+        }
+
+<span class="fc" id="L98">        return toId( groupId, artifactId, version );</span>
+    }
+
+    /**
+     * Creates a user-friendly artifact id from the specified coordinates.
+     *
+     * @param groupId The group id, may be {@code null}.
+     * @param artifactId The artifact id, may be {@code null}.
+     * @param version The version, may be {@code null}.
+     * @return The user-friendly artifact id, never {@code null}.
+     */
+    static String toId( String groupId, String artifactId, String version )
+    {
+<span class="fc" id="L111">        StringBuilder buffer = new StringBuilder( 128 );</span>
+
+<span class="pc bpc" id="L113" title="1 of 4 branches missed.">        buffer.append( ( groupId != null &amp;&amp; groupId.length() &gt; 0 ) ? groupId : &quot;[unknown-group-id]&quot; );</span>
+<span class="fc" id="L114">        buffer.append( ':' );</span>
+<span class="pc bpc" id="L115" title="1 of 4 branches missed.">        buffer.append( ( artifactId != null &amp;&amp; artifactId.length() &gt; 0 ) ? artifactId : &quot;[unknown-artifact-id]&quot; );</span>
+<span class="fc" id="L116">        buffer.append( ':' );</span>
+<span class="pc bpc" id="L117" title="2 of 4 branches missed.">        buffer.append( ( version != null &amp;&amp; version.length() &gt; 0 ) ? version : &quot;[unknown-version]&quot; );</span>
+
+<span class="fc" id="L119">        return buffer.toString();</span>
+    }
+
+    /**
+     * Creates a string with all location details for the specified model problem. If the project identifier is
+     * provided, the generated location will omit the model id and source information and only give line/column
+     * information for problems originating directly from this POM.
+     *
+     * @param problem The problem whose location should be formatted, must not be {@code null}.
+     * @param projectId The {@code &lt;groupId&gt;:&lt;artifactId&gt;:&lt;version&gt;} of the corresponding project, may be {@code null}
+     *            to force output of model id and source.
+     * @return The formatted problem location or an empty string if unknown, never {@code null}.
+     */
+    public static String formatLocation( ModelProblem problem, String projectId )
+    {
+<span class="fc" id="L134">        StringBuilder buffer = new StringBuilder( 256 );</span>
+
+<span class="fc bfc" id="L136" title="All 2 branches covered.">        if ( !problem.getModelId().equals( projectId ) )</span>
+        {
+<span class="fc" id="L138">            buffer.append( problem.getModelId() );</span>
+
+<span class="pc bpc" id="L140" title="1 of 2 branches missed.">            if ( problem.getSource().length() &gt; 0 )</span>
+            {
+<span class="pc bpc" id="L142" title="1 of 2 branches missed.">                if ( buffer.length() &gt; 0 )</span>
+                {
+<span class="fc" id="L144">                    buffer.append( &quot;, &quot; );</span>
+                }
+<span class="fc" id="L146">                buffer.append( problem.getSource() );</span>
+            }
+        }
+
+<span class="fc bfc" id="L150" title="All 2 branches covered.">        if ( problem.getLineNumber() &gt; 0 )</span>
+        {
+<span class="fc bfc" id="L152" title="All 2 branches covered.">            if ( buffer.length() &gt; 0 )</span>
+            {
+<span class="fc" id="L154">                buffer.append( &quot;, &quot; );</span>
+            }
+<span class="fc" id="L156">            buffer.append( &quot;line &quot; ).append( problem.getLineNumber() );</span>
+        }
+
+<span class="fc bfc" id="L159" title="All 2 branches covered.">        if ( problem.getColumnNumber() &gt; 0 )</span>
+        {
+<span class="pc bpc" id="L161" title="1 of 2 branches missed.">            if ( buffer.length() &gt; 0 )</span>
+            {
+<span class="fc" id="L163">                buffer.append( &quot;, &quot; );</span>
+            }
+<span class="fc" id="L165">            buffer.append( &quot;column &quot; ).append( problem.getColumnNumber() );</span>
+        }
+
+<span class="fc" id="L168">        return buffer.toString();</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

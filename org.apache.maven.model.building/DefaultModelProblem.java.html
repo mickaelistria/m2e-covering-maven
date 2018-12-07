@@ -1,0 +1,177 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultModelProblem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.model.building</a> &gt; <span class="el_source">DefaultModelProblem.java</span></div><h1>DefaultModelProblem.java</h1><pre class="source lang-java linenums">package org.apache.maven.model.building;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.maven.model.Model;
+
+/**
+ * Describes a problem that was encountered during model building. A problem can either be an exception that was thrown
+ * or a simple string message. In addition, a problem carries a hint about its source, e.g. the POM file that exhibits
+ * the problem.
+ *
+ * @author Benjamin Bentmann
+ */
+public class DefaultModelProblem
+    implements ModelProblem
+{
+
+    private final String source;
+
+    private final int lineNumber;
+
+    private final int columnNumber;
+
+    private final String modelId;
+
+    private final String message;
+
+    private final Exception exception;
+
+    private final Severity severity;
+
+    private final Version version;
+
+
+    /**
+     * Creates a new problem with the specified message and exception.
+     *
+     * @param message The message describing the problem, may be {@code null}.
+     * @param severity The severity level of the problem, may be {@code null} to default to
+     *            {@link ModelProblem.Severity#ERROR}.
+     * @param source The source of the problem, may be {@code null}.
+     * @param lineNumber The one-based index of the line containing the error or {@code -1} if unknown.
+     * @param columnNumber The one-based index of the column containing the error or {@code -1} if unknown.
+     * @param exception The exception that caused this problem, may be {@code null}.
+     */
+    //mkleint: does this need to be public?
+    public DefaultModelProblem( String message, Severity severity, Version version, Model source, int lineNumber,
+                                int columnNumber, Exception exception )
+    {
+<span class="nc" id="L67">        this( message, severity, version, ModelProblemUtils.toPath( source ), lineNumber, columnNumber,</span>
+              ModelProblemUtils.toId( source ), exception );
+<span class="nc" id="L69">    }</span>
+
+    /**
+     * Creates a new problem with the specified message and exception.
+     *
+     * @param message The message describing the problem, may be {@code null}.
+     * @param severity The severity level of the problem, may be {@code null} to default to
+     *            {@link ModelProblem.Severity#ERROR}.
+     * @param version The version since the problem is relevant
+     * @param source A hint about the source of the problem like a file path, may be {@code null}.
+     * @param lineNumber The one-based index of the line containing the problem or {@code -1} if unknown.
+     * @param columnNumber The one-based index of the column containing the problem or {@code -1} if unknown.
+     * @param modelId The identifier of the model that exhibits the problem, may be {@code null}.
+     * @param exception The exception that caused this problem, may be {@code null}.
+     */
+    //mkleint: does this need to be public?
+    @SuppressWarnings( &quot;checkstyle:parameternumber&quot; )
+    public DefaultModelProblem( String message, Severity severity, Version version, String source, int lineNumber,
+                                int columnNumber, String modelId, Exception exception )
+<span class="fc" id="L88">    {</span>
+<span class="fc" id="L89">        this.message = message;</span>
+<span class="pc bpc" id="L90" title="1 of 2 branches missed.">        this.severity = ( severity != null ) ? severity : Severity.ERROR;</span>
+<span class="pc bpc" id="L91" title="1 of 2 branches missed.">        this.source = ( source != null ) ? source : &quot;&quot;;</span>
+<span class="fc" id="L92">        this.lineNumber = lineNumber;</span>
+<span class="fc" id="L93">        this.columnNumber = columnNumber;</span>
+<span class="pc bpc" id="L94" title="1 of 2 branches missed.">        this.modelId = ( modelId != null ) ? modelId : &quot;&quot;;</span>
+<span class="fc" id="L95">        this.exception = exception;</span>
+<span class="fc" id="L96">        this.version = version;</span>
+<span class="fc" id="L97">    }</span>
+
+    @Override
+    public String getSource()
+    {
+<span class="fc" id="L102">        return source;</span>
+    }
+
+    @Override
+    public int getLineNumber()
+    {
+<span class="fc" id="L108">        return lineNumber;</span>
+    }
+
+    @Override
+    public int getColumnNumber()
+    {
+<span class="fc" id="L114">        return columnNumber;</span>
+    }
+
+    @Override
+    public String getModelId()
+    {
+<span class="fc" id="L120">        return modelId;</span>
+    }
+
+    @Override
+    public Exception getException()
+    {
+<span class="nc" id="L126">        return exception;</span>
+    }
+
+    @Override
+    public String getMessage()
+    {
+        String msg;
+
+<span class="pc bpc" id="L134" title="2 of 4 branches missed.">        if ( message != null &amp;&amp; message.length() &gt; 0 )</span>
+        {
+<span class="fc" id="L136">            msg = message;</span>
+        }
+        else
+        {
+<span class="nc" id="L140">            msg = exception.getMessage();</span>
+
+<span class="nc bnc" id="L142" title="All 2 branches missed.">            if ( msg == null )</span>
+            {
+<span class="nc" id="L144">                msg = &quot;&quot;;</span>
+            }
+        }
+
+<span class="fc" id="L148">        return msg;</span>
+    }
+
+    @Override
+    public Severity getSeverity()
+    {
+<span class="fc" id="L154">        return severity;</span>
+    }
+
+    @Override
+    public Version getVersion()
+    {
+<span class="nc" id="L160">        return version;</span>
+    }
+
+
+    @Override
+    public String toString()
+    {
+<span class="nc" id="L167">        StringBuilder buffer = new StringBuilder( 128 );</span>
+
+<span class="nc" id="L169">        buffer.append( '[' ).append( getSeverity() ).append( &quot;] &quot; );</span>
+<span class="nc" id="L170">        buffer.append( getMessage() );</span>
+<span class="nc" id="L171">        buffer.append( &quot; @ &quot; ).append( ModelProblemUtils.formatLocation( this, null ) );</span>
+
+<span class="nc" id="L173">        return buffer.toString();</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

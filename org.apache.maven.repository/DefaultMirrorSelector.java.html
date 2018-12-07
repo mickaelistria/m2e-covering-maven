@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultMirrorSelector.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository</a> &gt; <span class="el_source">DefaultMirrorSelector.java</span></div><h1>DefaultMirrorSelector.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.util.List;
+
+import org.apache.maven.RepositoryUtils;
+import org.apache.maven.artifact.repository.ArtifactRepository;
+import org.apache.maven.settings.Mirror;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.util.StringUtils;
+
+/**
+ * DefaultMirrorSelector
+ */
+@Component( role = MirrorSelector.class )
+<span class="fc" id="L36">public class DefaultMirrorSelector</span>
+    implements MirrorSelector
+{
+
+    private static final String WILDCARD = &quot;*&quot;;
+
+    private static final String EXTERNAL_WILDCARD = &quot;external:*&quot;;
+
+    public Mirror getMirror( ArtifactRepository repository, List&lt;Mirror&gt; mirrors )
+    {
+<span class="fc" id="L46">        String repoId = repository.getId();</span>
+
+<span class="pc bpc" id="L48" title="2 of 4 branches missed.">        if ( repoId != null &amp;&amp; mirrors != null )</span>
+        {
+<span class="fc bfc" id="L50" title="All 2 branches covered.">            for ( Mirror mirror : mirrors )</span>
+            {
+<span class="pc bpc" id="L52" title="3 of 4 branches missed.">                if ( repoId.equals( mirror.getMirrorOf() ) &amp;&amp; matchesLayout( repository, mirror ) )</span>
+                {
+<span class="nc" id="L54">                    return mirror;</span>
+                }
+<span class="fc" id="L56">            }</span>
+
+<span class="fc bfc" id="L58" title="All 2 branches covered.">            for ( Mirror mirror : mirrors )</span>
+            {
+<span class="pc bpc" id="L60" title="1 of 4 branches missed.">                if ( matchPattern( repository, mirror.getMirrorOf() ) &amp;&amp; matchesLayout( repository, mirror ) )</span>
+                {
+<span class="fc" id="L62">                    return mirror;</span>
+                }
+<span class="fc" id="L64">            }</span>
+        }
+
+<span class="fc" id="L67">        return null;</span>
+    }
+
+    /**
+     * This method checks if the pattern matches the originalRepository. Valid patterns: * =
+     * everything external:* = everything not on the localhost and not file based. repo,repo1 = repo
+     * or repo1 *,!repo1 = everything except repo1
+     *
+     * @param originalRepository to compare for a match.
+     * @param pattern used for match. Currently only '*' is supported.
+     * @return true if the repository is a match to this pattern.
+     */
+    static boolean matchPattern( ArtifactRepository originalRepository, String pattern )
+    {
+<span class="fc" id="L81">        boolean result = false;</span>
+<span class="fc" id="L82">        String originalId = originalRepository.getId();</span>
+
+        // simple checks first to short circuit processing below.
+<span class="pc bpc" id="L85" title="2 of 4 branches missed.">        if ( WILDCARD.equals( pattern ) || pattern.equals( originalId ) )</span>
+        {
+<span class="nc" id="L87">            result = true;</span>
+        }
+        else
+        {
+            // process the list
+<span class="fc" id="L92">            String[] repos = pattern.split( &quot;,&quot; );</span>
+<span class="fc bfc" id="L93" title="All 2 branches covered.">            for ( String repo : repos )</span>
+            {
+<span class="fc" id="L95">                repo = repo.trim();</span>
+                // see if this is a negative match
+<span class="pc bpc" id="L97" title="1 of 4 branches missed.">                if ( repo.length() &gt; 1 &amp;&amp; repo.startsWith( &quot;!&quot; ) )</span>
+                {
+<span class="fc bfc" id="L99" title="All 2 branches covered.">                    if ( repo.substring( 1 ).equals( originalId ) )</span>
+                    {
+                        // explicitly exclude. Set result and stop processing.
+<span class="fc" id="L102">                        result = false;</span>
+<span class="fc" id="L103">                        break;</span>
+                    }
+                }
+                // check for exact match
+<span class="pc bpc" id="L107" title="1 of 2 branches missed.">                else if ( repo.equals( originalId ) )</span>
+                {
+<span class="nc" id="L109">                    result = true;</span>
+<span class="nc" id="L110">                    break;</span>
+                }
+                // check for external:*
+<span class="pc bpc" id="L113" title="1 of 4 branches missed.">                else if ( EXTERNAL_WILDCARD.equals( repo ) &amp;&amp; isExternalRepo( originalRepository ) )</span>
+                {
+<span class="fc" id="L115">                    result = true;</span>
+                    // don't stop processing in case a future segment explicitly excludes this repo
+                }
+<span class="pc bpc" id="L118" title="1 of 2 branches missed.">                else if ( WILDCARD.equals( repo ) )</span>
+                {
+<span class="nc" id="L120">                    result = true;</span>
+                    // don't stop processing in case a future segment explicitly excludes this repo
+                }
+            }
+        }
+<span class="fc" id="L125">        return result;</span>
+    }
+
+    /**
+     * Checks the URL to see if this repository refers to an external repository
+     *
+     * @param originalRepository
+     * @return true if external.
+     */
+    static boolean isExternalRepo( ArtifactRepository originalRepository )
+    {
+        try
+        {
+<span class="fc" id="L138">            URL url = new URL( originalRepository.getUrl() );</span>
+<span class="pc bpc" id="L139" title="2 of 6 branches missed.">            return !( url.getHost().equals( &quot;localhost&quot; ) || url.getHost().equals( &quot;127.0.0.1&quot; )</span>
+                            || url.getProtocol().equals( &quot;file&quot; ) );
+        }
+<span class="nc" id="L142">        catch ( MalformedURLException e )</span>
+        {
+            // bad url just skip it here. It should have been validated already, but the wagon lookup will deal with it
+<span class="nc" id="L145">            return false;</span>
+        }
+    }
+
+    static boolean matchesLayout( ArtifactRepository repository, Mirror mirror )
+    {
+<span class="fc" id="L151">        return matchesLayout( RepositoryUtils.getLayout( repository ), mirror.getMirrorOfLayouts() );</span>
+    }
+
+    /**
+     * Checks whether the layouts configured for a mirror match with the layout of the repository.
+     *
+     * @param repoLayout The layout of the repository, may be {@code null}.
+     * @param mirrorLayout The layouts supported by the mirror, may be {@code null}.
+     * @return {@code true} if the layouts associated with the mirror match the layout of the original repository,
+     *         {@code false} otherwise.
+     */
+    static boolean matchesLayout( String repoLayout, String mirrorLayout )
+    {
+<span class="fc" id="L164">        boolean result = false;</span>
+
+        // simple checks first to short circuit processing below.
+<span class="pc bpc" id="L167" title="2 of 4 branches missed.">        if ( StringUtils.isEmpty( mirrorLayout ) || WILDCARD.equals( mirrorLayout ) )</span>
+        {
+<span class="nc" id="L169">            result = true;</span>
+        }
+<span class="pc bpc" id="L171" title="1 of 2 branches missed.">        else if ( mirrorLayout.equals( repoLayout ) )</span>
+        {
+<span class="nc" id="L173">            result = true;</span>
+        }
+        else
+        {
+            // process the list
+<span class="fc" id="L178">            String[] layouts = mirrorLayout.split( &quot;,&quot; );</span>
+<span class="pc bpc" id="L179" title="1 of 2 branches missed.">            for ( String layout : layouts )</span>
+            {
+                // see if this is a negative match
+<span class="pc bpc" id="L182" title="2 of 4 branches missed.">                if ( layout.length() &gt; 1 &amp;&amp; layout.startsWith( &quot;!&quot; ) )</span>
+                {
+<span class="nc bnc" id="L184" title="All 2 branches missed.">                    if ( layout.substring( 1 ).equals( repoLayout ) )</span>
+                    {
+                        // explicitly exclude. Set result and stop processing.
+<span class="nc" id="L187">                        result = false;</span>
+<span class="nc" id="L188">                        break;</span>
+                    }
+                }
+                // check for exact match
+<span class="pc bpc" id="L192" title="1 of 2 branches missed.">                else if ( layout.equals( repoLayout ) )</span>
+                {
+<span class="fc" id="L194">                    result = true;</span>
+<span class="fc" id="L195">                    break;</span>
+                }
+<span class="nc bnc" id="L197" title="All 2 branches missed.">                else if ( WILDCARD.equals( layout ) )</span>
+                {
+<span class="nc" id="L199">                    result = true;</span>
+                    // don't stop processing in case a future segment explicitly excludes this repo
+                }
+            }
+        }
+
+<span class="fc" id="L205">        return result;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

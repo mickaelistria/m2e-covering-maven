@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MavenRepositorySystemUtils.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository.internal</a> &gt; <span class="el_source">MavenRepositorySystemUtils.java</span></div><h1>MavenRepositorySystemUtils.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository.internal;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.Properties;
+
+import org.eclipse.aether.DefaultRepositorySystemSession;
+import org.eclipse.aether.artifact.DefaultArtifactType;
+import org.eclipse.aether.collection.DependencyGraphTransformer;
+import org.eclipse.aether.collection.DependencyManager;
+import org.eclipse.aether.collection.DependencySelector;
+import org.eclipse.aether.collection.DependencyTraverser;
+import org.eclipse.aether.impl.ArtifactDescriptorReader;
+import org.eclipse.aether.impl.DefaultServiceLocator;
+import org.eclipse.aether.impl.MetadataGeneratorFactory;
+import org.eclipse.aether.impl.VersionRangeResolver;
+import org.eclipse.aether.impl.VersionResolver;
+import org.eclipse.aether.util.artifact.DefaultArtifactTypeRegistry;
+import org.eclipse.aether.util.graph.manager.ClassicDependencyManager;
+import org.eclipse.aether.util.graph.selector.AndDependencySelector;
+import org.eclipse.aether.util.graph.selector.ExclusionDependencySelector;
+import org.eclipse.aether.util.graph.selector.OptionalDependencySelector;
+import org.eclipse.aether.util.graph.selector.ScopeDependencySelector;
+import org.eclipse.aether.util.graph.transformer.ChainedDependencyGraphTransformer;
+import org.eclipse.aether.util.graph.transformer.ConflictResolver;
+import org.eclipse.aether.util.graph.transformer.JavaDependencyContextRefiner;
+import org.eclipse.aether.util.graph.transformer.JavaScopeDeriver;
+import org.eclipse.aether.util.graph.transformer.JavaScopeSelector;
+import org.eclipse.aether.util.graph.transformer.NearestVersionSelector;
+import org.eclipse.aether.util.graph.transformer.SimpleOptionalitySelector;
+import org.eclipse.aether.util.graph.traverser.FatArtifactTraverser;
+import org.eclipse.aether.util.repository.SimpleArtifactDescriptorPolicy;
+
+/**
+ * A utility class to assist in setting up a Maven-like repository system. &lt;em&gt;Note:&lt;/em&gt; This component is meant to
+ * assist those clients that employ the repository system outside of an IoC container, Maven plugins should instead
+ * always use regular dependency injection to acquire the repository system.
+ *
+ * @author Benjamin Bentmann
+ */
+public final class MavenRepositorySystemUtils
+{
+
+    private MavenRepositorySystemUtils()
+    {
+        // hide constructor
+    }
+
+    /**
+     * Creates a new service locator that already knows about all service implementations included in this library. To
+     * acquire a complete repository system, clients need to add some repository connectors for remote transfers.
+     *
+     * @return The new service locator, never {@code null}.
+     */
+    public static DefaultServiceLocator newServiceLocator()
+    {
+<span class="nc" id="L74">        DefaultServiceLocator locator = new DefaultServiceLocator();</span>
+<span class="nc" id="L75">        locator.addService( ArtifactDescriptorReader.class, DefaultArtifactDescriptorReader.class );</span>
+<span class="nc" id="L76">        locator.addService( VersionResolver.class, DefaultVersionResolver.class );</span>
+<span class="nc" id="L77">        locator.addService( VersionRangeResolver.class, DefaultVersionRangeResolver.class );</span>
+<span class="nc" id="L78">        locator.addService( MetadataGeneratorFactory.class, SnapshotMetadataGeneratorFactory.class );</span>
+<span class="nc" id="L79">        locator.addService( MetadataGeneratorFactory.class, VersionsMetadataGeneratorFactory.class );</span>
+<span class="nc" id="L80">        return locator;</span>
+    }
+
+    /**
+     * Creates a new Maven-like repository system session by initializing the session with values typical for
+     * Maven-based resolution. In more detail, this method configures settings relevant for the processing of dependency
+     * graphs, most other settings remain at their generic default value. Use the various setters to further configure
+     * the session with authentication, mirror, proxy and other information required for your environment.
+     *
+     * @return The new repository system session, never {@code null}.
+     */
+    public static DefaultRepositorySystemSession newSession()
+    {
+<span class="fc" id="L93">        DefaultRepositorySystemSession session = new DefaultRepositorySystemSession();</span>
+
+<span class="fc" id="L95">        DependencyTraverser depTraverser = new FatArtifactTraverser();</span>
+<span class="fc" id="L96">        session.setDependencyTraverser( depTraverser );</span>
+
+<span class="fc" id="L98">        DependencyManager depManager = new ClassicDependencyManager();</span>
+<span class="fc" id="L99">        session.setDependencyManager( depManager );</span>
+
+<span class="fc" id="L101">        DependencySelector depFilter =</span>
+            new AndDependencySelector( new ScopeDependencySelector( &quot;test&quot;, &quot;provided&quot; ),
+                                       new OptionalDependencySelector(), new ExclusionDependencySelector() );
+<span class="fc" id="L104">        session.setDependencySelector( depFilter );</span>
+
+<span class="fc" id="L106">        DependencyGraphTransformer transformer =</span>
+            new ConflictResolver( new NearestVersionSelector(), new JavaScopeSelector(),
+                                  new SimpleOptionalitySelector(), new JavaScopeDeriver() );
+<span class="fc" id="L109">        new ChainedDependencyGraphTransformer( transformer, new JavaDependencyContextRefiner() );</span>
+<span class="fc" id="L110">        session.setDependencyGraphTransformer( transformer );</span>
+
+<span class="fc" id="L112">        DefaultArtifactTypeRegistry stereotypes = new DefaultArtifactTypeRegistry();</span>
+<span class="fc" id="L113">        stereotypes.add( new DefaultArtifactType( &quot;pom&quot; ) );</span>
+<span class="fc" id="L114">        stereotypes.add( new DefaultArtifactType( &quot;maven-plugin&quot;, &quot;jar&quot;, &quot;&quot;, &quot;java&quot; ) );</span>
+<span class="fc" id="L115">        stereotypes.add( new DefaultArtifactType( &quot;jar&quot;, &quot;jar&quot;, &quot;&quot;, &quot;java&quot; ) );</span>
+<span class="fc" id="L116">        stereotypes.add( new DefaultArtifactType( &quot;ejb&quot;, &quot;jar&quot;, &quot;&quot;, &quot;java&quot; ) );</span>
+<span class="fc" id="L117">        stereotypes.add( new DefaultArtifactType( &quot;ejb-client&quot;, &quot;jar&quot;, &quot;client&quot;, &quot;java&quot; ) );</span>
+<span class="fc" id="L118">        stereotypes.add( new DefaultArtifactType( &quot;test-jar&quot;, &quot;jar&quot;, &quot;tests&quot;, &quot;java&quot; ) );</span>
+<span class="fc" id="L119">        stereotypes.add( new DefaultArtifactType( &quot;javadoc&quot;, &quot;jar&quot;, &quot;javadoc&quot;, &quot;java&quot; ) );</span>
+<span class="fc" id="L120">        stereotypes.add( new DefaultArtifactType( &quot;java-source&quot;, &quot;jar&quot;, &quot;sources&quot;, &quot;java&quot;, false, false ) );</span>
+<span class="fc" id="L121">        stereotypes.add( new DefaultArtifactType( &quot;war&quot;, &quot;war&quot;, &quot;&quot;, &quot;java&quot;, false, true ) );</span>
+<span class="fc" id="L122">        stereotypes.add( new DefaultArtifactType( &quot;ear&quot;, &quot;ear&quot;, &quot;&quot;, &quot;java&quot;, false, true ) );</span>
+<span class="fc" id="L123">        stereotypes.add( new DefaultArtifactType( &quot;rar&quot;, &quot;rar&quot;, &quot;&quot;, &quot;java&quot;, false, true ) );</span>
+<span class="fc" id="L124">        stereotypes.add( new DefaultArtifactType( &quot;par&quot;, &quot;par&quot;, &quot;&quot;, &quot;java&quot;, false, true ) );</span>
+<span class="fc" id="L125">        session.setArtifactTypeRegistry( stereotypes );</span>
+
+<span class="fc" id="L127">        session.setArtifactDescriptorPolicy( new SimpleArtifactDescriptorPolicy( true, true ) );</span>
+
+<span class="fc" id="L129">        final Properties systemProperties = new Properties();</span>
+        
+        // MNG-5670 guard against ConcurrentModificationException
+        // MNG-6053 guard against key without value
+<span class="fc" id="L133">        Properties sysProp = System.getProperties();</span>
+<span class="fc" id="L134">        synchronized ( sysProp )</span>
+        {
+<span class="fc" id="L136">            systemProperties.putAll( sysProp );</span>
+<span class="fc" id="L137">        }</span>
+
+<span class="fc" id="L139">        session.setSystemProperties( systemProperties );</span>
+<span class="fc" id="L140">        session.setConfigProperties( systemProperties );</span>
+
+<span class="fc" id="L142">        return session;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

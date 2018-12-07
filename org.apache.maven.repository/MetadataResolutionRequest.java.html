@@ -1,0 +1,221 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MetadataResolutionRequest.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository</a> &gt; <span class="el_source">MetadataResolutionRequest.java</span></div><h1>MetadataResolutionRequest.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.repository.ArtifactRepository;
+
+/**
+ *
+ *
+ * @author Oleg Gusakov
+ *
+ */
+public class MetadataResolutionRequest
+{
+    private MavenArtifactMetadata mad;
+
+    private String scope;
+
+    // Needs to go away
+    private Set&lt;Artifact&gt; artifactDependencies;
+
+    private ArtifactRepository localRepository;
+
+    private List&lt;ArtifactRepository&gt; remoteRepositories;
+
+    // This is like a filter but overrides all transitive versions
+    private Map managedVersionMap;
+
+    /** result type - flat list; the default */
+<span class="nc" id="L52">    private boolean asList = true;</span>
+
+    /** result type - dirty tree */
+<span class="nc" id="L55">    private boolean asDirtyTree = false;</span>
+
+    /** result type - resolved tree */
+<span class="nc" id="L58">    private boolean asResolvedTree = false;</span>
+
+    /** result type - graph */
+<span class="nc" id="L61">    private boolean asGraph = false;</span>
+
+    public MetadataResolutionRequest()
+<span class="nc" id="L64">    {</span>
+<span class="nc" id="L65">    }</span>
+
+    public MetadataResolutionRequest( MavenArtifactMetadata md, ArtifactRepository localRepository,
+                                      List&lt;ArtifactRepository&gt; remoteRepositories )
+<span class="nc" id="L69">    {</span>
+<span class="nc" id="L70">        this.mad = md;</span>
+<span class="nc" id="L71">        this.localRepository = localRepository;</span>
+<span class="nc" id="L72">        this.remoteRepositories = remoteRepositories;</span>
+<span class="nc" id="L73">    }</span>
+
+    public MavenArtifactMetadata getArtifactMetadata()
+    {
+<span class="nc" id="L77">        return mad;</span>
+    }
+
+    public MetadataResolutionRequest setArtifactMetadata( MavenArtifactMetadata md )
+    {
+<span class="nc" id="L82">        this.mad = md;</span>
+
+<span class="nc" id="L84">        return this;</span>
+    }
+
+    public MetadataResolutionRequest setArtifactDependencies( Set&lt;Artifact&gt; artifactDependencies )
+    {
+<span class="nc" id="L89">        this.artifactDependencies = artifactDependencies;</span>
+
+<span class="nc" id="L91">        return this;</span>
+    }
+
+    public Set&lt;Artifact&gt; getArtifactDependencies()
+    {
+<span class="nc" id="L96">        return artifactDependencies;</span>
+    }
+
+    public ArtifactRepository getLocalRepository()
+    {
+<span class="nc" id="L101">        return localRepository;</span>
+    }
+
+    public MetadataResolutionRequest setLocalRepository( ArtifactRepository localRepository )
+    {
+<span class="nc" id="L106">        this.localRepository = localRepository;</span>
+
+<span class="nc" id="L108">        return this;</span>
+    }
+
+    /**
+     * @deprecated instead use {@link #getRemoteRepositories()}
+     */
+    @Deprecated
+    public List&lt;ArtifactRepository&gt; getRemoteRepostories()
+    {
+<span class="nc" id="L117">        return remoteRepositories;</span>
+    }
+
+    public List&lt;ArtifactRepository&gt; getRemoteRepositories()
+    {
+<span class="nc" id="L122">        return getRemoteRepostories();</span>
+    }
+
+    /**
+     * @deprecated instead use {@link #setRemoteRepositories(List)}
+     */
+    @Deprecated
+    public MetadataResolutionRequest setRemoteRepostories( List&lt;ArtifactRepository&gt; remoteRepostories )
+    {
+<span class="nc" id="L131">        this.remoteRepositories = remoteRepostories;</span>
+
+<span class="nc" id="L133">        return this;</span>
+    }
+
+    public MetadataResolutionRequest setRemoteRepositories( List&lt;ArtifactRepository&gt; remoteRepositories )
+    {
+<span class="nc" id="L138">        return setRemoteRepostories( remoteRepositories );</span>
+    }
+
+    public Map getManagedVersionMap()
+    {
+<span class="nc" id="L143">        return managedVersionMap;</span>
+    }
+
+    public MetadataResolutionRequest setManagedVersionMap( Map managedVersionMap )
+    {
+<span class="nc" id="L148">        this.managedVersionMap = managedVersionMap;</span>
+
+<span class="nc" id="L150">        return this;</span>
+    }
+
+    public String toString()
+    {
+<span class="nc" id="L155">        StringBuilder sb = new StringBuilder()</span>
+                .append( &quot;REQUEST: &quot; ).append(  &quot;\n&quot; )
+                .append( &quot;artifact: &quot; ).append( mad ).append(  &quot;\n&quot; )
+                .append( artifactDependencies ).append(  &quot;\n&quot; )
+                .append( &quot;localRepository: &quot; ).append(  localRepository ).append(  &quot;\n&quot; )
+                .append( &quot;remoteRepositories: &quot; ).append(  remoteRepositories ).append(  &quot;\n&quot; )
+                ;
+
+<span class="nc" id="L163">        return sb.toString();</span>
+    }
+
+    public boolean isAsList()
+    {
+<span class="nc" id="L168">        return asList;</span>
+    }
+
+    public MetadataResolutionRequest setAsList( boolean asList )
+    {
+<span class="nc" id="L173">        this.asList = asList;</span>
+<span class="nc" id="L174">        return this;</span>
+    }
+
+    public boolean isAsDirtyTree()
+    {
+<span class="nc" id="L179">        return asDirtyTree;</span>
+    }
+
+    public MetadataResolutionRequest setAsDirtyTree( boolean asDirtyTree )
+    {
+<span class="nc" id="L184">        this.asDirtyTree = asDirtyTree;</span>
+<span class="nc" id="L185">        return this;</span>
+    }
+
+    public boolean isAsResolvedTree()
+    {
+<span class="nc" id="L190">        return asResolvedTree;</span>
+    }
+
+    public MetadataResolutionRequest setAsResolvedTree( boolean asResolvedTree )
+    {
+<span class="nc" id="L195">        this.asResolvedTree = asResolvedTree;</span>
+<span class="nc" id="L196">        return this;</span>
+    }
+
+    public boolean isAsGraph()
+    {
+<span class="nc" id="L201">        return asGraph;</span>
+    }
+
+    public MetadataResolutionRequest setAsGraph( boolean asGraph )
+    {
+<span class="nc" id="L206">        this.asGraph = asGraph;</span>
+<span class="nc" id="L207">        return this;</span>
+    }
+
+    public MetadataResolutionRequest setScope( String scope )
+    {
+<span class="nc" id="L212">        this.scope = scope;</span>
+<span class="nc" id="L213">        return this;</span>
+    }
+
+    public String getScope()
+    {
+<span class="nc" id="L218">        return scope;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

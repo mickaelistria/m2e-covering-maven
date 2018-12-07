@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>BootstrapCoreExtensionManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.cli.internal</a> &gt; <span class="el_source">BootstrapCoreExtensionManager.java</span></div><h1>BootstrapCoreExtensionManager.java</h1><pre class="source lang-java linenums">package org.apache.maven.cli.internal;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Set;
+
+import javax.inject.Inject;
+import javax.inject.Named;
+
+import org.apache.maven.RepositoryUtils;
+import org.apache.maven.cli.internal.extension.model.CoreExtension;
+import org.apache.maven.execution.MavenExecutionRequest;
+import org.apache.maven.extension.internal.CoreExtensionEntry;
+import org.apache.maven.internal.aether.DefaultRepositorySystemSessionFactory;
+import org.apache.maven.model.Plugin;
+import org.apache.maven.plugin.PluginResolutionException;
+import org.apache.maven.plugin.internal.DefaultPluginDependenciesResolver;
+import org.codehaus.plexus.DefaultPlexusContainer;
+import org.codehaus.plexus.PlexusContainer;
+import org.codehaus.plexus.classworlds.ClassWorld;
+import org.codehaus.plexus.classworlds.realm.ClassRealm;
+import org.codehaus.plexus.logging.Logger;
+import org.eclipse.aether.RepositorySystemSession;
+import org.eclipse.aether.artifact.Artifact;
+import org.eclipse.aether.graph.DependencyFilter;
+import org.eclipse.aether.graph.DependencyNode;
+import org.eclipse.aether.repository.RemoteRepository;
+import org.eclipse.aether.util.filter.ExclusionsDependencyFilter;
+import org.eclipse.aether.util.graph.visitor.PreorderNodeListGenerator;
+
+/**
+ * BootstrapCoreExtensionManager
+ */
+@Named
+public class BootstrapCoreExtensionManager
+{
+    private final Logger log;
+
+    private final DefaultPluginDependenciesResolver pluginDependenciesResolver;
+
+    private final DefaultRepositorySystemSessionFactory repositorySystemSessionFactory;
+
+    private final ClassWorld classWorld;
+
+    private final ClassRealm parentRealm;
+
+    @Inject
+    public BootstrapCoreExtensionManager( Logger log, DefaultPluginDependenciesResolver pluginDependenciesResolver,
+                                          DefaultRepositorySystemSessionFactory repositorySystemSessionFactory,
+                                          PlexusContainer container )
+<span class="nc" id="L72">    {</span>
+<span class="nc" id="L73">        this.log = log;</span>
+<span class="nc" id="L74">        this.pluginDependenciesResolver = pluginDependenciesResolver;</span>
+<span class="nc" id="L75">        this.repositorySystemSessionFactory = repositorySystemSessionFactory;</span>
+<span class="nc" id="L76">        this.classWorld = ( (DefaultPlexusContainer) container ).getClassWorld();</span>
+<span class="nc" id="L77">        this.parentRealm = container.getContainerRealm();</span>
+<span class="nc" id="L78">    }</span>
+
+    public List&lt;CoreExtensionEntry&gt; loadCoreExtensions( MavenExecutionRequest request, Set&lt;String&gt; providedArtifacts,
+                                                        List&lt;CoreExtension&gt; extensions )
+        throws Exception
+    {
+<span class="nc" id="L84">        RepositorySystemSession repoSession = repositorySystemSessionFactory.newRepositorySession( request );</span>
+<span class="nc" id="L85">        List&lt;RemoteRepository&gt; repositories = RepositoryUtils.toRepos( request.getPluginArtifactRepositories() );</span>
+
+<span class="nc" id="L87">        return resolveCoreExtensions( repoSession, repositories, providedArtifacts, extensions );</span>
+    }
+
+    private List&lt;CoreExtensionEntry&gt; resolveCoreExtensions( RepositorySystemSession repoSession,
+                                                            List&lt;RemoteRepository&gt; repositories,
+                                                            Set&lt;String&gt; providedArtifacts,
+                                                            List&lt;CoreExtension&gt; configuration )
+        throws Exception
+    {
+<span class="nc" id="L96">        List&lt;CoreExtensionEntry&gt; extensions = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L98">        DependencyFilter dependencyFilter = new ExclusionsDependencyFilter( providedArtifacts );</span>
+
+<span class="nc bnc" id="L100" title="All 2 branches missed.">        for ( CoreExtension extension : configuration )</span>
+        {
+<span class="nc" id="L102">            List&lt;Artifact&gt; artifacts = resolveExtension( extension, repoSession, repositories, dependencyFilter );</span>
+<span class="nc bnc" id="L103" title="All 2 branches missed.">            if ( !artifacts.isEmpty() )</span>
+            {
+<span class="nc" id="L105">                extensions.add( createExtension( extension, artifacts ) );</span>
+            }
+<span class="nc" id="L107">        }</span>
+
+<span class="nc" id="L109">        return Collections.unmodifiableList( extensions );</span>
+    }
+
+    private CoreExtensionEntry createExtension( CoreExtension extension, List&lt;Artifact&gt; artifacts )
+        throws Exception
+    {
+<span class="nc" id="L115">        String realmId =</span>
+            &quot;coreExtension&gt;&quot; + extension.getGroupId() + &quot;:&quot; + extension.getArtifactId() + &quot;:&quot; + extension.getVersion();
+<span class="nc" id="L117">        ClassRealm realm = classWorld.newRealm( realmId, null );</span>
+<span class="nc" id="L118">        log.debug( &quot;Populating class realm &quot; + realm.getId() );</span>
+<span class="nc" id="L119">        realm.setParentRealm( parentRealm );</span>
+<span class="nc bnc" id="L120" title="All 2 branches missed.">        for ( Artifact artifact : artifacts )</span>
+        {
+<span class="nc" id="L122">            File file = artifact.getFile();</span>
+<span class="nc" id="L123">            log.debug( &quot;  Included &quot; + file );</span>
+<span class="nc" id="L124">            realm.addURL( file.toURI().toURL() );</span>
+<span class="nc" id="L125">        }</span>
+<span class="nc" id="L126">        return CoreExtensionEntry.discoverFrom( realm, Collections.singleton( artifacts.get( 0 ).getFile() ) );</span>
+    }
+
+    private List&lt;Artifact&gt; resolveExtension( CoreExtension extension, RepositorySystemSession repoSession,
+                                             List&lt;RemoteRepository&gt; repositories, DependencyFilter dependencyFilter )
+        throws PluginResolutionException
+    {
+<span class="nc" id="L133">        Plugin plugin = new Plugin();</span>
+<span class="nc" id="L134">        plugin.setGroupId( extension.getGroupId() );</span>
+<span class="nc" id="L135">        plugin.setArtifactId( extension.getArtifactId() );</span>
+<span class="nc" id="L136">        plugin.setVersion( extension.getVersion() );</span>
+
+<span class="nc" id="L138">        DependencyNode root =</span>
+            pluginDependenciesResolver.resolveCoreExtension( plugin, dependencyFilter, repositories, repoSession );
+<span class="nc" id="L140">        PreorderNodeListGenerator nlg = new PreorderNodeListGenerator();</span>
+<span class="nc" id="L141">        root.accept( nlg );</span>
+<span class="nc" id="L142">        List&lt;Artifact&gt; artifacts = nlg.getArtifacts( false );</span>
+
+<span class="nc" id="L144">        return artifacts;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,278 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultSettingsBuilder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.settings.building</a> &gt; <span class="el_source">DefaultSettingsBuilder.java</span></div><h1>DefaultSettingsBuilder.java</h1><pre class="source lang-java linenums">package org.apache.maven.settings.building;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+import java.io.IOException;
+import java.io.StringReader;
+import java.io.StringWriter;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.maven.building.FileSource;
+import org.apache.maven.building.Source;
+import org.apache.maven.settings.Settings;
+import org.apache.maven.settings.TrackableBase;
+import org.apache.maven.settings.io.SettingsParseException;
+import org.apache.maven.settings.io.SettingsReader;
+import org.apache.maven.settings.io.SettingsWriter;
+import org.apache.maven.settings.merge.MavenSettingsMerger;
+import org.apache.maven.settings.validation.SettingsValidator;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
+import org.codehaus.plexus.interpolation.EnvarBasedValueSource;
+import org.codehaus.plexus.interpolation.InterpolationException;
+import org.codehaus.plexus.interpolation.InterpolationPostProcessor;
+import org.codehaus.plexus.interpolation.PropertiesBasedValueSource;
+import org.codehaus.plexus.interpolation.RegexBasedInterpolator;
+
+/**
+ * Builds the effective settings from a user settings file and/or a global settings file.
+ *
+ * @author Benjamin Bentmann
+ */
+@Component( role = SettingsBuilder.class )
+<span class="fc" id="L53">public class DefaultSettingsBuilder</span>
+    implements SettingsBuilder
+{
+
+    @Requirement
+    private SettingsReader settingsReader;
+
+    @Requirement
+    private SettingsWriter settingsWriter;
+
+    @Requirement
+    private SettingsValidator settingsValidator;
+
+<span class="fc" id="L66">    private MavenSettingsMerger settingsMerger = new MavenSettingsMerger();</span>
+
+    public DefaultSettingsBuilder setSettingsReader( SettingsReader settingsReader )
+    {
+<span class="fc" id="L70">        this.settingsReader = settingsReader;</span>
+<span class="fc" id="L71">        return this;</span>
+    }
+
+    public DefaultSettingsBuilder setSettingsWriter( SettingsWriter settingsWriter )
+    {
+<span class="fc" id="L76">        this.settingsWriter = settingsWriter;</span>
+<span class="fc" id="L77">        return this;</span>
+    }
+
+    public DefaultSettingsBuilder setSettingsValidator( SettingsValidator settingsValidator )
+    {
+<span class="fc" id="L82">        this.settingsValidator = settingsValidator;</span>
+<span class="fc" id="L83">        return this;</span>
+    }
+
+    @Override
+    public SettingsBuildingResult build( SettingsBuildingRequest request )
+        throws SettingsBuildingException
+    {
+<span class="fc" id="L90">        DefaultSettingsProblemCollector problems = new DefaultSettingsProblemCollector( null );</span>
+
+<span class="fc" id="L92">        Source globalSettingsSource =</span>
+            getSettingsSource( request.getGlobalSettingsFile(), request.getGlobalSettingsSource() );
+<span class="fc" id="L94">        Settings globalSettings = readSettings( globalSettingsSource, request, problems );</span>
+
+<span class="fc" id="L96">        Source userSettingsSource =</span>
+            getSettingsSource( request.getUserSettingsFile(), request.getUserSettingsSource() );
+<span class="fc" id="L98">        Settings userSettings = readSettings( userSettingsSource, request, problems );</span>
+
+<span class="fc" id="L100">        settingsMerger.merge( userSettings, globalSettings, TrackableBase.GLOBAL_LEVEL );</span>
+
+<span class="fc" id="L102">        problems.setSource( &quot;&quot; );</span>
+
+<span class="fc" id="L104">        userSettings = interpolate( userSettings, request, problems );</span>
+
+        // for the special case of a drive-relative Windows path, make sure it's absolute to save plugins from trouble
+<span class="fc" id="L107">        String localRepository = userSettings.getLocalRepository();</span>
+<span class="pc bpc" id="L108" title="1 of 4 branches missed.">        if ( localRepository != null &amp;&amp; localRepository.length() &gt; 0 )</span>
+        {
+<span class="fc" id="L110">            File file = new File( localRepository );</span>
+<span class="pc bpc" id="L111" title="1 of 4 branches missed.">            if ( !file.isAbsolute() &amp;&amp; file.getPath().startsWith( File.separator ) )</span>
+            {
+<span class="nc" id="L113">                userSettings.setLocalRepository( file.getAbsolutePath() );</span>
+            }
+        }
+
+<span class="fc bfc" id="L117" title="All 2 branches covered.">        if ( hasErrors( problems.getProblems() ) )</span>
+        {
+<span class="fc" id="L119">            throw new SettingsBuildingException( problems.getProblems() );</span>
+        }
+
+<span class="fc" id="L122">        return new DefaultSettingsBuildingResult( userSettings, problems.getProblems() );</span>
+    }
+
+    private boolean hasErrors( List&lt;SettingsProblem&gt; problems )
+    {
+<span class="pc bpc" id="L127" title="1 of 2 branches missed.">        if ( problems != null )</span>
+        {
+<span class="fc bfc" id="L129" title="All 2 branches covered.">            for ( SettingsProblem problem : problems )</span>
+            {
+<span class="fc bfc" id="L131" title="All 2 branches covered.">                if ( SettingsProblem.Severity.ERROR.compareTo( problem.getSeverity() ) &gt;= 0 )</span>
+                {
+<span class="fc" id="L133">                    return true;</span>
+                }
+<span class="fc" id="L135">            }</span>
+        }
+
+<span class="fc" id="L138">        return false;</span>
+    }
+
+    private Source getSettingsSource( File settingsFile, Source settingsSource )
+    {
+<span class="pc bpc" id="L143" title="1 of 2 branches missed.">        if ( settingsSource != null )</span>
+        {
+<span class="nc" id="L145">            return settingsSource;</span>
+        }
+<span class="pc bpc" id="L147" title="1 of 4 branches missed.">        else if ( settingsFile != null &amp;&amp; settingsFile.exists() )</span>
+        {
+<span class="fc" id="L149">            return new FileSource( settingsFile );</span>
+        }
+<span class="fc" id="L151">        return null;</span>
+    }
+
+    private Settings readSettings( Source settingsSource, SettingsBuildingRequest request,
+                                   DefaultSettingsProblemCollector problems )
+    {
+<span class="fc bfc" id="L157" title="All 2 branches covered.">        if ( settingsSource == null )</span>
+        {
+<span class="fc" id="L159">            return new Settings();</span>
+        }
+
+<span class="fc" id="L162">        problems.setSource( settingsSource.getLocation() );</span>
+
+        Settings settings;
+
+        try
+        {
+<span class="fc" id="L168">            Map&lt;String, ?&gt; options = Collections.singletonMap( SettingsReader.IS_STRICT, Boolean.TRUE );</span>
+
+            try
+            {
+<span class="fc" id="L172">                settings = settingsReader.read( settingsSource.getInputStream(), options );</span>
+            }
+<span class="fc" id="L174">            catch ( SettingsParseException e )</span>
+            {
+<span class="fc" id="L176">                options = Collections.singletonMap( SettingsReader.IS_STRICT, Boolean.FALSE );</span>
+
+<span class="fc" id="L178">                settings = settingsReader.read( settingsSource.getInputStream(), options );</span>
+
+<span class="fc" id="L180">                problems.add( SettingsProblem.Severity.WARNING, e.getMessage(), e.getLineNumber(), e.getColumnNumber(),</span>
+                              e );
+<span class="fc" id="L182">            }</span>
+        }
+<span class="fc" id="L184">        catch ( SettingsParseException e )</span>
+        {
+<span class="fc" id="L186">            problems.add( SettingsProblem.Severity.FATAL, &quot;Non-parseable settings &quot; + settingsSource.getLocation()</span>
+                + &quot;: &quot; + e.getMessage(), e.getLineNumber(), e.getColumnNumber(), e );
+<span class="fc" id="L188">            return new Settings();</span>
+        }
+<span class="nc" id="L190">        catch ( IOException e )</span>
+        {
+<span class="nc" id="L192">            problems.add( SettingsProblem.Severity.FATAL, &quot;Non-readable settings &quot; + settingsSource.getLocation()</span>
+                + &quot;: &quot; + e.getMessage(), -1, -1, e );
+<span class="nc" id="L194">            return new Settings();</span>
+<span class="fc" id="L195">        }</span>
+
+<span class="fc" id="L197">        settingsValidator.validate( settings, problems );</span>
+
+<span class="fc" id="L199">        return settings;</span>
+    }
+
+    private Settings interpolate( Settings settings, SettingsBuildingRequest request,
+                                  SettingsProblemCollector problems )
+    {
+<span class="fc" id="L205">        StringWriter writer = new StringWriter( 1024 * 4 );</span>
+
+        try
+        {
+<span class="fc" id="L209">            settingsWriter.write( writer, null, settings );</span>
+        }
+<span class="nc" id="L211">        catch ( IOException e )</span>
+        {
+<span class="nc" id="L213">            throw new IllegalStateException( &quot;Failed to serialize settings to memory&quot;, e );</span>
+<span class="fc" id="L214">        }</span>
+
+<span class="fc" id="L216">        String serializedSettings = writer.toString();</span>
+
+<span class="fc" id="L218">        RegexBasedInterpolator interpolator = new RegexBasedInterpolator();</span>
+
+<span class="fc" id="L220">        interpolator.addValueSource( new PropertiesBasedValueSource( request.getUserProperties() ) );</span>
+
+<span class="fc" id="L222">        interpolator.addValueSource( new PropertiesBasedValueSource( request.getSystemProperties() ) );</span>
+
+        try
+        {
+<span class="fc" id="L226">            interpolator.addValueSource( new EnvarBasedValueSource() );</span>
+        }
+<span class="nc" id="L228">        catch ( IOException e )</span>
+        {
+<span class="nc" id="L230">            problems.add( SettingsProblem.Severity.WARNING, &quot;Failed to use environment variables for interpolation: &quot;</span>
+                + e.getMessage(), -1, -1, e );
+<span class="fc" id="L232">        }</span>
+
+<span class="fc" id="L234">        interpolator.addPostProcessor( new InterpolationPostProcessor()</span>
+<span class="fc" id="L235">        {</span>
+            @Override
+            public Object execute( String expression, Object value )
+            {
+<span class="pc bpc" id="L239" title="1 of 2 branches missed.">                if ( value != null )</span>
+                {
+                    // we're going to parse this back in as XML so we need to escape XML markup
+<span class="fc" id="L242">                    value = value.toString().replace( &quot;&amp;&quot;, &quot;&amp;amp;&quot; ).replace( &quot;&lt;&quot;, &quot;&amp;lt;&quot; ).replace( &quot;&gt;&quot;, &quot;&amp;gt;&quot; );</span>
+<span class="fc" id="L243">                    return value;</span>
+                }
+<span class="nc" id="L245">                return null;</span>
+            }
+        } );
+
+        try
+        {
+<span class="fc" id="L251">            serializedSettings = interpolator.interpolate( serializedSettings, &quot;settings&quot; );</span>
+        }
+<span class="nc" id="L253">        catch ( InterpolationException e )</span>
+        {
+<span class="nc" id="L255">            problems.add( SettingsProblem.Severity.ERROR, &quot;Failed to interpolate settings: &quot; + e.getMessage(), -1, -1,</span>
+                          e );
+
+<span class="nc" id="L258">            return settings;</span>
+<span class="fc" id="L259">        }</span>
+
+        Settings result;
+        try
+        {
+<span class="fc" id="L264">            Map&lt;String, ?&gt; options = Collections.singletonMap( SettingsReader.IS_STRICT, Boolean.FALSE );</span>
+<span class="fc" id="L265">            result = settingsReader.read( new StringReader( serializedSettings ), options );</span>
+        }
+<span class="nc" id="L267">        catch ( IOException e )</span>
+        {
+<span class="nc" id="L269">            problems.add( SettingsProblem.Severity.ERROR, &quot;Failed to interpolate settings: &quot; + e.getMessage(), -1, -1,</span>
+                          e );
+<span class="nc" id="L271">            return settings;</span>
+<span class="fc" id="L272">        }</span>
+
+<span class="fc" id="L274">        return result;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

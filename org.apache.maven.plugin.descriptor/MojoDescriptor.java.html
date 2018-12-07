@@ -1,0 +1,719 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MojoDescriptor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.plugin.descriptor</a> &gt; <span class="el_source">MojoDescriptor.java</span></div><h1>MojoDescriptor.java</h1><pre class="source lang-java linenums">package org.apache.maven.plugin.descriptor;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.maven.plugin.Mojo;
+import org.codehaus.plexus.component.repository.ComponentDescriptor;
+import org.codehaus.plexus.configuration.PlexusConfiguration;
+import org.codehaus.plexus.configuration.xml.XmlPlexusConfiguration;
+
+/**
+ * The bean containing the Mojo descriptor.&lt;br&gt;
+ * For more information about the usage tag, have a look to:
+ * &lt;a href=&quot;https://maven.apache.org/developers/mojo-api-specification.html&quot;&gt;
+ * https://maven.apache.org/developers/mojo-api-specification.html&lt;/a&gt;
+ *
+ * TODO is there a need for the delegation of MavenMojoDescriptor to this?
+ * Why not just extend ComponentDescriptor here?
+ */
+public class MojoDescriptor
+    extends ComponentDescriptor&lt;Mojo&gt;
+    implements Cloneable
+{
+    /** The Plexus component type */
+    public static final String MAVEN_PLUGIN = &quot;maven-plugin&quot;;
+
+    /** &quot;once-per-session&quot; execution strategy */
+    public static final String SINGLE_PASS_EXEC_STRATEGY = &quot;once-per-session&quot;;
+
+    /** &quot;always&quot; execution strategy */
+    public static final String MULTI_PASS_EXEC_STRATEGY = &quot;always&quot;;
+
+    private static final String DEFAULT_INSTANTIATION_STRATEGY = &quot;per-lookup&quot;;
+
+    private static final String DEFAULT_LANGUAGE = &quot;java&quot;;
+
+    private List&lt;Parameter&gt; parameters;
+
+    private Map&lt;String, Parameter&gt; parameterMap;
+
+    /** By default, the execution strategy is &quot;once-per-session&quot; */
+<span class="fc" id="L63">    private String executionStrategy = SINGLE_PASS_EXEC_STRATEGY;</span>
+
+    /**
+     * The goal name for the Mojo, that users will reference from the command line to execute the Mojo directly, or
+     * inside a POM in order to provide Mojo-specific configuration.
+     */
+    private String goal;
+
+    /**
+     * Defines a default phase to bind a mojo execution to if the user does not explicitly set a phase in the POM.
+     * &lt;i&gt;Note:&lt;/i&gt; This will not automagically make a mojo run when the plugin declaration is added to the POM. It
+     * merely enables the user to omit the &lt;code&gt;&amp;lt;phase&amp;gt;&lt;/code&gt; element from the surrounding
+     * &lt;code&gt;&amp;lt;execution&amp;gt;&lt;/code&gt; element.
+     */
+    private String phase;
+
+    /** Specify the version when the Mojo was added to the API. Similar to Javadoc since. */
+    private String since;
+
+    /** Reference the invocation phase of the Mojo. */
+    private String executePhase;
+
+    /** Reference the invocation goal of the Mojo. */
+    private String executeGoal;
+
+    /** Reference the invocation lifecycle of the Mojo. */
+    private String executeLifecycle;
+
+    /**
+     * Specify the version when the Mojo was deprecated to the API. Similar to Javadoc deprecated. This will trigger a
+     * warning when a user tries to configure a parameter marked as deprecated.
+     */
+    private String deprecated;
+
+    /**
+     * Flags this Mojo to run it in a multi module way, i.e. aggregate the build with the set of projects listed as
+     * modules. By default, no need to aggregate the Maven project and its child modules
+     */
+<span class="fc" id="L101">    private boolean aggregator = false;</span>
+
+    // ----------------------------------------------------------------------
+    //
+    // ----------------------------------------------------------------------
+
+    /** Specify the required dependencies in a specified scope */
+<span class="fc" id="L108">    private String dependencyResolutionRequired = null;</span>
+
+    /**
+     * The scope of (transitive) dependencies that should be collected but not resolved.
+     * @since 3.0-alpha-3
+     */
+    private String dependencyCollectionRequired;
+
+    /**  By default, the Mojo needs a Maven project to be executed */
+<span class="fc" id="L117">    private boolean projectRequired = true;</span>
+
+    /**  By default, the Mojo is assumed to work offline as well */
+<span class="fc" id="L120">    private boolean onlineRequired = false;</span>
+
+    /**  Plugin configuration */
+    private PlexusConfiguration mojoConfiguration;
+
+    /**  Plugin descriptor */
+    private PluginDescriptor pluginDescriptor;
+
+    /**  By default, the Mojo is inherited */
+<span class="fc" id="L129">    private boolean inheritedByDefault = true;</span>
+
+    /**  By default, the Mojo cannot be invoked directly */
+<span class="fc" id="L132">    private boolean directInvocationOnly = false;</span>
+
+    /**  By default, the Mojo don't need reports to run */
+<span class="fc" id="L135">    private boolean requiresReports = false;</span>
+
+    /**
+     * By default, mojos are not threadsafe
+     * @since 3.0-beta-2
+     */
+<span class="fc" id="L141">    private boolean threadSafe = false;</span>
+
+    /**
+     * Default constructor.
+     */
+    public MojoDescriptor()
+<span class="fc" id="L147">    {</span>
+<span class="fc" id="L148">        setInstantiationStrategy( DEFAULT_INSTANTIATION_STRATEGY );</span>
+<span class="fc" id="L149">        setComponentFactory( DEFAULT_LANGUAGE );</span>
+<span class="fc" id="L150">    }</span>
+
+    // ----------------------------------------------------------------------
+    //
+    // ----------------------------------------------------------------------
+
+    /**
+     * @return the language of this Mojo, i.e. &lt;code&gt;java&lt;/code&gt;
+     */
+    public String getLanguage()
+    {
+<span class="nc" id="L161">        return getComponentFactory();</span>
+    }
+
+    /**
+     * @param language the new language
+     */
+    public void setLanguage( String language )
+    {
+<span class="fc" id="L169">        setComponentFactory( language );</span>
+<span class="fc" id="L170">    }</span>
+
+    /**
+     * @return &lt;code&gt;true&lt;/code&gt; if the Mojo is deprecated, &lt;code&gt;false&lt;/code&gt; otherwise.
+     */
+    public String getDeprecated()
+    {
+<span class="nc" id="L177">        return deprecated;</span>
+    }
+
+    /**
+     * @param deprecated &lt;code&gt;true&lt;/code&gt; to deprecate the Mojo, &lt;code&gt;false&lt;/code&gt; otherwise.
+     */
+    public void setDeprecated( String deprecated )
+    {
+<span class="fc" id="L185">        this.deprecated = deprecated;</span>
+<span class="fc" id="L186">    }</span>
+
+    /**
+     * @return the list of parameters
+     */
+    public List&lt;Parameter&gt; getParameters()
+    {
+<span class="fc" id="L193">        return parameters;</span>
+    }
+
+    /**
+     * @param parameters the new list of parameters
+     * @throws DuplicateParameterException if any
+     */
+    public void setParameters( List&lt;Parameter&gt; parameters )
+        throws DuplicateParameterException
+    {
+<span class="fc bfc" id="L203" title="All 2 branches covered.">        for ( Parameter parameter : parameters )</span>
+        {
+<span class="fc" id="L205">            addParameter( parameter );</span>
+<span class="fc" id="L206">        }</span>
+<span class="fc" id="L207">    }</span>
+
+    /**
+     * @param parameter add a new parameter
+     * @throws DuplicateParameterException if any
+     */
+    public void addParameter( Parameter parameter )
+        throws DuplicateParameterException
+    {
+<span class="pc bpc" id="L216" title="1 of 4 branches missed.">        if ( parameters != null &amp;&amp; parameters.contains( parameter ) )</span>
+        {
+<span class="nc" id="L218">            throw new DuplicateParameterException( parameter.getName()</span>
+                + &quot; has been declared multiple times in mojo with goal: &quot; + getGoal() + &quot; (implementation: &quot;
+                + getImplementation() + &quot;)&quot; );
+        }
+
+<span class="fc bfc" id="L223" title="All 2 branches covered.">        if ( parameters == null )</span>
+        {
+<span class="fc" id="L225">            parameters = new LinkedList&lt;&gt;();</span>
+        }
+
+<span class="fc" id="L228">        parameters.add( parameter );</span>
+<span class="fc" id="L229">    }</span>
+
+    /**
+     * @return the list parameters as a Map
+     */
+    public Map&lt;String, Parameter&gt; getParameterMap()
+    {
+<span class="nc bnc" id="L236" title="All 2 branches missed.">        if ( parameterMap == null )</span>
+        {
+<span class="nc" id="L238">            parameterMap = new HashMap&lt;&gt;();</span>
+
+<span class="nc bnc" id="L240" title="All 2 branches missed.">            if ( parameters != null )</span>
+            {
+<span class="nc bnc" id="L242" title="All 2 branches missed.">                for ( Parameter pd : parameters )</span>
+                {
+<span class="nc" id="L244">                    parameterMap.put( pd.getName(), pd );</span>
+<span class="nc" id="L245">                }</span>
+            }
+        }
+
+<span class="nc" id="L249">        return parameterMap;</span>
+    }
+
+    // ----------------------------------------------------------------------
+    // Dependency requirement
+    // ----------------------------------------------------------------------
+
+    /**
+     * @param requiresDependencyResolution the new required dependencies in a specified scope
+     */
+    public void setDependencyResolutionRequired( String requiresDependencyResolution )
+    {
+<span class="fc" id="L261">        this.dependencyResolutionRequired = requiresDependencyResolution;</span>
+<span class="fc" id="L262">    }</span>
+
+    public String getDependencyResolutionRequired()
+    {
+<span class="fc" id="L266">        return dependencyResolutionRequired;</span>
+    }
+
+    /**
+     * @return the required dependencies in a specified scope
+     * TODO the name is not intelligible
+     */
+    @Deprecated
+    public String isDependencyResolutionRequired()
+    {
+<span class="nc" id="L276">        return dependencyResolutionRequired;</span>
+    }
+
+    /**
+     * @since 3.0-alpha-3
+     */
+    public void setDependencyCollectionRequired( String requiresDependencyCollection )
+    {
+<span class="nc" id="L284">        this.dependencyCollectionRequired = requiresDependencyCollection;</span>
+<span class="nc" id="L285">    }</span>
+
+    /**
+     * Gets the scope of (transitive) dependencies that should be collected. Dependency collection refers to the process
+     * of calculating the complete dependency tree in terms of artifact coordinates. In contrast to dependency
+     * resolution, this does not include the download of the files for the dependency artifacts. It is meant for mojos
+     * that only want to analyze the set of transitive dependencies, in particular during early lifecycle phases where
+     * full dependency resolution might fail due to projects which haven't been built yet.
+     *
+     * @return The scope of (transitive) dependencies that should be collected or {@code null} if none.
+     * @since 3.0-alpha-3
+     */
+    public String getDependencyCollectionRequired()
+    {
+<span class="fc" id="L299">        return dependencyCollectionRequired;</span>
+    }
+
+    // ----------------------------------------------------------------------
+    // Project requirement
+    // ----------------------------------------------------------------------
+
+    /**
+     * @param requiresProject &lt;code&gt;true&lt;/code&gt; if the Mojo needs a Maven project to be executed, &lt;code&gt;false&lt;/code&gt;
+     * otherwise.
+     */
+    public void setProjectRequired( boolean requiresProject )
+    {
+<span class="fc" id="L312">        this.projectRequired = requiresProject;</span>
+<span class="fc" id="L313">    }</span>
+
+    /**
+     * @return &lt;code&gt;true&lt;/code&gt; if the Mojo needs a Maven project to be executed, &lt;code&gt;false&lt;/code&gt; otherwise.
+     */
+    public boolean isProjectRequired()
+    {
+<span class="nc" id="L320">        return projectRequired;</span>
+    }
+
+    // ----------------------------------------------------------------------
+    // Online vs. Offline requirement
+    // ----------------------------------------------------------------------
+
+    /**
+     * @param requiresOnline &lt;code&gt;true&lt;/code&gt; if the Mojo is online, &lt;code&gt;false&lt;/code&gt; otherwise.
+     */
+    public void setOnlineRequired( boolean requiresOnline )
+    {
+<span class="fc" id="L332">        this.onlineRequired = requiresOnline;</span>
+<span class="fc" id="L333">    }</span>
+
+    /**
+     * @return &lt;code&gt;true&lt;/code&gt; if the Mojo is online, &lt;code&gt;false&lt;/code&gt; otherwise.
+     */
+    // blech! this isn't even intelligible as a method name. provided for
+    // consistency...
+    public boolean isOnlineRequired()
+    {
+<span class="nc" id="L342">        return onlineRequired;</span>
+    }
+
+    /**
+     * @return &lt;code&gt;true&lt;/code&gt; if the Mojo is online, &lt;code&gt;false&lt;/code&gt; otherwise.
+     */
+    // more english-friendly method...keep the code clean! :)
+    public boolean requiresOnline()
+    {
+<span class="nc" id="L351">        return onlineRequired;</span>
+    }
+
+    /**
+     * @return the binded phase name of the Mojo
+     */
+    public String getPhase()
+    {
+<span class="fc" id="L359">        return phase;</span>
+    }
+
+    /**
+     * @param phase the new binded phase name of the Mojo
+     */
+    public void setPhase( String phase )
+    {
+<span class="fc" id="L367">        this.phase = phase;</span>
+<span class="fc" id="L368">    }</span>
+
+    /**
+     * @return the version when the Mojo was added to the API
+     */
+    public String getSince()
+    {
+<span class="nc" id="L375">        return since;</span>
+    }
+
+    /**
+     * @param since the new version when the Mojo was added to the API
+     */
+    public void setSince( String since )
+    {
+<span class="fc" id="L383">        this.since = since;</span>
+<span class="fc" id="L384">    }</span>
+
+    /**
+     * @return The goal name of the Mojo
+     */
+    public String getGoal()
+    {
+<span class="fc" id="L391">        return goal;</span>
+    }
+
+    /**
+     * @param goal The new goal name of the Mojo
+     */
+    public void setGoal( String goal )
+    {
+<span class="fc" id="L399">        this.goal = goal;</span>
+<span class="fc" id="L400">    }</span>
+
+    /**
+     * @return the invocation phase of the Mojo
+     */
+    public String getExecutePhase()
+    {
+<span class="fc" id="L407">        return executePhase;</span>
+    }
+
+    /**
+     * @param executePhase the new invocation phase of the Mojo
+     */
+    public void setExecutePhase( String executePhase )
+    {
+<span class="nc" id="L415">        this.executePhase = executePhase;</span>
+<span class="nc" id="L416">    }</span>
+
+    /**
+     * @return &lt;code&gt;true&lt;/code&gt; if the Mojo uses &lt;code&gt;always&lt;/code&gt; for the &lt;code&gt;executionStrategy&lt;/code&gt;
+     */
+    public boolean alwaysExecute()
+    {
+<span class="nc" id="L423">        return MULTI_PASS_EXEC_STRATEGY.equals( executionStrategy );</span>
+    }
+
+    /**
+     * @return the execution strategy
+     */
+    public String getExecutionStrategy()
+    {
+<span class="nc" id="L431">        return executionStrategy;</span>
+    }
+
+    /**
+     * @param executionStrategy the new execution strategy
+     */
+    public void setExecutionStrategy( String executionStrategy )
+    {
+<span class="nc" id="L439">        this.executionStrategy = executionStrategy;</span>
+<span class="nc" id="L440">    }</span>
+
+    /**
+     * @return the mojo configuration
+     */
+    public PlexusConfiguration getMojoConfiguration()
+    {
+<span class="pc bpc" id="L447" title="1 of 2 branches missed.">        if ( mojoConfiguration == null )</span>
+        {
+<span class="nc" id="L449">            mojoConfiguration = new XmlPlexusConfiguration( &quot;configuration&quot; );</span>
+        }
+<span class="fc" id="L451">        return mojoConfiguration;</span>
+    }
+
+    /**
+     * @param mojoConfiguration a new mojo configuration
+     */
+    public void setMojoConfiguration( PlexusConfiguration mojoConfiguration )
+    {
+<span class="fc" id="L459">        this.mojoConfiguration = mojoConfiguration;</span>
+<span class="fc" id="L460">    }</span>
+
+    /** {@inheritDoc} */
+    public String getRole()
+    {
+<span class="fc" id="L465">        return Mojo.ROLE;</span>
+    }
+
+    /** {@inheritDoc} */
+    public String getRoleHint()
+    {
+<span class="fc" id="L471">        return getId();</span>
+    }
+
+    /**
+     * @return the id of the mojo, based on the goal name
+     */
+    public String getId()
+    {
+<span class="fc" id="L479">        return getPluginDescriptor().getId() + &quot;:&quot; + getGoal();</span>
+    }
+
+    /**
+     * @return the full goal name
+     * @see PluginDescriptor#getGoalPrefix()
+     * @see #getGoal()
+     */
+    public String getFullGoalName()
+    {
+<span class="nc" id="L489">        return getPluginDescriptor().getGoalPrefix() + &quot;:&quot; + getGoal();</span>
+    }
+
+    /** {@inheritDoc} */
+    public String getComponentType()
+    {
+<span class="nc" id="L495">        return MAVEN_PLUGIN;</span>
+    }
+
+    /**
+     * @return the plugin descriptor
+     */
+    public PluginDescriptor getPluginDescriptor()
+    {
+<span class="fc" id="L503">        return pluginDescriptor;</span>
+    }
+
+    /**
+     * @param pluginDescriptor the new plugin descriptor
+     */
+    public void setPluginDescriptor( PluginDescriptor pluginDescriptor )
+    {
+<span class="fc" id="L511">        this.pluginDescriptor = pluginDescriptor;</span>
+<span class="fc" id="L512">    }</span>
+
+    /**
+     * @return &lt;code&gt;true&lt;/code&gt; if the Mojo is inherited, &lt;code&gt;false&lt;/code&gt; otherwise.
+     */
+    public boolean isInheritedByDefault()
+    {
+<span class="nc" id="L519">        return inheritedByDefault;</span>
+    }
+
+    /**
+     * @param inheritedByDefault &lt;code&gt;true&lt;/code&gt; if the Mojo is inherited, &lt;code&gt;false&lt;/code&gt; otherwise.
+     */
+    public void setInheritedByDefault( boolean inheritedByDefault )
+    {
+<span class="fc" id="L527">        this.inheritedByDefault = inheritedByDefault;</span>
+<span class="fc" id="L528">    }</span>
+
+    /** {@inheritDoc} */
+    public boolean equals( Object object )
+    {
+<span class="pc bpc" id="L533" title="1 of 2 branches missed.">        if ( this == object )</span>
+        {
+<span class="nc" id="L535">            return true;</span>
+        }
+
+<span class="pc bpc" id="L538" title="1 of 2 branches missed.">        if ( object instanceof MojoDescriptor )</span>
+        {
+<span class="fc" id="L540">            MojoDescriptor other = (MojoDescriptor) object;</span>
+
+<span class="pc bpc" id="L542" title="1 of 2 branches missed.">            if ( !compareObjects( getPluginDescriptor(), other.getPluginDescriptor() ) )</span>
+            {
+<span class="nc" id="L544">                return false;</span>
+            }
+
+<span class="fc" id="L547">            return compareObjects( getGoal(), other.getGoal() );</span>
+
+        }
+
+<span class="nc" id="L551">        return false;</span>
+    }
+
+    private boolean compareObjects( Object first, Object second )
+    {
+<span class="fc bfc" id="L556" title="All 2 branches covered.">        if ( first == second )</span>
+        {
+<span class="fc" id="L558">            return true;</span>
+        }
+
+<span class="pc bpc" id="L561" title="2 of 4 branches missed.">        if ( first == null || second == null )</span>
+        {
+<span class="nc" id="L563">            return false;</span>
+        }
+
+<span class="fc" id="L566">        return first.equals( second );</span>
+    }
+
+    /** {@inheritDoc} */
+    public int hashCode()
+    {
+<span class="nc" id="L572">        int result = 1;</span>
+
+<span class="nc" id="L574">        String goal = getGoal();</span>
+
+<span class="nc bnc" id="L576" title="All 2 branches missed.">        if ( goal != null )</span>
+        {
+<span class="nc" id="L578">            result += goal.hashCode();</span>
+        }
+
+<span class="nc" id="L581">        PluginDescriptor pd = getPluginDescriptor();</span>
+
+<span class="nc bnc" id="L583" title="All 2 branches missed.">        if ( pd != null )</span>
+        {
+<span class="nc" id="L585">            result -= pd.hashCode();</span>
+        }
+
+<span class="nc" id="L588">        return result;</span>
+    }
+
+    /**
+     * @return the invocation lifecycle of the Mojo
+     */
+    public String getExecuteLifecycle()
+    {
+<span class="nc" id="L596">        return executeLifecycle;</span>
+    }
+
+    /**
+     * @param executeLifecycle the new invocation lifecycle of the Mojo
+     */
+    public void setExecuteLifecycle( String executeLifecycle )
+    {
+<span class="nc" id="L604">        this.executeLifecycle = executeLifecycle;</span>
+<span class="nc" id="L605">    }</span>
+
+    /**
+     * @param aggregator &lt;code&gt;true&lt;/code&gt; if the Mojo uses the Maven project and its child modules,
+     * &lt;code&gt;false&lt;/code&gt; otherwise.
+     */
+    public void setAggregator( boolean aggregator )
+    {
+<span class="fc" id="L613">        this.aggregator = aggregator;</span>
+<span class="fc" id="L614">    }</span>
+
+    /**
+     * @return &lt;code&gt;true&lt;/code&gt; if the Mojo uses the Maven project and its child modules,
+     * &lt;code&gt;false&lt;/code&gt; otherwise.
+     */
+    public boolean isAggregator()
+    {
+<span class="fc" id="L622">        return aggregator;</span>
+    }
+
+    /**
+     * @return &lt;code&gt;true&lt;/code&gt; if the Mojo cannot be invoked directly, &lt;code&gt;false&lt;/code&gt; otherwise.
+     */
+    public boolean isDirectInvocationOnly()
+    {
+<span class="nc" id="L630">        return directInvocationOnly;</span>
+    }
+
+    /**
+     * @param directInvocationOnly &lt;code&gt;true&lt;/code&gt; if the Mojo cannot be invoked directly,
+     * &lt;code&gt;false&lt;/code&gt; otherwise.
+     */
+    public void setDirectInvocationOnly( boolean directInvocationOnly )
+    {
+<span class="fc" id="L639">        this.directInvocationOnly = directInvocationOnly;</span>
+<span class="fc" id="L640">    }</span>
+
+    /**
+     * @return &lt;code&gt;true&lt;/code&gt; if the Mojo needs reports to run, &lt;code&gt;false&lt;/code&gt; otherwise.
+     */
+    public boolean isRequiresReports()
+    {
+<span class="nc" id="L647">        return requiresReports;</span>
+    }
+
+    /**
+     * @param requiresReports &lt;code&gt;true&lt;/code&gt; if the Mojo needs reports to run, &lt;code&gt;false&lt;/code&gt; otherwise.
+     */
+    public void setRequiresReports( boolean requiresReports )
+    {
+<span class="fc" id="L655">        this.requiresReports = requiresReports;</span>
+<span class="fc" id="L656">    }</span>
+
+    /**
+     * @param executeGoal the new invocation goal of the Mojo
+     */
+    public void setExecuteGoal( String executeGoal )
+    {
+<span class="nc" id="L663">        this.executeGoal = executeGoal;</span>
+<span class="nc" id="L664">    }</span>
+
+    /**
+     * @return the invocation goal of the Mojo
+     */
+    public String getExecuteGoal()
+    {
+<span class="fc" id="L671">        return executeGoal;</span>
+    }
+
+
+    /**
+     * @return True if the &lt;code&gt;Mojo&lt;/code&gt; is thread-safe and can be run safely in parallel
+     * @since 3.0-beta-2
+     */
+    public boolean isThreadSafe()
+    {
+<span class="nc" id="L681">        return threadSafe;</span>
+    }
+
+    /**
+     * @param threadSafe indicates that the mojo is thread-safe and can be run safely in parallel
+     * @since 3.0-beta-2
+     */
+    public void setThreadSafe( boolean threadSafe )
+    {
+<span class="fc" id="L690">        this.threadSafe = threadSafe;</span>
+<span class="fc" id="L691">    }</span>
+
+    /**
+     * @return {@code true} if this mojo forks either a goal or the lifecycle, {@code false} otherwise.
+     */
+    public boolean isForking()
+    {
+<span class="pc bpc" id="L698" title="6 of 8 branches missed.">        return ( getExecuteGoal() != null &amp;&amp; getExecuteGoal().length() &gt; 0 )</span>
+            || ( getExecutePhase() != null &amp;&amp; getExecutePhase().length() &gt; 0 );
+    }
+
+    /**
+     * Creates a shallow copy of this mojo descriptor.
+     */
+    @Override
+    public MojoDescriptor clone()
+    {
+        try
+        {
+<span class="fc" id="L710">            return (MojoDescriptor) super.clone();</span>
+        }
+<span class="nc" id="L712">        catch ( CloneNotSupportedException e )</span>
+        {
+<span class="nc" id="L714">            throw new UnsupportedOperationException( e );</span>
+        }
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

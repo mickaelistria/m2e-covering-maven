@@ -1,0 +1,90 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>StaticLoggerBinder.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">JaCoCo Ant Example</a> &gt; <a href="index.source.html" class="el_package">org.slf4j.impl</a> &gt; <span class="el_source">StaticLoggerBinder.java</span></div><h1>StaticLoggerBinder.java</h1><pre class="source lang-java linenums">package org.slf4j.impl;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.slf4j.ILoggerFactory;
+import org.slf4j.spi.LoggerFactoryBinder;
+
+/**
+ * SLF4J LoggerFactoryBinder implementation using MavenSimpleLogger.
+ * This class is part of the required classes used to specify an
+ * SLF4J logger provider implementation.
+ *
+ * @since 3.5.1
+ */
+public final class StaticLoggerBinder
+    implements LoggerFactoryBinder
+{
+    /**
+     * Declare the version of the SLF4J API this implementation is compiled
+     * against. The value of this field is usually modified with each release.
+     */
+    // to avoid constant folding by the compiler, this field must *not* be final
+    @SuppressWarnings( { &quot;checkstyle:staticvariablename&quot;, &quot;checkstyle:visibilitymodifier&quot; } )
+    public static String REQUESTED_API_VERSION = &quot;1.7.25&quot;; // !final
+
+    private static final String LOGGER_FACTORY_CLASS_STR = MavenSimpleLoggerFactory.class.getName();
+<span class="nc" id="L44"></span>
+    /**
+     * The unique instance of this class.
+     */
+    private static final StaticLoggerBinder SINGLETON = new StaticLoggerBinder();
+
+    /**
+     * The ILoggerFactory instance returned by the {@link #getLoggerFactory}
+<span class="nc" id="L52">     * method should always be the same object</span>
+     */
+    private final ILoggerFactory loggerFactory;
+
+    /**
+     * Private constructor to prevent instantiation
+     */
+    private StaticLoggerBinder()
+    {
+<span class="nc" id="L61">        loggerFactory = new MavenSimpleLoggerFactory();</span>
+    }
+<span class="nc" id="L63"></span>
+    /**
+     * Returns the singleton of this class.
+     */
+    public static StaticLoggerBinder getSingleton()
+    {
+        return SINGLETON;
+    }
+<span class="nc" id="L71"></span>
+<span class="nc" id="L72">    /**</span>
+<span class="nc" id="L73">     * Returns the factory.</span>
+     */
+    @Override
+<span class="nc" id="L76">    public ILoggerFactory getLoggerFactory()</span>
+    {
+        return loggerFactory;
+    }
+<span class="nc" id="L80"></span>
+    /**
+     * Returns the class name.
+     */
+    @Override
+    public String getLoggerFactoryClassStr()
+    {
+        return LOGGER_FACTORY_CLASS_STR;
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

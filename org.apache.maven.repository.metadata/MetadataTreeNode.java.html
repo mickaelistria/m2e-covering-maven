@@ -1,0 +1,149 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MetadataTreeNode.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository.metadata</a> &gt; <span class="el_source">MetadataTreeNode.java</span></div><h1>MetadataTreeNode.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository.metadata;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.ArtifactScopeEnum;
+
+/**
+ * metadata [dirty] Tree
+ *
+ * @author &lt;a href=&quot;oleg@codehaus.org&quot;&gt;Oleg Gusakov&lt;/a&gt;
+ *
+ */
+public class MetadataTreeNode
+{
+    ArtifactMetadata md; // this node
+
+    MetadataTreeNode parent; // papa
+
+    /** default # of children. Used for tree creation optimization only */
+<span class="nc" id="L38">    int nChildren = 8;</span>
+
+    MetadataTreeNode[] children; // of cause
+
+    public int getNChildren()
+    {
+<span class="nc" id="L44">        return nChildren;</span>
+    }
+
+    public void setNChildren( int children )
+    {
+<span class="nc" id="L49">        nChildren = children;</span>
+<span class="nc" id="L50">    }</span>
+
+    //------------------------------------------------------------------------
+    public MetadataTreeNode()
+<span class="nc" id="L54">    {</span>
+<span class="nc" id="L55">    }</span>
+    //------------------------------------------------------------------------
+    public MetadataTreeNode( ArtifactMetadata md, MetadataTreeNode parent, boolean resolved, ArtifactScopeEnum scope )
+<span class="nc" id="L58">    {</span>
+<span class="nc bnc" id="L59" title="All 2 branches missed.">        if ( md != null )</span>
+        {
+<span class="nc" id="L61">            md.setArtifactScope( ArtifactScopeEnum.checkScope( scope ) );</span>
+<span class="nc" id="L62">            md.setResolved( resolved );</span>
+        }
+
+<span class="nc" id="L65">        this.md = md;</span>
+<span class="nc" id="L66">        this.parent = parent;</span>
+<span class="nc" id="L67">    }</span>
+    //------------------------------------------------------------------------
+    public MetadataTreeNode( Artifact af, MetadataTreeNode parent, boolean resolved, ArtifactScopeEnum scope )
+    {
+<span class="nc" id="L71">        this( new ArtifactMetadata( af ), parent, resolved, scope );</span>
+<span class="nc" id="L72">    }</span>
+
+    // ------------------------------------------------------------------------
+    public void addChild( int index, MetadataTreeNode kid )
+    {
+<span class="nc bnc" id="L77" title="All 2 branches missed.">        if ( kid == null )</span>
+        {
+<span class="nc" id="L79">            return;</span>
+        }
+
+<span class="nc bnc" id="L82" title="All 2 branches missed.">        if ( children == null )</span>
+        {
+<span class="nc" id="L84">            children = new MetadataTreeNode[nChildren];</span>
+        }
+
+<span class="nc" id="L87">        children[index % nChildren] = kid;</span>
+<span class="nc" id="L88">    }</span>
+
+    //------------------------------------------------------------------
+    @Override
+    public String toString()
+    {
+<span class="nc bnc" id="L94" title="All 2 branches missed.">        return md == null ? &quot;no metadata&quot; : md.toString();</span>
+    }
+
+    //------------------------------------------------------------------
+    public String graphHash()
+        throws MetadataResolutionException
+    {
+<span class="nc bnc" id="L101" title="All 2 branches missed.">        if ( md == null )</span>
+        {
+<span class="nc bnc" id="L103" title="All 2 branches missed.">            throw new MetadataResolutionException( &quot;treenode without metadata, parent: &quot;</span>
+                + ( parent == null ? &quot;null&quot; : parent.toString() ) );
+        }
+
+<span class="nc" id="L107">        return md.groupId + &quot;:&quot; + md.artifactId;</span>
+    }
+
+    //------------------------------------------------------------------------
+    public boolean hasChildren()
+    {
+<span class="nc bnc" id="L113" title="All 2 branches missed.">        return children != null;</span>
+    }
+    //------------------------------------------------------------------------
+    public ArtifactMetadata getMd()
+    {
+<span class="nc" id="L118">        return md;</span>
+    }
+
+    public void setMd( ArtifactMetadata md )
+    {
+<span class="nc" id="L123">        this.md = md;</span>
+<span class="nc" id="L124">    }</span>
+
+    public MetadataTreeNode getParent()
+    {
+<span class="nc" id="L128">        return parent;</span>
+    }
+
+    public void setParent( MetadataTreeNode parent )
+    {
+<span class="nc" id="L133">        this.parent = parent;</span>
+<span class="nc" id="L134">    }</span>
+
+    public MetadataTreeNode[] getChildren()
+    {
+<span class="nc" id="L138">        return children;</span>
+    }
+
+    public void setChildren( MetadataTreeNode[] children )
+    {
+<span class="nc" id="L143">        this.children = children;</span>
+<span class="nc" id="L144">    }</span>
+    //------------------------------------------------------------------------
+    //------------------------------------------------------------------------
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

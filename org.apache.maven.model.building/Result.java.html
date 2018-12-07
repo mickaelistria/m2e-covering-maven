@@ -1,0 +1,266 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Result.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.model.building</a> &gt; <span class="el_source">Result.java</span></div><h1>Result.java</h1><pre class="source lang-java linenums">package org.apache.maven.model.building;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import static java.util.Collections.singleton;
+import static org.apache.maven.model.building.ModelProblem.Severity.ERROR;
+import static org.apache.maven.model.building.ModelProblem.Severity.FATAL;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+
+/**
+ * There are various forms of results that are represented by this class:
+ * &lt;ol&gt;
+ * &lt;li&gt;success - in which case only the model field is set
+ * &lt;li&gt;success with warnings - model field + non-error model problems
+ * &lt;li&gt;error - no model, but diagnostics
+ * &lt;li&gt;error - (partial) model and diagnostics
+ * &lt;/ol&gt;
+ * Could encode these variants as subclasses, but kept in one for now
+ *
+ * @author bbusjaeger
+ * @param &lt;T&gt;
+ */
+<span class="nc bnc" id="L44" title="All 2 branches missed.">public class Result&lt;T&gt;</span>
+{
+
+    /**
+     * Success without warnings
+     *
+     * @param model
+     */
+    public static &lt;T&gt; Result&lt;T&gt; success( T model )
+    {
+<span class="nc" id="L54">        return success( model, Collections.&lt;ModelProblem&gt;emptyList() );</span>
+    }
+
+    /**
+     * Success with warnings
+     *
+     * @param model
+     * @param problems
+     */
+    public static &lt;T&gt; Result&lt;T&gt; success( T model, Iterable&lt;? extends ModelProblem&gt; problems )
+    {
+<span class="nc bnc" id="L65" title="All 4 branches missed.">        assert !hasErrors( problems );</span>
+<span class="nc" id="L66">        return new Result&lt;&gt;( false, model, problems );</span>
+    }
+
+    /**
+     * Success with warnings
+     *
+     * @param model
+     * @param results
+     */
+    public static &lt;T&gt; Result&lt;T&gt; success( T model, Result&lt;?&gt;... results )
+    {
+<span class="nc" id="L77">        final List&lt;ModelProblem&gt; problemsList = new ArrayList&lt;&gt;();</span>
+
+<span class="nc bnc" id="L79" title="All 2 branches missed.">        for ( Result&lt;?&gt; result1 : results )</span>
+        {
+<span class="nc bnc" id="L81" title="All 2 branches missed.">            for ( ModelProblem modelProblem : result1.getProblems() )</span>
+            {
+<span class="nc" id="L83">                problemsList.add( modelProblem );</span>
+<span class="nc" id="L84">            }</span>
+        }
+
+<span class="nc" id="L87">        return success( model, problemsList );</span>
+    }
+
+    /**
+     * Error with problems describing the cause
+     *
+     * @param problems
+     */
+    public static &lt;T&gt; Result&lt;T&gt; error( Iterable&lt;? extends ModelProblem&gt; problems )
+    {
+<span class="nc" id="L97">        return error( null, problems );</span>
+    }
+
+    public static &lt;T&gt; Result&lt;T&gt; error( T model )
+    {
+<span class="nc" id="L102">        return error( model, Collections.&lt;ModelProblem&gt;emptyList() );</span>
+    }
+
+    public static &lt;T&gt; Result&lt;T&gt; error( Result&lt;?&gt; result )
+    {
+<span class="nc" id="L107">        return error( result.getProblems() );</span>
+    }
+
+    public static &lt;T&gt; Result&lt;T&gt; error( Result&lt;?&gt;... results )
+    {
+<span class="nc" id="L112">        final List&lt;ModelProblem&gt; problemsList = new ArrayList&lt;&gt;( );</span>
+
+<span class="nc bnc" id="L114" title="All 2 branches missed.">        for ( Result&lt;?&gt; result1 : results )</span>
+        {
+<span class="nc bnc" id="L116" title="All 2 branches missed.">            for ( ModelProblem modelProblem : result1.getProblems( ) )</span>
+            {
+<span class="nc" id="L118">                problemsList.add( modelProblem );</span>
+<span class="nc" id="L119">            }</span>
+        }
+
+<span class="nc" id="L122">        return error( problemsList );</span>
+    }
+
+    /**
+     * Error with partial result and problems describing the cause
+     *
+     * @param model
+     * @param problems
+     */
+    public static &lt;T&gt; Result&lt;T&gt; error( T model, Iterable&lt;? extends ModelProblem&gt; problems )
+    {
+<span class="nc" id="L133">        return new Result&lt;&gt;( true, model, problems );</span>
+    }
+
+    /**
+     * New result - determine whether error or success by checking problems for errors
+     *
+     * @param model
+     * @param problems
+     */
+    public static &lt;T&gt; Result&lt;T&gt; newResult( T model, Iterable&lt;? extends ModelProblem&gt; problems )
+    {
+<span class="nc" id="L144">        return new Result&lt;&gt;( hasErrors( problems ), model, problems );</span>
+    }
+
+    /**
+     * New result consisting of given result and new problem. Convenience for newResult(result.get(),
+     * concat(result.getProblems(),problems)).
+     *
+     * @param result
+     * @param problem
+     */
+    public static &lt;T&gt; Result&lt;T&gt; addProblem( Result&lt;T&gt; result, ModelProblem problem )
+    {
+<span class="nc" id="L156">        return addProblems( result, singleton( problem ) );</span>
+    }
+
+    /**
+     * New result that includes the given
+     *
+     * @param result
+     * @param problems
+     */
+    public static &lt;T&gt; Result&lt;T&gt; addProblems( Result&lt;T&gt; result, Iterable&lt;? extends ModelProblem&gt; problems )
+    {
+<span class="nc" id="L167">        Collection&lt;ModelProblem&gt; list = new ArrayList&lt;&gt;();</span>
+<span class="nc bnc" id="L168" title="All 2 branches missed.">        for ( ModelProblem item : problems )</span>
+        {
+<span class="nc" id="L170">            list.add( item );</span>
+<span class="nc" id="L171">        }</span>
+<span class="nc bnc" id="L172" title="All 2 branches missed.">        for ( ModelProblem item : result.getProblems() )</span>
+        {
+<span class="nc" id="L174">            list.add( item );</span>
+<span class="nc" id="L175">        }</span>
+<span class="nc bnc" id="L176" title="All 4 branches missed.">        return new Result&lt;&gt;( result.hasErrors() || hasErrors( problems ), result.get(), list );</span>
+    }
+
+    public static &lt;T&gt; Result&lt;T&gt; addProblems( Result&lt;T&gt; result, Result&lt;?&gt;... results )
+    {
+<span class="nc" id="L181">        final List&lt;ModelProblem&gt; problemsList = new ArrayList&lt;&gt;();</span>
+
+<span class="nc bnc" id="L183" title="All 2 branches missed.">        for ( Result&lt;?&gt; result1 : results )</span>
+        {
+<span class="nc bnc" id="L185" title="All 2 branches missed.">            for ( ModelProblem modelProblem : result1.getProblems( ) )</span>
+            {
+<span class="nc" id="L187">                problemsList.add( modelProblem );</span>
+<span class="nc" id="L188">            }</span>
+        }
+<span class="nc" id="L190">        return addProblems( result, problemsList );</span>
+    }
+
+    /**
+     * Turns the given results into a single result by combining problems and models into single collection.
+     *
+     * @param results
+     */
+    public static &lt;T&gt; Result&lt;Iterable&lt;T&gt;&gt; newResultSet( Iterable&lt;? extends Result&lt;? extends T&gt;&gt; results )
+    {
+<span class="nc" id="L200">        boolean hasErrors = false;</span>
+<span class="nc" id="L201">        List&lt;T&gt; modelsList = new ArrayList&lt;&gt;();</span>
+<span class="nc" id="L202">        List&lt;ModelProblem&gt; problemsList = new ArrayList&lt;&gt;();</span>
+
+<span class="nc bnc" id="L204" title="All 2 branches missed.">        for ( Result&lt;? extends T&gt; result : results )</span>
+        {
+<span class="nc" id="L206">            modelsList.add( result.get() );</span>
+
+<span class="nc bnc" id="L208" title="All 2 branches missed.">            for ( ModelProblem modelProblem : result.getProblems() )</span>
+            {
+<span class="nc" id="L210">                problemsList.add( modelProblem );</span>
+<span class="nc" id="L211">            }</span>
+
+<span class="nc bnc" id="L213" title="All 2 branches missed.">            if ( result.hasErrors() )</span>
+            {
+<span class="nc" id="L215">                hasErrors = true;</span>
+            }
+<span class="nc" id="L217">        }</span>
+<span class="nc" id="L218">        return new Result&lt;&gt;( hasErrors, ( Iterable&lt;T&gt; ) modelsList, problemsList );</span>
+    }
+
+    // helper to determine if problems contain error
+    private static boolean hasErrors( Iterable&lt;? extends ModelProblem&gt; problems )
+    {
+<span class="nc bnc" id="L224" title="All 2 branches missed.">        for ( ModelProblem input : problems )</span>
+        {
+<span class="nc bnc" id="L226" title="All 4 branches missed.">            if ( input.getSeverity().equals( ERROR ) || input.getSeverity().equals( FATAL ) )</span>
+            {
+<span class="nc" id="L228">                return true;</span>
+            }
+<span class="nc" id="L230">        }</span>
+<span class="nc" id="L231">        return false;</span>
+    }
+
+    /**
+     * Class definition
+     */
+
+    private final boolean errors;
+
+    private final T value;
+
+    private final Iterable&lt;? extends ModelProblem&gt; problems;
+
+    private Result( boolean errors, T model, Iterable&lt;? extends ModelProblem&gt; problems )
+<span class="nc" id="L245">    {</span>
+<span class="nc" id="L246">        this.errors = errors;</span>
+<span class="nc" id="L247">        this.value = model;</span>
+<span class="nc" id="L248">        this.problems = problems;</span>
+<span class="nc" id="L249">    }</span>
+
+    public Iterable&lt;? extends ModelProblem&gt; getProblems()
+    {
+<span class="nc" id="L253">        return problems;</span>
+    }
+
+    public T get()
+    {
+<span class="nc" id="L258">        return value;</span>
+    }
+
+    public boolean hasErrors()
+    {
+<span class="nc" id="L263">        return errors;</span>
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

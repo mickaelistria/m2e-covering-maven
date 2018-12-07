@@ -1,0 +1,294 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>SettingsXmlConfigurationProcessor.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.cli.configuration</a> &gt; <span class="el_source">SettingsXmlConfigurationProcessor.java</span></div><h1>SettingsXmlConfigurationProcessor.java</h1><pre class="source lang-java linenums">package org.apache.maven.cli.configuration;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.util.List;
+
+import org.apache.commons.cli.CommandLine;
+import org.apache.maven.artifact.InvalidRepositoryException;
+import org.apache.maven.bridge.MavenRepositorySystem;
+import org.apache.maven.building.Source;
+import org.apache.maven.cli.CLIManager;
+import org.apache.maven.cli.CliRequest;
+import org.apache.maven.execution.MavenExecutionRequest;
+import org.apache.maven.execution.MavenExecutionRequestPopulationException;
+import org.apache.maven.settings.Mirror;
+import org.apache.maven.settings.Proxy;
+import org.apache.maven.settings.Repository;
+import org.apache.maven.settings.Server;
+import org.apache.maven.settings.Settings;
+import org.apache.maven.settings.SettingsUtils;
+import org.apache.maven.settings.building.DefaultSettingsBuildingRequest;
+import org.apache.maven.settings.building.SettingsBuilder;
+import org.apache.maven.settings.building.SettingsBuildingRequest;
+import org.apache.maven.settings.building.SettingsBuildingResult;
+import org.apache.maven.settings.building.SettingsProblem;
+import org.apache.maven.settings.crypto.SettingsDecrypter;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
+import org.slf4j.Logger;
+
+/**
+ * SettingsXmlConfigurationProcessor
+ */
+@Component( role = ConfigurationProcessor.class, hint = SettingsXmlConfigurationProcessor.HINT )
+<span class="nc" id="L54">public class SettingsXmlConfigurationProcessor</span>
+    implements ConfigurationProcessor
+{
+    public static final String HINT = &quot;settings&quot;;
+
+<span class="fc" id="L59">    public static final String USER_HOME = System.getProperty( &quot;user.home&quot; );</span>
+
+<span class="fc" id="L61">    public static final File USER_MAVEN_CONFIGURATION_HOME = new File( USER_HOME, &quot;.m2&quot; );</span>
+
+<span class="fc" id="L63">    public static final File DEFAULT_USER_SETTINGS_FILE = new File( USER_MAVEN_CONFIGURATION_HOME, &quot;settings.xml&quot; );</span>
+
+<span class="fc" id="L65">    public static final File DEFAULT_GLOBAL_SETTINGS_FILE =</span>
+        new File( System.getProperty( &quot;maven.conf&quot; ), &quot;settings.xml&quot; );
+
+    @Requirement
+    private Logger logger;
+
+    @Requirement
+    private SettingsBuilder settingsBuilder;
+
+    @Requirement
+    private SettingsDecrypter settingsDecrypter;
+
+    @Override
+    public void process( CliRequest cliRequest )
+        throws Exception
+    {
+<span class="nc" id="L81">        CommandLine commandLine = cliRequest.getCommandLine();</span>
+<span class="nc" id="L82">        String workingDirectory = cliRequest.getWorkingDirectory();</span>
+<span class="nc" id="L83">        MavenExecutionRequest request = cliRequest.getRequest();</span>
+
+        File userSettingsFile;
+
+<span class="nc bnc" id="L87" title="All 2 branches missed.">        if ( commandLine.hasOption( CLIManager.ALTERNATE_USER_SETTINGS ) )</span>
+        {
+<span class="nc" id="L89">            userSettingsFile = new File( commandLine.getOptionValue( CLIManager.ALTERNATE_USER_SETTINGS ) );</span>
+<span class="nc" id="L90">            userSettingsFile = resolveFile( userSettingsFile, workingDirectory );</span>
+
+<span class="nc bnc" id="L92" title="All 2 branches missed.">            if ( !userSettingsFile.isFile() )</span>
+            {
+<span class="nc" id="L94">                throw new FileNotFoundException( &quot;The specified user settings file does not exist: &quot;</span>
+                    + userSettingsFile );
+            }
+        }
+        else
+        {
+<span class="nc" id="L100">            userSettingsFile = DEFAULT_USER_SETTINGS_FILE;</span>
+        }
+
+        File globalSettingsFile;
+
+<span class="nc bnc" id="L105" title="All 2 branches missed.">        if ( commandLine.hasOption( CLIManager.ALTERNATE_GLOBAL_SETTINGS ) )</span>
+        {
+<span class="nc" id="L107">            globalSettingsFile = new File( commandLine.getOptionValue( CLIManager.ALTERNATE_GLOBAL_SETTINGS ) );</span>
+<span class="nc" id="L108">            globalSettingsFile = resolveFile( globalSettingsFile, workingDirectory );</span>
+
+<span class="nc bnc" id="L110" title="All 2 branches missed.">            if ( !globalSettingsFile.isFile() )</span>
+            {
+<span class="nc" id="L112">                throw new FileNotFoundException( &quot;The specified global settings file does not exist: &quot;</span>
+                    + globalSettingsFile );
+            }
+        }
+        else
+        {
+<span class="nc" id="L118">            globalSettingsFile = DEFAULT_GLOBAL_SETTINGS_FILE;</span>
+        }
+
+<span class="nc" id="L121">        request.setGlobalSettingsFile( globalSettingsFile );</span>
+<span class="nc" id="L122">        request.setUserSettingsFile( userSettingsFile );</span>
+
+<span class="nc" id="L124">        SettingsBuildingRequest settingsRequest = new DefaultSettingsBuildingRequest();</span>
+<span class="nc" id="L125">        settingsRequest.setGlobalSettingsFile( globalSettingsFile );</span>
+<span class="nc" id="L126">        settingsRequest.setUserSettingsFile( userSettingsFile );</span>
+<span class="nc" id="L127">        settingsRequest.setSystemProperties( cliRequest.getSystemProperties() );</span>
+<span class="nc" id="L128">        settingsRequest.setUserProperties( cliRequest.getUserProperties() );</span>
+
+<span class="nc bnc" id="L130" title="All 2 branches missed.">        if ( request.getEventSpyDispatcher() != null )</span>
+        {
+<span class="nc" id="L132">            request.getEventSpyDispatcher().onEvent( settingsRequest );</span>
+        }
+
+<span class="nc" id="L135">        logger.debug( &quot;Reading global settings from &quot;</span>
+            + getLocation( settingsRequest.getGlobalSettingsSource(), settingsRequest.getGlobalSettingsFile() ) );
+<span class="nc" id="L137">        logger.debug( &quot;Reading user settings from &quot;</span>
+            + getLocation( settingsRequest.getUserSettingsSource(), settingsRequest.getUserSettingsFile() ) );
+
+<span class="nc" id="L140">        SettingsBuildingResult settingsResult = settingsBuilder.build( settingsRequest );</span>
+
+<span class="nc bnc" id="L142" title="All 2 branches missed.">        if ( request.getEventSpyDispatcher() != null )</span>
+        {
+<span class="nc" id="L144">            request.getEventSpyDispatcher().onEvent( settingsResult );</span>
+        }
+
+<span class="nc" id="L147">        populateFromSettings( request, settingsResult.getEffectiveSettings() );</span>
+
+<span class="nc bnc" id="L149" title="All 4 branches missed.">        if ( !settingsResult.getProblems().isEmpty() &amp;&amp; logger.isWarnEnabled() )</span>
+        {
+<span class="nc" id="L151">            logger.warn( &quot;&quot; );</span>
+<span class="nc" id="L152">            logger.warn( &quot;Some problems were encountered while building the effective settings&quot; );</span>
+
+<span class="nc bnc" id="L154" title="All 2 branches missed.">            for ( SettingsProblem problem : settingsResult.getProblems() )</span>
+            {
+<span class="nc" id="L156">                logger.warn( problem.getMessage() + &quot; @ &quot; + problem.getLocation() );</span>
+<span class="nc" id="L157">            }</span>
+<span class="nc" id="L158">            logger.warn( &quot;&quot; );</span>
+        }
+<span class="nc" id="L160">    }</span>
+
+    private MavenExecutionRequest populateFromSettings( MavenExecutionRequest request, Settings settings )
+        throws MavenExecutionRequestPopulationException
+    {
+<span class="nc bnc" id="L165" title="All 2 branches missed.">        if ( settings == null )</span>
+        {
+<span class="nc" id="L167">            return request;</span>
+        }
+
+<span class="nc" id="L170">        request.setOffline( settings.isOffline() );</span>
+
+<span class="nc" id="L172">        request.setInteractiveMode( settings.isInteractiveMode() );</span>
+
+<span class="nc" id="L174">        request.setPluginGroups( settings.getPluginGroups() );</span>
+
+<span class="nc" id="L176">        request.setLocalRepositoryPath( settings.getLocalRepository() );</span>
+
+<span class="nc bnc" id="L178" title="All 2 branches missed.">        for ( Server server : settings.getServers() )</span>
+        {
+<span class="nc" id="L180">            server = server.clone();</span>
+
+<span class="nc" id="L182">            request.addServer( server );</span>
+<span class="nc" id="L183">        }</span>
+
+        //  &lt;proxies&gt;
+        //    &lt;proxy&gt;
+        //      &lt;active&gt;true&lt;/active&gt;
+        //      &lt;protocol&gt;http&lt;/protocol&gt;
+        //      &lt;host&gt;proxy.somewhere.com&lt;/host&gt;
+        //      &lt;port&gt;8080&lt;/port&gt;
+        //      &lt;username&gt;proxyuser&lt;/username&gt;
+        //      &lt;password&gt;somepassword&lt;/password&gt;
+        //      &lt;nonProxyHosts&gt;www.google.com|*.somewhere.com&lt;/nonProxyHosts&gt;
+        //    &lt;/proxy&gt;
+        //  &lt;/proxies&gt;
+
+<span class="nc bnc" id="L197" title="All 2 branches missed.">        for ( Proxy proxy : settings.getProxies() )</span>
+        {
+<span class="nc bnc" id="L199" title="All 2 branches missed.">            if ( !proxy.isActive() )</span>
+            {
+<span class="nc" id="L201">                continue;</span>
+            }
+
+<span class="nc" id="L204">            proxy = proxy.clone();</span>
+
+<span class="nc" id="L206">            request.addProxy( proxy );</span>
+<span class="nc" id="L207">        }</span>
+
+        // &lt;mirrors&gt;
+        //   &lt;mirror&gt;
+        //     &lt;id&gt;nexus&lt;/id&gt;
+        //     &lt;mirrorOf&gt;*&lt;/mirrorOf&gt;
+        //     &lt;url&gt;http://repository.sonatype.org/content/groups/public&lt;/url&gt;
+        //   &lt;/mirror&gt;
+        // &lt;/mirrors&gt;
+
+<span class="nc bnc" id="L217" title="All 2 branches missed.">        for ( Mirror mirror : settings.getMirrors() )</span>
+        {
+<span class="nc" id="L219">            mirror = mirror.clone();</span>
+
+<span class="nc" id="L221">            request.addMirror( mirror );</span>
+<span class="nc" id="L222">        }</span>
+
+<span class="nc" id="L224">        request.setActiveProfiles( settings.getActiveProfiles() );</span>
+
+<span class="nc bnc" id="L226" title="All 2 branches missed.">        for ( org.apache.maven.settings.Profile rawProfile : settings.getProfiles() )</span>
+        {
+<span class="nc" id="L228">            request.addProfile( SettingsUtils.convertFromSettingsProfile( rawProfile ) );</span>
+
+<span class="nc bnc" id="L230" title="All 2 branches missed.">            if ( settings.getActiveProfiles().contains( rawProfile.getId() ) )</span>
+            {
+<span class="nc" id="L232">                List&lt;Repository&gt; remoteRepositories = rawProfile.getRepositories();</span>
+<span class="nc bnc" id="L233" title="All 2 branches missed.">                for ( Repository remoteRepository : remoteRepositories )</span>
+                {
+                    try
+                    {
+<span class="nc" id="L237">                        request.addRemoteRepository( </span>
+                            MavenRepositorySystem.buildArtifactRepository( remoteRepository ) );
+                    }
+<span class="nc" id="L240">                    catch ( InvalidRepositoryException e )</span>
+                    {
+                        // do nothing for now
+<span class="nc" id="L243">                    }</span>
+<span class="nc" id="L244">                }</span>
+                
+<span class="nc" id="L246">                List&lt;Repository&gt; pluginRepositories = rawProfile.getPluginRepositories();</span>
+<span class="nc bnc" id="L247" title="All 2 branches missed.">                for ( Repository pluginRepository : pluginRepositories )</span>
+                {
+                    try
+                    {
+<span class="nc" id="L251">                        request.addPluginArtifactRepository( </span>
+                            MavenRepositorySystem.buildArtifactRepository( pluginRepository ) );
+                    }
+<span class="nc" id="L254">                    catch ( InvalidRepositoryException e )</span>
+                    {
+                        // do nothing for now
+<span class="nc" id="L257">                    }</span>
+<span class="nc" id="L258">                }                </span>
+            }
+<span class="nc" id="L260">        }</span>
+<span class="nc" id="L261">        return request;</span>
+    }
+
+    private Object getLocation( Source source, File defaultLocation )
+    {
+<span class="nc bnc" id="L266" title="All 2 branches missed.">        if ( source != null )</span>
+        {
+<span class="nc" id="L268">            return source.getLocation();</span>
+        }
+<span class="nc" id="L270">        return defaultLocation;</span>
+    }
+
+    static File resolveFile( File file, String workingDirectory )
+    {
+<span class="nc bnc" id="L275" title="All 2 branches missed.">        if ( file == null )</span>
+        {
+<span class="nc" id="L277">            return null;</span>
+        }
+<span class="nc bnc" id="L279" title="All 2 branches missed.">        else if ( file.isAbsolute() )</span>
+        {
+<span class="nc" id="L281">            return file;</span>
+        }
+<span class="nc bnc" id="L283" title="All 2 branches missed.">        else if ( file.getPath().startsWith( File.separator ) )</span>
+        {
+            // drive-relative Windows path
+<span class="nc" id="L286">            return file.getAbsoluteFile();</span>
+        }
+        else
+        {
+<span class="nc" id="L290">            return new File( workingDirectory, file.getPath() ).getAbsoluteFile();</span>
+        }
+    }
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

@@ -1,0 +1,917 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultMavenPluginManager.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.plugin.internal</a> &gt; <span class="el_source">DefaultMavenPluginManager.java</span></div><h1>DefaultMavenPluginManager.java</h1><pre class="source lang-java linenums">package org.apache.maven.plugin.internal;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.commons.lang3.Validate;
+import org.apache.maven.RepositoryUtils;
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.classrealm.ClassRealmManager;
+import org.apache.maven.execution.MavenSession;
+import org.apache.maven.execution.scope.internal.MojoExecutionScopeModule;
+import org.apache.maven.model.Plugin;
+import org.apache.maven.monitor.logging.DefaultLog;
+import org.apache.maven.plugin.ContextEnabled;
+import org.apache.maven.plugin.DebugConfigurationListener;
+import org.apache.maven.plugin.ExtensionRealmCache;
+import org.apache.maven.plugin.InvalidPluginDescriptorException;
+import org.apache.maven.plugin.MavenPluginManager;
+import org.apache.maven.plugin.MavenPluginValidator;
+import org.apache.maven.plugin.Mojo;
+import org.apache.maven.plugin.MojoExecution;
+import org.apache.maven.plugin.MojoNotFoundException;
+import org.apache.maven.plugin.PluginArtifactsCache;
+import org.apache.maven.plugin.PluginConfigurationException;
+import org.apache.maven.plugin.PluginContainerException;
+import org.apache.maven.plugin.PluginDescriptorCache;
+import org.apache.maven.plugin.PluginDescriptorParsingException;
+import org.apache.maven.plugin.PluginIncompatibleException;
+import org.apache.maven.plugin.PluginManagerException;
+import org.apache.maven.plugin.PluginParameterException;
+import org.apache.maven.plugin.PluginParameterExpressionEvaluator;
+import org.apache.maven.plugin.PluginRealmCache;
+import org.apache.maven.plugin.PluginResolutionException;
+import org.apache.maven.plugin.descriptor.MojoDescriptor;
+import org.apache.maven.plugin.descriptor.Parameter;
+import org.apache.maven.plugin.descriptor.PluginDescriptor;
+import org.apache.maven.plugin.descriptor.PluginDescriptorBuilder;
+import org.apache.maven.plugin.version.DefaultPluginVersionRequest;
+import org.apache.maven.plugin.version.PluginVersionRequest;
+import org.apache.maven.plugin.version.PluginVersionResolutionException;
+import org.apache.maven.plugin.version.PluginVersionResolver;
+import org.apache.maven.project.ExtensionDescriptor;
+import org.apache.maven.project.ExtensionDescriptorBuilder;
+import org.apache.maven.project.MavenProject;
+import org.apache.maven.rtinfo.RuntimeInformation;
+import org.apache.maven.session.scope.internal.SessionScopeModule;
+import org.codehaus.plexus.DefaultPlexusContainer;
+import org.codehaus.plexus.PlexusContainer;
+import org.codehaus.plexus.classworlds.realm.ClassRealm;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
+import org.codehaus.plexus.component.composition.CycleDetectedInComponentGraphException;
+import org.codehaus.plexus.component.configurator.ComponentConfigurationException;
+import org.codehaus.plexus.component.configurator.ComponentConfigurator;
+import org.codehaus.plexus.component.configurator.ConfigurationListener;
+import org.codehaus.plexus.component.configurator.expression.ExpressionEvaluationException;
+import org.codehaus.plexus.component.configurator.expression.ExpressionEvaluator;
+import org.codehaus.plexus.component.repository.ComponentDescriptor;
+import org.codehaus.plexus.component.repository.exception.ComponentLifecycleException;
+import org.codehaus.plexus.component.repository.exception.ComponentLookupException;
+import org.codehaus.plexus.configuration.PlexusConfiguration;
+import org.codehaus.plexus.configuration.PlexusConfigurationException;
+import org.codehaus.plexus.configuration.xml.XmlPlexusConfiguration;
+import org.codehaus.plexus.logging.Logger;
+import org.codehaus.plexus.logging.LoggerManager;
+import org.codehaus.plexus.util.ReaderFactory;
+import org.codehaus.plexus.util.StringUtils;
+import org.codehaus.plexus.util.xml.Xpp3Dom;
+import org.eclipse.aether.RepositorySystemSession;
+import org.eclipse.aether.graph.DependencyFilter;
+import org.eclipse.aether.graph.DependencyNode;
+import org.eclipse.aether.repository.RemoteRepository;
+import org.eclipse.aether.util.filter.AndDependencyFilter;
+import org.eclipse.aether.util.graph.visitor.PreorderNodeListGenerator;
+
+import java.io.BufferedInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.PrintStream;
+import java.io.Reader;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.jar.JarFile;
+import java.util.zip.ZipEntry;
+
+/**
+ * Provides basic services to manage Maven plugins and their mojos. This component is kept general in its design such
+ * that the plugins/mojos can be used in arbitrary contexts. In particular, the mojos can be used for ordinary build
+ * plugins as well as special purpose plugins like reports.
+ *
+ * @author Benjamin Bentmann
+ * @since 3.0
+ */
+@Component( role = MavenPluginManager.class )
+<span class="fc" id="L119">public class DefaultMavenPluginManager</span>
+    implements MavenPluginManager
+{
+
+    /**
+     * &lt;p&gt;
+     * PluginId =&amp;gt; ExtensionRealmCache.CacheRecord map MavenProject context value key. The map is used to ensure the
+     * same class realm is used to load build extensions and load mojos for extensions=true plugins.
+     * &lt;/p&gt;
+     * &lt;strong&gt;Note:&lt;/strong&gt; This is part of internal implementation and may be changed or removed without notice
+     * 
+     * @since 3.3.0
+     */
+<span class="fc" id="L132">    public static final String KEY_EXTENSIONS_REALMS = DefaultMavenPluginManager.class.getName() + &quot;/extensionsRealms&quot;;</span>
+
+    @Requirement
+    private Logger logger;
+
+    @Requirement
+    private LoggerManager loggerManager;
+
+    @Requirement
+    private PlexusContainer container;
+
+    @Requirement
+    private ClassRealmManager classRealmManager;
+
+    @Requirement
+    private PluginDescriptorCache pluginDescriptorCache;
+
+    @Requirement
+    private PluginRealmCache pluginRealmCache;
+
+    @Requirement
+    private PluginDependenciesResolver pluginDependenciesResolver;
+
+    @Requirement
+    private RuntimeInformation runtimeInformation;
+
+    @Requirement
+    private ExtensionRealmCache extensionRealmCache;
+
+    @Requirement
+    private PluginVersionResolver pluginVersionResolver;
+
+    @Requirement
+    private PluginArtifactsCache pluginArtifactsCache;
+
+<span class="fc" id="L167">    private ExtensionDescriptorBuilder extensionDescriptorBuilder = new ExtensionDescriptorBuilder();</span>
+
+<span class="fc" id="L169">    private PluginDescriptorBuilder builder = new PluginDescriptorBuilder();</span>
+
+    public synchronized PluginDescriptor getPluginDescriptor( Plugin plugin, List&lt;RemoteRepository&gt; repositories,
+                                                              RepositorySystemSession session )
+        throws PluginResolutionException, PluginDescriptorParsingException, InvalidPluginDescriptorException
+    {
+<span class="fc" id="L175">        PluginDescriptorCache.Key cacheKey = pluginDescriptorCache.createKey( plugin, repositories, session );</span>
+
+<span class="fc" id="L177">        PluginDescriptor pluginDescriptor = pluginDescriptorCache.get( cacheKey );</span>
+
+<span class="fc bfc" id="L179" title="All 2 branches covered.">        if ( pluginDescriptor == null )</span>
+        {
+<span class="fc" id="L181">            org.eclipse.aether.artifact.Artifact artifact =</span>
+                pluginDependenciesResolver.resolve( plugin, repositories, session );
+
+<span class="fc" id="L184">            Artifact pluginArtifact = RepositoryUtils.toArtifact( artifact );</span>
+
+<span class="fc" id="L186">            pluginDescriptor = extractPluginDescriptor( pluginArtifact, plugin );</span>
+
+<span class="fc" id="L188">            pluginDescriptor.setRequiredMavenVersion( artifact.getProperty( &quot;requiredMavenVersion&quot;, null ) );</span>
+
+<span class="fc" id="L190">            pluginDescriptorCache.put( cacheKey, pluginDescriptor );</span>
+        }
+
+<span class="fc" id="L193">        pluginDescriptor.setPlugin( plugin );</span>
+
+<span class="fc" id="L195">        return pluginDescriptor;</span>
+    }
+
+    private PluginDescriptor extractPluginDescriptor( Artifact pluginArtifact, Plugin plugin )
+        throws PluginDescriptorParsingException, InvalidPluginDescriptorException
+    {
+<span class="fc" id="L201">        PluginDescriptor pluginDescriptor = null;</span>
+
+<span class="fc" id="L203">        File pluginFile = pluginArtifact.getFile();</span>
+
+        try
+        {
+<span class="pc bpc" id="L207" title="1 of 2 branches missed.">            if ( pluginFile.isFile() )</span>
+            {
+<span class="fc" id="L209">                try ( JarFile pluginJar = new JarFile( pluginFile, false ) )</span>
+                {
+<span class="fc" id="L211">                    ZipEntry pluginDescriptorEntry = pluginJar.getEntry( getPluginDescriptorLocation() );</span>
+
+<span class="pc bpc" id="L213" title="1 of 2 branches missed.">                    if ( pluginDescriptorEntry != null )</span>
+                    {
+<span class="fc" id="L215">                        InputStream is = pluginJar.getInputStream( pluginDescriptorEntry );</span>
+
+<span class="fc" id="L217">                        pluginDescriptor = parsePluginDescriptor( is, plugin, pluginFile.getAbsolutePath() );</span>
+                    }
+<span class="fc" id="L219">                }</span>
+            }
+            else
+            {
+<span class="nc" id="L223">                File pluginXml = new File( pluginFile, getPluginDescriptorLocation() );</span>
+
+<span class="nc bnc" id="L225" title="All 2 branches missed.">                if ( pluginXml.isFile() )</span>
+                {
+<span class="nc" id="L227">                    try ( InputStream is = new BufferedInputStream( new FileInputStream( pluginXml ) ) )</span>
+                    {
+<span class="nc" id="L229">                        pluginDescriptor = parsePluginDescriptor( is, plugin, pluginXml.getAbsolutePath() );</span>
+                    }
+                }
+            }
+
+<span class="pc bpc" id="L234" title="1 of 2 branches missed.">            if ( pluginDescriptor == null )</span>
+            {
+<span class="nc" id="L236">                throw new IOException( &quot;No plugin descriptor found at &quot; + getPluginDescriptorLocation() );</span>
+            }
+        }
+<span class="nc" id="L239">        catch ( IOException e )</span>
+        {
+<span class="nc" id="L241">            throw new PluginDescriptorParsingException( plugin, pluginFile.getAbsolutePath(), e );</span>
+<span class="fc" id="L242">        }</span>
+
+<span class="fc" id="L244">        MavenPluginValidator validator = new MavenPluginValidator( pluginArtifact );</span>
+
+<span class="fc" id="L246">        validator.validate( pluginDescriptor );</span>
+
+<span class="pc bpc" id="L248" title="1 of 2 branches missed.">        if ( validator.hasErrors() )</span>
+        {
+<span class="nc" id="L250">            throw new InvalidPluginDescriptorException(</span>
+                &quot;Invalid plugin descriptor for &quot; + plugin.getId() + &quot; (&quot; + pluginFile + &quot;)&quot;, validator.getErrors() );
+        }
+
+<span class="fc" id="L254">        pluginDescriptor.setPluginArtifact( pluginArtifact );</span>
+
+<span class="fc" id="L256">        return pluginDescriptor;</span>
+    }
+
+    private String getPluginDescriptorLocation()
+    {
+<span class="fc" id="L261">        return &quot;META-INF/maven/plugin.xml&quot;;</span>
+    }
+
+    private PluginDescriptor parsePluginDescriptor( InputStream is, Plugin plugin, String descriptorLocation )
+        throws PluginDescriptorParsingException
+    {
+        try
+        {
+<span class="fc" id="L269">            Reader reader = ReaderFactory.newXmlReader( is );</span>
+
+<span class="fc" id="L271">            PluginDescriptor pluginDescriptor = builder.build( reader, descriptorLocation );</span>
+
+<span class="fc" id="L273">            return pluginDescriptor;</span>
+        }
+<span class="nc" id="L275">        catch ( IOException | PlexusConfigurationException e )</span>
+        {
+<span class="nc" id="L277">            throw new PluginDescriptorParsingException( plugin, descriptorLocation, e );</span>
+        }
+    }
+
+    public MojoDescriptor getMojoDescriptor( Plugin plugin, String goal, List&lt;RemoteRepository&gt; repositories,
+                                             RepositorySystemSession session )
+        throws MojoNotFoundException, PluginResolutionException, PluginDescriptorParsingException,
+        InvalidPluginDescriptorException
+    {
+<span class="fc" id="L286">        PluginDescriptor pluginDescriptor = getPluginDescriptor( plugin, repositories, session );</span>
+
+<span class="fc" id="L288">        MojoDescriptor mojoDescriptor = pluginDescriptor.getMojo( goal );</span>
+
+<span class="pc bpc" id="L290" title="1 of 2 branches missed.">        if ( mojoDescriptor == null )</span>
+        {
+<span class="nc" id="L292">            throw new MojoNotFoundException( goal, pluginDescriptor );</span>
+        }
+
+<span class="fc" id="L295">        return mojoDescriptor;</span>
+    }
+
+    public void checkRequiredMavenVersion( PluginDescriptor pluginDescriptor )
+        throws PluginIncompatibleException
+    {
+<span class="fc" id="L301">        String requiredMavenVersion = pluginDescriptor.getRequiredMavenVersion();</span>
+<span class="pc bpc" id="L302" title="1 of 2 branches missed.">        if ( StringUtils.isNotBlank( requiredMavenVersion ) )</span>
+        {
+            try
+            {
+<span class="nc bnc" id="L306" title="All 2 branches missed.">                if ( !runtimeInformation.isMavenVersion( requiredMavenVersion ) )</span>
+                {
+<span class="nc" id="L308">                    throw new PluginIncompatibleException( pluginDescriptor.getPlugin(),</span>
+                                                           &quot;The plugin &quot; + pluginDescriptor.getId()
+                                                               + &quot; requires Maven version &quot; + requiredMavenVersion );
+                }
+            }
+<span class="nc" id="L313">            catch ( RuntimeException e )</span>
+            {
+<span class="nc" id="L315">                logger.warn( &quot;Could not verify plugin's Maven prerequisite: &quot; + e.getMessage() );</span>
+<span class="nc" id="L316">            }</span>
+        }
+<span class="fc" id="L318">    }</span>
+
+    public synchronized void setupPluginRealm( PluginDescriptor pluginDescriptor, MavenSession session,
+                                               ClassLoader parent, List&lt;String&gt; imports, DependencyFilter filter )
+        throws PluginResolutionException, PluginContainerException
+    {
+<span class="fc" id="L324">        Plugin plugin = pluginDescriptor.getPlugin();</span>
+<span class="fc" id="L325">        MavenProject project = session.getCurrentProject();</span>
+
+<span class="fc bfc" id="L327" title="All 2 branches covered.">        if ( plugin.isExtensions() )</span>
+        {
+            ExtensionRealmCache.CacheRecord extensionRecord;
+            try
+            {
+<span class="fc" id="L332">                RepositorySystemSession repositorySession = session.getRepositorySession();</span>
+<span class="fc" id="L333">                extensionRecord = setupExtensionsRealm( project, plugin, repositorySession );</span>
+            }
+<span class="nc" id="L335">            catch ( PluginManagerException e )</span>
+            {
+                // extensions realm is expected to be fully setup at this point
+                // any exception means a problem in maven code, not a user error
+<span class="nc" id="L339">                throw new IllegalStateException( e );</span>
+<span class="fc" id="L340">            }</span>
+
+<span class="fc" id="L342">            ClassRealm pluginRealm = extensionRecord.getRealm();</span>
+<span class="fc" id="L343">            List&lt;Artifact&gt; pluginArtifacts = extensionRecord.getArtifacts();</span>
+
+<span class="fc bfc" id="L345" title="All 2 branches covered.">            for ( ComponentDescriptor&lt;?&gt; componentDescriptor : pluginDescriptor.getComponents() )</span>
+            {
+<span class="fc" id="L347">                componentDescriptor.setRealm( pluginRealm );</span>
+<span class="fc" id="L348">            }</span>
+
+<span class="fc" id="L350">            pluginDescriptor.setClassRealm( pluginRealm );</span>
+<span class="fc" id="L351">            pluginDescriptor.setArtifacts( pluginArtifacts );</span>
+<span class="fc" id="L352">        }</span>
+        else
+        {
+<span class="fc" id="L355">            Map&lt;String, ClassLoader&gt; foreignImports = calcImports( project, parent, imports );</span>
+
+<span class="fc" id="L357">            PluginRealmCache.Key cacheKey = pluginRealmCache.createKey( plugin, parent, foreignImports, filter,</span>
+                                                                        project.getRemotePluginRepositories(),
+                                                                        session.getRepositorySession() );
+
+<span class="fc" id="L361">            PluginRealmCache.CacheRecord cacheRecord = pluginRealmCache.get( cacheKey );</span>
+
+<span class="fc bfc" id="L363" title="All 2 branches covered.">            if ( cacheRecord != null )</span>
+            {
+<span class="fc" id="L365">                pluginDescriptor.setClassRealm( cacheRecord.getRealm() );</span>
+<span class="fc" id="L366">                pluginDescriptor.setArtifacts( new ArrayList&lt;&gt;( cacheRecord.getArtifacts() ) );</span>
+<span class="fc bfc" id="L367" title="All 2 branches covered.">                for ( ComponentDescriptor&lt;?&gt; componentDescriptor : pluginDescriptor.getComponents() )</span>
+                {
+<span class="fc" id="L369">                    componentDescriptor.setRealm( cacheRecord.getRealm() );</span>
+<span class="fc" id="L370">                }</span>
+            }
+            else
+            {
+<span class="fc" id="L374">                createPluginRealm( pluginDescriptor, session, parent, foreignImports, filter );</span>
+
+<span class="fc" id="L376">                cacheRecord =</span>
+                    pluginRealmCache.put( cacheKey, pluginDescriptor.getClassRealm(), pluginDescriptor.getArtifacts() );
+            }
+
+<span class="fc" id="L380">            pluginRealmCache.register( project, cacheKey, cacheRecord );</span>
+        }
+<span class="fc" id="L382">    }</span>
+
+    private void createPluginRealm( PluginDescriptor pluginDescriptor, MavenSession session, ClassLoader parent,
+                                    Map&lt;String, ClassLoader&gt; foreignImports, DependencyFilter filter )
+        throws PluginResolutionException, PluginContainerException
+    {
+<span class="fc" id="L388">        Plugin plugin = Validate.notNull( pluginDescriptor.getPlugin(), &quot;pluginDescriptor.plugin cannot be null&quot; );</span>
+
+<span class="fc" id="L390">        Artifact pluginArtifact =</span>
+            Validate.notNull( pluginDescriptor.getPluginArtifact(), &quot;pluginDescriptor.pluginArtifact cannot be null&quot; );
+
+<span class="fc" id="L393">        MavenProject project = session.getCurrentProject();</span>
+
+        final ClassRealm pluginRealm;
+        final List&lt;Artifact&gt; pluginArtifacts;
+
+<span class="fc" id="L398">        RepositorySystemSession repositorySession = session.getRepositorySession();</span>
+<span class="fc" id="L399">        DependencyFilter dependencyFilter = project.getExtensionDependencyFilter();</span>
+<span class="fc" id="L400">        dependencyFilter = AndDependencyFilter.newInstance( dependencyFilter, filter );</span>
+
+<span class="fc" id="L402">        DependencyNode root =</span>
+            pluginDependenciesResolver.resolve( plugin, RepositoryUtils.toArtifact( pluginArtifact ), dependencyFilter,
+                                                project.getRemotePluginRepositories(), repositorySession );
+
+<span class="fc" id="L406">        PreorderNodeListGenerator nlg = new PreorderNodeListGenerator();</span>
+<span class="fc" id="L407">        root.accept( nlg );</span>
+
+<span class="fc" id="L409">        pluginArtifacts = toMavenArtifacts( root, nlg );</span>
+
+<span class="fc" id="L411">        pluginRealm = classRealmManager.createPluginRealm( plugin, parent, null, foreignImports,</span>
+                                                           toAetherArtifacts( pluginArtifacts ) );
+
+<span class="fc" id="L414">        discoverPluginComponents( pluginRealm, plugin, pluginDescriptor );</span>
+
+<span class="fc" id="L416">        pluginDescriptor.setClassRealm( pluginRealm );</span>
+<span class="fc" id="L417">        pluginDescriptor.setArtifacts( pluginArtifacts );</span>
+<span class="fc" id="L418">    }</span>
+
+    private void discoverPluginComponents( final ClassRealm pluginRealm, Plugin plugin,
+                                           PluginDescriptor pluginDescriptor )
+        throws PluginContainerException
+    {
+        try
+        {
+<span class="pc bpc" id="L426" title="1 of 2 branches missed.">            if ( pluginDescriptor != null )</span>
+            {
+<span class="fc bfc" id="L428" title="All 2 branches covered.">                for ( ComponentDescriptor&lt;?&gt; componentDescriptor : pluginDescriptor.getComponents() )</span>
+                {
+<span class="fc" id="L430">                    componentDescriptor.setRealm( pluginRealm );</span>
+<span class="fc" id="L431">                    container.addComponentDescriptor( componentDescriptor );</span>
+<span class="fc" id="L432">                }</span>
+            }
+
+<span class="fc" id="L435">            ( (DefaultPlexusContainer) container ).discoverComponents( pluginRealm, new SessionScopeModule( container ),</span>
+                                                                       new MojoExecutionScopeModule( container ) );
+        }
+<span class="nc" id="L438">        catch ( ComponentLookupException | CycleDetectedInComponentGraphException e )</span>
+        {
+<span class="nc" id="L440">            throw new PluginContainerException( plugin, pluginRealm,</span>
+                                                &quot;Error in component graph of plugin &quot; + plugin.getId() + &quot;: &quot;
+                                                    + e.getMessage(), e );
+<span class="fc" id="L443">        }</span>
+<span class="fc" id="L444">    }</span>
+
+    private List&lt;org.eclipse.aether.artifact.Artifact&gt; toAetherArtifacts( final List&lt;Artifact&gt; pluginArtifacts )
+    {
+<span class="fc" id="L448">        return new ArrayList&lt;&gt;( RepositoryUtils.toArtifacts( pluginArtifacts ) );</span>
+    }
+
+    private List&lt;Artifact&gt; toMavenArtifacts( DependencyNode root, PreorderNodeListGenerator nlg )
+    {
+<span class="fc" id="L453">        List&lt;Artifact&gt; artifacts = new ArrayList&lt;&gt;( nlg.getNodes().size() );</span>
+<span class="fc" id="L454">        RepositoryUtils.toArtifacts( artifacts, Collections.singleton( root ), Collections.&lt;String&gt;emptyList(), null );</span>
+<span class="fc bfc" id="L455" title="All 2 branches covered.">        for ( Iterator&lt;Artifact&gt; it = artifacts.iterator(); it.hasNext(); )</span>
+        {
+<span class="fc" id="L457">            Artifact artifact = it.next();</span>
+<span class="pc bpc" id="L458" title="1 of 2 branches missed.">            if ( artifact.getFile() == null )</span>
+            {
+<span class="nc" id="L460">                it.remove();</span>
+            }
+<span class="fc" id="L462">        }</span>
+<span class="fc" id="L463">        return artifacts;</span>
+    }
+
+    private Map&lt;String, ClassLoader&gt; calcImports( MavenProject project, ClassLoader parent, List&lt;String&gt; imports )
+    {
+<span class="fc" id="L468">        Map&lt;String, ClassLoader&gt; foreignImports = new HashMap&lt;&gt;();</span>
+
+<span class="fc" id="L470">        ClassLoader projectRealm = project.getClassRealm();</span>
+<span class="fc bfc" id="L471" title="All 2 branches covered.">        if ( projectRealm != null )</span>
+        {
+<span class="fc" id="L473">            foreignImports.put( &quot;&quot;, projectRealm );</span>
+        }
+        else
+        {
+<span class="fc" id="L477">            foreignImports.put( &quot;&quot;, classRealmManager.getMavenApiRealm() );</span>
+        }
+
+<span class="pc bpc" id="L480" title="3 of 4 branches missed.">        if ( parent != null &amp;&amp; imports != null )</span>
+        {
+<span class="nc bnc" id="L482" title="All 2 branches missed.">            for ( String parentImport : imports )</span>
+            {
+<span class="nc" id="L484">                foreignImports.put( parentImport, parent );</span>
+<span class="nc" id="L485">            }</span>
+        }
+
+<span class="fc" id="L488">        return foreignImports;</span>
+    }
+
+    public &lt;T&gt; T getConfiguredMojo( Class&lt;T&gt; mojoInterface, MavenSession session, MojoExecution mojoExecution )
+        throws PluginConfigurationException, PluginContainerException
+    {
+<span class="fc" id="L494">        MojoDescriptor mojoDescriptor = mojoExecution.getMojoDescriptor();</span>
+
+<span class="fc" id="L496">        PluginDescriptor pluginDescriptor = mojoDescriptor.getPluginDescriptor();</span>
+
+<span class="fc" id="L498">        ClassRealm pluginRealm = pluginDescriptor.getClassRealm();</span>
+
+<span class="pc bpc" id="L500" title="1 of 2 branches missed.">        if ( logger.isDebugEnabled() )</span>
+        {
+<span class="nc" id="L502">            logger.debug( &quot;Configuring mojo &quot; + mojoDescriptor.getId() + &quot; from plugin realm &quot; + pluginRealm );</span>
+        }
+
+        // We are forcing the use of the plugin realm for all lookups that might occur during
+        // the lifecycle that is part of the lookup. Here we are specifically trying to keep
+        // lookups that occur in contextualize calls in line with the right realm.
+<span class="fc" id="L508">        ClassRealm oldLookupRealm = container.setLookupRealm( pluginRealm );</span>
+
+<span class="fc" id="L510">        ClassLoader oldClassLoader = Thread.currentThread().getContextClassLoader();</span>
+<span class="fc" id="L511">        Thread.currentThread().setContextClassLoader( pluginRealm );</span>
+
+        try
+        {
+            T mojo;
+
+            try
+            {
+<span class="fc" id="L519">                mojo = container.lookup( mojoInterface, mojoDescriptor.getRoleHint() );</span>
+            }
+<span class="nc" id="L521">            catch ( ComponentLookupException e )</span>
+            {
+<span class="nc" id="L523">                Throwable cause = e.getCause();</span>
+<span class="nc bnc" id="L524" title="All 6 branches missed.">                while ( cause != null &amp;&amp; !( cause instanceof LinkageError )</span>
+                    &amp;&amp; !( cause instanceof ClassNotFoundException ) )
+                {
+<span class="nc" id="L527">                    cause = cause.getCause();</span>
+                }
+
+<span class="nc bnc" id="L530" title="All 4 branches missed.">                if ( ( cause instanceof NoClassDefFoundError ) || ( cause instanceof ClassNotFoundException ) )</span>
+                {
+<span class="nc" id="L532">                    ByteArrayOutputStream os = new ByteArrayOutputStream( 1024 );</span>
+<span class="nc" id="L533">                    PrintStream ps = new PrintStream( os );</span>
+<span class="nc" id="L534">                    ps.println( &quot;Unable to load the mojo '&quot; + mojoDescriptor.getGoal() + &quot;' in the plugin '&quot;</span>
+                                    + pluginDescriptor.getId() + &quot;'. A required class is missing: &quot;
+                                    + cause.getMessage() );
+<span class="nc" id="L537">                    pluginRealm.display( ps );</span>
+
+<span class="nc" id="L539">                    throw new PluginContainerException( mojoDescriptor, pluginRealm, os.toString(), cause );</span>
+                }
+<span class="nc bnc" id="L541" title="All 2 branches missed.">                else if ( cause instanceof LinkageError )</span>
+                {
+<span class="nc" id="L543">                    ByteArrayOutputStream os = new ByteArrayOutputStream( 1024 );</span>
+<span class="nc" id="L544">                    PrintStream ps = new PrintStream( os );</span>
+<span class="nc" id="L545">                    ps.println( &quot;Unable to load the mojo '&quot; + mojoDescriptor.getGoal() + &quot;' in the plugin '&quot;</span>
+                                    + pluginDescriptor.getId() + &quot;' due to an API incompatibility: &quot;
+                                    + e.getClass().getName() + &quot;: &quot; + cause.getMessage() );
+<span class="nc" id="L548">                    pluginRealm.display( ps );</span>
+
+<span class="nc" id="L550">                    throw new PluginContainerException( mojoDescriptor, pluginRealm, os.toString(), cause );</span>
+                }
+
+<span class="nc" id="L553">                throw new PluginContainerException( mojoDescriptor, pluginRealm,</span>
+                                                    &quot;Unable to load the mojo '&quot; + mojoDescriptor.getGoal()
+                                                        + &quot;' (or one of its required components) from the plugin '&quot;
+                                                        + pluginDescriptor.getId() + &quot;'&quot;, e );
+<span class="fc" id="L557">            }</span>
+
+<span class="pc bpc" id="L559" title="1 of 2 branches missed.">            if ( mojo instanceof ContextEnabled )</span>
+            {
+<span class="fc" id="L561">                MavenProject project = session.getCurrentProject();</span>
+
+<span class="fc" id="L563">                Map&lt;String, Object&gt; pluginContext = session.getPluginContext( pluginDescriptor, project );</span>
+
+<span class="pc bpc" id="L565" title="1 of 2 branches missed.">                if ( pluginContext != null )</span>
+                {
+<span class="fc" id="L567">                    pluginContext.put( &quot;project&quot;, project );</span>
+
+<span class="fc" id="L569">                    pluginContext.put( &quot;pluginDescriptor&quot;, pluginDescriptor );</span>
+
+<span class="fc" id="L571">                    ( (ContextEnabled) mojo ).setPluginContext( pluginContext );</span>
+                }
+            }
+
+<span class="pc bpc" id="L575" title="1 of 2 branches missed.">            if ( mojo instanceof Mojo )</span>
+            {
+<span class="fc" id="L577">                Logger mojoLogger = loggerManager.getLoggerForComponent( mojoDescriptor.getImplementation() );</span>
+<span class="fc" id="L578">                ( (Mojo) mojo ).setLog( new DefaultLog( mojoLogger ) );</span>
+            }
+
+<span class="fc" id="L581">            Xpp3Dom dom = mojoExecution.getConfiguration();</span>
+
+            PlexusConfiguration pomConfiguration;
+
+<span class="pc bpc" id="L585" title="1 of 2 branches missed.">            if ( dom == null )</span>
+            {
+<span class="nc" id="L587">                pomConfiguration = new XmlPlexusConfiguration( &quot;configuration&quot; );</span>
+            }
+            else
+            {
+<span class="fc" id="L591">                pomConfiguration = new XmlPlexusConfiguration( dom );</span>
+            }
+
+<span class="fc" id="L594">            ExpressionEvaluator expressionEvaluator = new PluginParameterExpressionEvaluator( session, mojoExecution );</span>
+
+<span class="fc" id="L596">            populatePluginFields( mojo, mojoDescriptor, pluginRealm, pomConfiguration, expressionEvaluator );</span>
+
+<span class="fc" id="L598">            return mojo;</span>
+        }
+        finally
+        {
+<span class="fc" id="L602">            Thread.currentThread().setContextClassLoader( oldClassLoader );</span>
+<span class="fc" id="L603">            container.setLookupRealm( oldLookupRealm );</span>
+        }
+    }
+
+    private void populatePluginFields( Object mojo, MojoDescriptor mojoDescriptor, ClassRealm pluginRealm,
+                                       PlexusConfiguration configuration, ExpressionEvaluator expressionEvaluator )
+        throws PluginConfigurationException
+    {
+<span class="fc" id="L611">        ComponentConfigurator configurator = null;</span>
+
+<span class="fc" id="L613">        String configuratorId = mojoDescriptor.getComponentConfigurator();</span>
+
+<span class="pc bpc" id="L615" title="1 of 2 branches missed.">        if ( StringUtils.isEmpty( configuratorId ) )</span>
+        {
+<span class="fc" id="L617">            configuratorId = &quot;basic&quot;;</span>
+        }
+
+        try
+        {
+            // TODO could the configuration be passed to lookup and the configurator known to plexus via the descriptor
+            // so that this method could entirely be handled by a plexus lookup?
+<span class="fc" id="L624">            configurator = container.lookup( ComponentConfigurator.class, configuratorId );</span>
+
+<span class="fc" id="L626">            ConfigurationListener listener = new DebugConfigurationListener( logger );</span>
+
+<span class="fc" id="L628">            ValidatingConfigurationListener validator =</span>
+                new ValidatingConfigurationListener( mojo, mojoDescriptor, listener );
+
+<span class="fc" id="L631">            logger.debug(</span>
+                &quot;Configuring mojo '&quot; + mojoDescriptor.getId() + &quot;' with &quot; + configuratorId + &quot; configurator --&gt;&quot; );
+
+<span class="fc" id="L634">            configurator.configureComponent( mojo, configuration, expressionEvaluator, pluginRealm, validator );</span>
+
+<span class="fc" id="L636">            logger.debug( &quot;-- end configuration --&quot; );</span>
+
+<span class="fc" id="L638">            Collection&lt;Parameter&gt; missingParameters = validator.getMissingParameters();</span>
+<span class="pc bpc" id="L639" title="1 of 2 branches missed.">            if ( !missingParameters.isEmpty() )</span>
+            {
+<span class="nc bnc" id="L641" title="All 2 branches missed.">                if ( &quot;basic&quot;.equals( configuratorId ) )</span>
+                {
+<span class="nc" id="L643">                    throw new PluginParameterException( mojoDescriptor, new ArrayList&lt;&gt;( missingParameters ) );</span>
+                }
+                else
+                {
+                    /*
+                     * NOTE: Other configurators like the map-oriented one don't call into the listener, so do it the
+                     * hard way.
+                     */
+<span class="nc" id="L651">                    validateParameters( mojoDescriptor, configuration, expressionEvaluator );</span>
+                }
+            }
+        }
+<span class="nc" id="L655">        catch ( ComponentConfigurationException e )</span>
+        {
+<span class="nc" id="L657">            String message = &quot;Unable to parse configuration of mojo &quot; + mojoDescriptor.getId();</span>
+<span class="nc bnc" id="L658" title="All 2 branches missed.">            if ( e.getFailedConfiguration() != null )</span>
+            {
+<span class="nc" id="L660">                message += &quot; for parameter &quot; + e.getFailedConfiguration().getName();</span>
+            }
+<span class="nc" id="L662">            message += &quot;: &quot; + e.getMessage();</span>
+
+<span class="nc" id="L664">            throw new PluginConfigurationException( mojoDescriptor.getPluginDescriptor(), message, e );</span>
+        }
+<span class="nc" id="L666">        catch ( ComponentLookupException e )</span>
+        {
+<span class="nc" id="L668">            throw new PluginConfigurationException( mojoDescriptor.getPluginDescriptor(),</span>
+                                                    &quot;Unable to retrieve component configurator &quot; + configuratorId
+                                                        + &quot; for configuration of mojo &quot; + mojoDescriptor.getId(), e );
+        }
+<span class="nc" id="L672">        catch ( NoClassDefFoundError e )</span>
+        {
+<span class="nc" id="L674">            ByteArrayOutputStream os = new ByteArrayOutputStream( 1024 );</span>
+<span class="nc" id="L675">            PrintStream ps = new PrintStream( os );</span>
+<span class="nc" id="L676">            ps.println( &quot;A required class was missing during configuration of mojo &quot; + mojoDescriptor.getId() + &quot;: &quot;</span>
+                            + e.getMessage() );
+<span class="nc" id="L678">            pluginRealm.display( ps );</span>
+
+<span class="nc" id="L680">            throw new PluginConfigurationException( mojoDescriptor.getPluginDescriptor(), os.toString(), e );</span>
+        }
+<span class="nc" id="L682">        catch ( LinkageError e )</span>
+        {
+<span class="nc" id="L684">            ByteArrayOutputStream os = new ByteArrayOutputStream( 1024 );</span>
+<span class="nc" id="L685">            PrintStream ps = new PrintStream( os );</span>
+<span class="nc" id="L686">            ps.println(</span>
+                &quot;An API incompatibility was encountered during configuration of mojo &quot; + mojoDescriptor.getId() + &quot;: &quot;
+                    + e.getClass().getName() + &quot;: &quot; + e.getMessage() );
+<span class="nc" id="L689">            pluginRealm.display( ps );</span>
+
+<span class="nc" id="L691">            throw new PluginConfigurationException( mojoDescriptor.getPluginDescriptor(), os.toString(), e );</span>
+        }
+        finally
+        {
+<span class="pc bpc" id="L695" title="1 of 2 branches missed.">            if ( configurator != null )</span>
+            {
+                try
+                {
+<span class="fc" id="L699">                    container.release( configurator );</span>
+                }
+<span class="nc" id="L701">                catch ( ComponentLifecycleException e )</span>
+                {
+<span class="nc" id="L703">                    logger.debug( &quot;Failed to release mojo configurator - ignoring.&quot; );</span>
+<span class="fc" id="L704">                }</span>
+            }
+        }
+<span class="fc" id="L707">    }</span>
+
+    private void validateParameters( MojoDescriptor mojoDescriptor, PlexusConfiguration configuration,
+                                     ExpressionEvaluator expressionEvaluator )
+        throws ComponentConfigurationException, PluginParameterException
+    {
+<span class="nc bnc" id="L713" title="All 2 branches missed.">        if ( mojoDescriptor.getParameters() == null )</span>
+        {
+<span class="nc" id="L715">            return;</span>
+        }
+
+<span class="nc" id="L718">        List&lt;Parameter&gt; invalidParameters = new ArrayList&lt;&gt;();</span>
+
+<span class="nc bnc" id="L720" title="All 2 branches missed.">        for ( Parameter parameter : mojoDescriptor.getParameters() )</span>
+        {
+<span class="nc bnc" id="L722" title="All 2 branches missed.">            if ( !parameter.isRequired() )</span>
+            {
+<span class="nc" id="L724">                continue;</span>
+            }
+
+<span class="nc" id="L727">            Object value = null;</span>
+
+<span class="nc" id="L729">            PlexusConfiguration config = configuration.getChild( parameter.getName(), false );</span>
+<span class="nc bnc" id="L730" title="All 2 branches missed.">            if ( config != null )</span>
+            {
+<span class="nc" id="L732">                String expression = config.getValue( null );</span>
+
+                try
+                {
+<span class="nc" id="L736">                    value = expressionEvaluator.evaluate( expression );</span>
+
+<span class="nc bnc" id="L738" title="All 2 branches missed.">                    if ( value == null )</span>
+                    {
+<span class="nc" id="L740">                        value = config.getAttribute( &quot;default-value&quot;, null );</span>
+                    }
+                }
+<span class="nc" id="L743">                catch ( ExpressionEvaluationException e )</span>
+                {
+<span class="nc" id="L745">                    String msg = &quot;Error evaluating the expression '&quot; + expression + &quot;' for configuration value '&quot;</span>
+                        + configuration.getName() + &quot;'&quot;;
+<span class="nc" id="L747">                    throw new ComponentConfigurationException( configuration, msg, e );</span>
+<span class="nc" id="L748">                }</span>
+            }
+
+<span class="nc bnc" id="L751" title="All 6 branches missed.">            if ( value == null &amp;&amp; ( config == null || config.getChildCount() &lt;= 0 ) )</span>
+            {
+<span class="nc" id="L753">                invalidParameters.add( parameter );</span>
+            }
+<span class="nc" id="L755">        }</span>
+
+<span class="nc bnc" id="L757" title="All 2 branches missed.">        if ( !invalidParameters.isEmpty() )</span>
+        {
+<span class="nc" id="L759">            throw new PluginParameterException( mojoDescriptor, invalidParameters );</span>
+        }
+<span class="nc" id="L761">    }</span>
+
+    public void releaseMojo( Object mojo, MojoExecution mojoExecution )
+    {
+<span class="pc bpc" id="L765" title="1 of 2 branches missed.">        if ( mojo != null )</span>
+        {
+            try
+            {
+<span class="fc" id="L769">                container.release( mojo );</span>
+            }
+<span class="nc" id="L771">            catch ( ComponentLifecycleException e )</span>
+            {
+<span class="nc" id="L773">                String goalExecId = mojoExecution.getGoal();</span>
+
+<span class="nc bnc" id="L775" title="All 2 branches missed.">                if ( mojoExecution.getExecutionId() != null )</span>
+                {
+<span class="nc" id="L777">                    goalExecId += &quot; {execution: &quot; + mojoExecution.getExecutionId() + &quot;}&quot;;</span>
+                }
+
+<span class="nc" id="L780">                logger.debug( &quot;Error releasing mojo for &quot; + goalExecId, e );</span>
+<span class="fc" id="L781">            }</span>
+        }
+<span class="fc" id="L783">    }</span>
+
+    public ExtensionRealmCache.CacheRecord setupExtensionsRealm( MavenProject project, Plugin plugin,
+                                                                 RepositorySystemSession session )
+        throws PluginManagerException
+    {
+<span class="fc" id="L789">        @SuppressWarnings( &quot;unchecked&quot; ) Map&lt;String, ExtensionRealmCache.CacheRecord&gt; pluginRealms =</span>
+            (Map&lt;String, ExtensionRealmCache.CacheRecord&gt;) project.getContextValue( KEY_EXTENSIONS_REALMS );
+<span class="fc bfc" id="L791" title="All 2 branches covered.">        if ( pluginRealms == null )</span>
+        {
+<span class="fc" id="L793">            pluginRealms = new HashMap&lt;&gt;();</span>
+<span class="fc" id="L794">            project.setContextValue( KEY_EXTENSIONS_REALMS, pluginRealms );</span>
+        }
+
+<span class="fc" id="L797">        final String pluginKey = plugin.getId();</span>
+
+<span class="fc" id="L799">        ExtensionRealmCache.CacheRecord extensionRecord = pluginRealms.get( pluginKey );</span>
+<span class="fc bfc" id="L800" title="All 2 branches covered.">        if ( extensionRecord != null )</span>
+        {
+<span class="fc" id="L802">            return extensionRecord;</span>
+        }
+
+<span class="fc" id="L805">        final List&lt;RemoteRepository&gt; repositories = project.getRemotePluginRepositories();</span>
+
+        // resolve plugin version as necessary
+<span class="pc bpc" id="L808" title="1 of 2 branches missed.">        if ( plugin.getVersion() == null )</span>
+        {
+<span class="nc" id="L810">            PluginVersionRequest versionRequest = new DefaultPluginVersionRequest( plugin, session, repositories );</span>
+            try
+            {
+<span class="nc" id="L813">                plugin.setVersion( pluginVersionResolver.resolve( versionRequest ).getVersion() );</span>
+            }
+<span class="nc" id="L815">            catch ( PluginVersionResolutionException e )</span>
+            {
+<span class="nc" id="L817">                throw new PluginManagerException( plugin, e.getMessage(), e );</span>
+<span class="nc" id="L818">            }</span>
+        }
+
+        // resolve plugin artifacts
+        List&lt;Artifact&gt; artifacts;
+<span class="fc" id="L823">        PluginArtifactsCache.Key cacheKey = pluginArtifactsCache.createKey( plugin, null, repositories, session );</span>
+        PluginArtifactsCache.CacheRecord recordArtifacts;
+        try
+        {
+<span class="fc" id="L827">            recordArtifacts = pluginArtifactsCache.get( cacheKey );</span>
+        }
+<span class="nc" id="L829">        catch ( PluginResolutionException e )</span>
+        {
+<span class="nc" id="L831">            throw new PluginManagerException( plugin, e.getMessage(), e );</span>
+<span class="fc" id="L832">        }</span>
+<span class="fc bfc" id="L833" title="All 2 branches covered.">        if ( recordArtifacts != null )</span>
+        {
+<span class="fc" id="L835">            artifacts = recordArtifacts.getArtifacts();</span>
+        }
+        else
+        {
+            try
+            {
+<span class="fc" id="L841">                artifacts = resolveExtensionArtifacts( plugin, repositories, session );</span>
+<span class="fc" id="L842">                recordArtifacts = pluginArtifactsCache.put( cacheKey, artifacts );</span>
+            }
+<span class="fc" id="L844">            catch ( PluginResolutionException e )</span>
+            {
+<span class="fc" id="L846">                pluginArtifactsCache.put( cacheKey, e );</span>
+<span class="fc" id="L847">                pluginArtifactsCache.register( project, cacheKey, recordArtifacts );</span>
+<span class="fc" id="L848">                throw new PluginManagerException( plugin, e.getMessage(), e );</span>
+<span class="fc" id="L849">            }</span>
+        }
+<span class="fc" id="L851">        pluginArtifactsCache.register( project, cacheKey, recordArtifacts );</span>
+
+        // create and cache extensions realms
+<span class="fc" id="L854">        final ExtensionRealmCache.Key extensionKey = extensionRealmCache.createKey( artifacts );</span>
+<span class="fc" id="L855">        extensionRecord = extensionRealmCache.get( extensionKey );</span>
+<span class="fc bfc" id="L856" title="All 2 branches covered.">        if ( extensionRecord == null )</span>
+        {
+<span class="fc" id="L858">            ClassRealm extensionRealm =</span>
+                classRealmManager.createExtensionRealm( plugin, toAetherArtifacts( artifacts ) );
+
+            // TODO figure out how to use the same PluginDescriptor when running mojos
+
+<span class="fc" id="L863">            PluginDescriptor pluginDescriptor = null;</span>
+<span class="pc bpc" id="L864" title="2 of 4 branches missed.">            if ( plugin.isExtensions() &amp;&amp; !artifacts.isEmpty() )</span>
+            {
+                // ignore plugin descriptor parsing errors at this point
+                // these errors will reported during calculation of project build execution plan
+                try
+                {
+<span class="fc" id="L870">                    pluginDescriptor = extractPluginDescriptor( artifacts.get( 0 ), plugin );</span>
+                }
+<span class="nc" id="L872">                catch ( PluginDescriptorParsingException | InvalidPluginDescriptorException e )</span>
+                {
+                    // ignore, see above
+<span class="fc" id="L875">                }</span>
+            }
+
+<span class="fc" id="L878">            discoverPluginComponents( extensionRealm, plugin, pluginDescriptor );</span>
+
+<span class="fc" id="L880">            ExtensionDescriptor extensionDescriptor = null;</span>
+<span class="fc" id="L881">            Artifact extensionArtifact = artifacts.get( 0 );</span>
+            try
+            {
+<span class="fc" id="L884">                extensionDescriptor = extensionDescriptorBuilder.build( extensionArtifact.getFile() );</span>
+            }
+<span class="nc" id="L886">            catch ( IOException e )</span>
+            {
+<span class="nc" id="L888">                String message = &quot;Invalid extension descriptor for &quot; + plugin.getId() + &quot;: &quot; + e.getMessage();</span>
+<span class="nc bnc" id="L889" title="All 2 branches missed.">                if ( logger.isDebugEnabled() )</span>
+                {
+<span class="nc" id="L891">                    logger.error( message, e );</span>
+                }
+                else
+                {
+<span class="nc" id="L895">                    logger.error( message );</span>
+                }
+<span class="fc" id="L897">            }</span>
+<span class="fc" id="L898">            extensionRecord = extensionRealmCache.put( extensionKey, extensionRealm, extensionDescriptor, artifacts );</span>
+        }
+<span class="fc" id="L900">        extensionRealmCache.register( project, extensionKey, extensionRecord );</span>
+<span class="fc" id="L901">        pluginRealms.put( pluginKey, extensionRecord );</span>
+
+<span class="fc" id="L903">        return extensionRecord;</span>
+    }
+
+    private List&lt;Artifact&gt; resolveExtensionArtifacts( Plugin extensionPlugin, List&lt;RemoteRepository&gt; repositories,
+                                                      RepositorySystemSession session )
+        throws PluginResolutionException
+    {
+<span class="fc" id="L910">        DependencyNode root = pluginDependenciesResolver.resolve( extensionPlugin, null, null, repositories, session );</span>
+<span class="fc" id="L911">        PreorderNodeListGenerator nlg = new PreorderNodeListGenerator();</span>
+<span class="fc" id="L912">        root.accept( nlg );</span>
+<span class="fc" id="L913">        return toMavenArtifacts( root, nlg );</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

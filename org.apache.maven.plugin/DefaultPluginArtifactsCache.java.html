@@ -1,0 +1,208 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultPluginArtifactsCache.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.plugin</a> &gt; <span class="el_source">DefaultPluginArtifactsCache.java</span></div><h1>DefaultPluginArtifactsCache.java</h1><pre class="source lang-java linenums">package org.apache.maven.plugin;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
+
+import org.apache.commons.lang3.Validate;
+import org.apache.maven.RepositoryUtils;
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.model.Plugin;
+import org.apache.maven.project.MavenProject;
+import org.codehaus.plexus.component.annotations.Component;
+import org.eclipse.aether.RepositorySystemSession;
+import org.eclipse.aether.graph.DependencyFilter;
+import org.eclipse.aether.repository.LocalRepository;
+import org.eclipse.aether.repository.RemoteRepository;
+import org.eclipse.aether.repository.WorkspaceRepository;
+
+/**
+ * @author Igor Fedorenko
+ * @author Benjamin Bentmann
+ */
+@Component( role = PluginArtifactsCache.class )
+<span class="fc" id="L46">public class DefaultPluginArtifactsCache</span>
+    implements PluginArtifactsCache
+{
+    /**
+     * CacheKey
+     */
+    protected static class CacheKey
+        implements Key
+    {
+        private final Plugin plugin;
+
+        private final WorkspaceRepository workspace;
+
+        private final LocalRepository localRepo;
+
+        private final List&lt;RemoteRepository&gt; repositories;
+
+        private final DependencyFilter filter;
+
+        private final int hashCode;
+
+        public CacheKey( Plugin plugin, DependencyFilter extensionFilter, List&lt;RemoteRepository&gt; repositories,
+                         RepositorySystemSession session )
+<span class="fc" id="L69">        {</span>
+<span class="fc" id="L70">            this.plugin = plugin.clone();</span>
+<span class="fc" id="L71">            workspace = RepositoryUtils.getWorkspace( session );</span>
+<span class="fc" id="L72">            this.localRepo = session.getLocalRepository();</span>
+<span class="fc" id="L73">            this.repositories = new ArrayList&lt;&gt;( repositories.size() );</span>
+<span class="fc bfc" id="L74" title="All 2 branches covered.">            for ( RemoteRepository repository : repositories )</span>
+            {
+<span class="pc bpc" id="L76" title="1 of 2 branches missed.">                if ( repository.isRepositoryManager() )</span>
+                {
+<span class="nc" id="L78">                    this.repositories.addAll( repository.getMirroredRepositories() );</span>
+                }
+                else
+                {
+<span class="fc" id="L82">                    this.repositories.add( repository );</span>
+                }
+<span class="fc" id="L84">            }</span>
+<span class="fc" id="L85">            this.filter = extensionFilter;</span>
+
+<span class="fc" id="L87">            int hash = 17;</span>
+<span class="fc" id="L88">            hash = hash * 31 + CacheUtils.pluginHashCode( plugin );</span>
+<span class="fc" id="L89">            hash = hash * 31 + Objects.hashCode( workspace );</span>
+<span class="fc" id="L90">            hash = hash * 31 + Objects.hashCode( localRepo );</span>
+<span class="fc" id="L91">            hash = hash * 31 + RepositoryUtils.repositoriesHashCode( repositories );</span>
+<span class="fc" id="L92">            hash = hash * 31 + Objects.hashCode( extensionFilter );</span>
+<span class="fc" id="L93">            this.hashCode = hash;</span>
+<span class="fc" id="L94">        }</span>
+
+        @Override
+        public String toString()
+        {
+<span class="nc" id="L99">            return plugin.getId();</span>
+        }
+
+        @Override
+        public int hashCode()
+        {
+<span class="fc" id="L105">            return hashCode;</span>
+        }
+
+        @Override
+        public boolean equals( Object o )
+        {
+<span class="pc bpc" id="L111" title="1 of 2 branches missed.">            if ( o == this )</span>
+            {
+<span class="nc" id="L113">                return true;</span>
+            }
+
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">            if ( !( o instanceof CacheKey ) )</span>
+            {
+<span class="nc" id="L118">                return false;</span>
+            }
+
+<span class="fc" id="L121">            CacheKey that = (CacheKey) o;</span>
+
+<span class="pc bpc" id="L123" title="5 of 10 branches missed.">            return CacheUtils.pluginEquals( plugin, that.plugin ) </span>
+                &amp;&amp; Objects.equals( workspace, that.workspace )
+                &amp;&amp; Objects.equals( localRepo, that.localRepo ) 
+                &amp;&amp; RepositoryUtils.repositoriesEquals( repositories, that.repositories )
+                &amp;&amp; Objects.equals( filter, that.filter );
+        }
+    }
+
+<span class="fc" id="L131">    protected final Map&lt;Key, CacheRecord&gt; cache = new ConcurrentHashMap&lt;&gt;();</span>
+
+    public Key createKey( Plugin plugin, DependencyFilter extensionFilter, List&lt;RemoteRepository&gt; repositories,
+                          RepositorySystemSession session )
+    {
+<span class="fc" id="L136">        return new CacheKey( plugin, extensionFilter, repositories, session );</span>
+    }
+
+    public CacheRecord get( Key key )
+        throws PluginResolutionException
+    {
+<span class="fc" id="L142">        CacheRecord cacheRecord = cache.get( key );</span>
+
+<span class="pc bpc" id="L144" title="1 of 4 branches missed.">        if ( cacheRecord != null &amp;&amp; cacheRecord.getException() != null )</span>
+        {
+<span class="nc" id="L146">            throw cacheRecord.getException();</span>
+        }
+
+<span class="fc" id="L149">        return cacheRecord;</span>
+    }
+
+    public CacheRecord put( Key key, List&lt;Artifact&gt; pluginArtifacts )
+    {
+<span class="fc" id="L154">        Validate.notNull( pluginArtifacts, &quot;pluginArtifacts cannot be null&quot; );</span>
+
+<span class="fc" id="L156">        assertUniqueKey( key );</span>
+
+<span class="fc" id="L158">        CacheRecord record =</span>
+            new CacheRecord( Collections.unmodifiableList( new ArrayList&lt;&gt;( pluginArtifacts ) ) );
+
+<span class="fc" id="L161">        cache.put( key, record );</span>
+
+<span class="fc" id="L163">        return record;</span>
+    }
+
+    protected void assertUniqueKey( Key key )
+    {
+<span class="pc bpc" id="L168" title="1 of 2 branches missed.">        if ( cache.containsKey( key ) )</span>
+        {
+<span class="nc" id="L170">            throw new IllegalStateException( &quot;Duplicate artifact resolution result for plugin &quot; + key );</span>
+        }
+<span class="fc" id="L172">    }</span>
+
+    public CacheRecord put( Key key, PluginResolutionException exception )
+    {
+<span class="fc" id="L176">        Validate.notNull( exception, &quot;exception cannot be null&quot; );</span>
+
+<span class="fc" id="L178">        assertUniqueKey( key );</span>
+
+<span class="fc" id="L180">        CacheRecord record = new CacheRecord( exception );</span>
+
+<span class="fc" id="L182">        cache.put( key, record );</span>
+
+<span class="fc" id="L184">        return record;</span>
+    }
+
+    public void flush()
+    {
+<span class="nc" id="L189">        cache.clear();</span>
+<span class="nc" id="L190">    }</span>
+
+    protected static int pluginHashCode( Plugin plugin )
+    {
+<span class="nc" id="L194">        return CacheUtils.pluginHashCode( plugin );</span>
+    }
+
+    protected static boolean pluginEquals( Plugin a, Plugin b )
+    {
+<span class="nc" id="L199">        return CacheUtils.pluginEquals( a, b );</span>
+    }
+
+    public void register( MavenProject project, Key cacheKey, CacheRecord record )
+    {
+        // default cache does not track record usage
+<span class="nc" id="L205">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

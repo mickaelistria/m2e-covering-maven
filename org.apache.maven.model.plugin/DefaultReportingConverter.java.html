@@ -1,0 +1,250 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultReportingConverter.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.model.plugin</a> &gt; <span class="el_source">DefaultReportingConverter.java</span></div><h1>DefaultReportingConverter.java</h1><pre class="source lang-java linenums">package org.apache.maven.model.plugin;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.apache.maven.model.Build;
+import org.apache.maven.model.Model;
+import org.apache.maven.model.Plugin;
+import org.apache.maven.model.PluginManagement;
+import org.apache.maven.model.ReportPlugin;
+import org.apache.maven.model.ReportSet;
+import org.apache.maven.model.Reporting;
+import org.apache.maven.model.building.ModelBuildingRequest;
+import org.apache.maven.model.building.ModelProblemCollector;
+import org.apache.maven.model.building.ModelProblemCollectorRequest;
+import org.apache.maven.model.building.ModelProblem.Severity;
+import org.apache.maven.model.building.ModelProblem.Version;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.util.StringUtils;
+import org.codehaus.plexus.util.xml.Xpp3Dom;
+
+/**
+ * Handles conversion of the &lt;code&gt;&amp;lt;reporting&amp;gt;&lt;/code&gt; section into the configuration of Maven Site Plugin 3.x,
+ * i.e. &lt;code&gt;reportPlugins&lt;/code&gt; and &lt;code&gt;outputDirectory&lt;/code&gt; parameters.
+ *
+ * @author Benjamin Bentmann
+ */
+@Component( role = ReportingConverter.class )
+<span class="fc" id="L45">public class DefaultReportingConverter</span>
+    implements ReportingConverter
+{
+
+    @Override
+    public void convertReporting( Model model, ModelBuildingRequest request, ModelProblemCollector problems )
+    {
+<span class="fc" id="L52">        Reporting reporting = model.getReporting();</span>
+
+<span class="pc bpc" id="L54" title="1 of 2 branches missed.">        if ( reporting == null )</span>
+        {
+<span class="nc" id="L56">            return;</span>
+        }
+
+<span class="fc" id="L59">        Build build = model.getBuild();</span>
+
+<span class="pc bpc" id="L61" title="1 of 2 branches missed.">        if ( build == null )</span>
+        {
+<span class="nc" id="L63">            build = new Build();</span>
+<span class="nc" id="L64">            model.setBuild( build );</span>
+        }
+
+<span class="fc" id="L67">        Plugin sitePlugin = findSitePlugin( build );</span>
+
+<span class="fc bfc" id="L69" title="All 2 branches covered.">        if ( sitePlugin == null )</span>
+        {
+<span class="fc" id="L71">            sitePlugin = new Plugin();</span>
+<span class="fc" id="L72">            sitePlugin.setArtifactId( &quot;maven-site-plugin&quot; );</span>
+<span class="fc" id="L73">            PluginManagement pluginManagement = build.getPluginManagement();</span>
+<span class="pc bpc" id="L74" title="1 of 2 branches missed.">            if ( pluginManagement == null )</span>
+            {
+<span class="nc" id="L76">                pluginManagement = new PluginManagement();</span>
+<span class="nc" id="L77">                build.setPluginManagement( pluginManagement );</span>
+            }
+<span class="fc" id="L79">            pluginManagement.addPlugin( sitePlugin );</span>
+        }
+
+<span class="fc" id="L82">        Xpp3Dom configuration = (Xpp3Dom) sitePlugin.getConfiguration();</span>
+
+<span class="pc bpc" id="L84" title="1 of 2 branches missed.">        if ( configuration == null )</span>
+        {
+<span class="fc" id="L86">            configuration = new Xpp3Dom( &quot;configuration&quot; );</span>
+<span class="fc" id="L87">            sitePlugin.setConfiguration( configuration );</span>
+        }
+
+<span class="fc" id="L90">        Xpp3Dom reportPlugins = configuration.getChild( &quot;reportPlugins&quot; );</span>
+
+<span class="pc bpc" id="L92" title="1 of 2 branches missed.">        if ( reportPlugins != null )</span>
+        {
+            // new-style report configuration already present: warn since this new style has been deprecated
+            // in favor of classical reporting section MSITE-647 / MSITE-684
+<span class="nc" id="L96">            problems.add( new ModelProblemCollectorRequest( Severity.WARNING, Version.BASE )</span>
+                    .setMessage( &quot;Reporting configuration should be done in &lt;reporting&gt; section, &quot;
+                          + &quot;not in maven-site-plugin &lt;configuration&gt; as reportPlugins parameter.&quot; )
+                    .setLocation( sitePlugin.getLocation( &quot;configuration&quot; ) ) );
+<span class="nc" id="L100">            return;</span>
+        }
+
+<span class="pc bpc" id="L103" title="1 of 2 branches missed.">        if ( configuration.getChild( &quot;outputDirectory&quot; ) == null )</span>
+        {
+<span class="fc" id="L105">            addDom( configuration, &quot;outputDirectory&quot;, reporting.getOutputDirectory() );</span>
+        }
+
+<span class="fc" id="L108">        reportPlugins = new Xpp3Dom( &quot;reportPlugins&quot; );</span>
+<span class="fc" id="L109">        configuration.addChild( reportPlugins );</span>
+
+<span class="fc" id="L111">        boolean hasMavenProjectInfoReportsPlugin = false;</span>
+
+        /* waiting for MSITE-484 before deprecating &lt;reporting&gt; section
+        if ( !reporting.getPlugins().isEmpty()
+            &amp;&amp; request.getValidationLevel() &gt;= ModelBuildingRequest.VALIDATION_LEVEL_MAVEN_3_1 )
+        {
+
+            problems.add( new ModelProblemCollectorRequest( Severity.WARNING, Version.V31 )
+                    .setMessage( &quot;The &lt;reporting&gt; section is deprecated, please move the reports to the &lt;configuration&gt;&quot;
+                                 + &quot; section of the new Maven Site Plugin.&quot; )
+                    .setLocation( reporting.getLocation( &quot;&quot; ) ) );
+        }*/
+
+<span class="fc bfc" id="L124" title="All 2 branches covered.">        for ( ReportPlugin plugin : reporting.getPlugins() )</span>
+        {
+<span class="fc" id="L126">            Xpp3Dom reportPlugin = convert( plugin );</span>
+<span class="fc" id="L127">            reportPlugins.addChild( reportPlugin );</span>
+
+<span class="pc bpc" id="L129" title="1 of 8 branches missed.">            if ( !reporting.isExcludeDefaults() &amp;&amp; !hasMavenProjectInfoReportsPlugin</span>
+                &amp;&amp; &quot;org.apache.maven.plugins&quot;.equals( plugin.getGroupId() )
+                &amp;&amp; &quot;maven-project-info-reports-plugin&quot;.equals( plugin.getArtifactId() ) )
+            {
+<span class="fc" id="L133">                hasMavenProjectInfoReportsPlugin = true;</span>
+            }
+<span class="fc" id="L135">        }</span>
+
+<span class="pc bpc" id="L137" title="1 of 4 branches missed.">        if ( !reporting.isExcludeDefaults() &amp;&amp; !hasMavenProjectInfoReportsPlugin )</span>
+        {
+<span class="fc" id="L139">            Xpp3Dom dom = new Xpp3Dom( &quot;reportPlugin&quot; );</span>
+
+<span class="fc" id="L141">            addDom( dom, &quot;groupId&quot;, &quot;org.apache.maven.plugins&quot; );</span>
+<span class="fc" id="L142">            addDom( dom, &quot;artifactId&quot;, &quot;maven-project-info-reports-plugin&quot; );</span>
+
+<span class="fc" id="L144">            reportPlugins.addChild( dom );</span>
+        }
+<span class="fc" id="L146">    }</span>
+
+    private Plugin findSitePlugin( Build build )
+    {
+<span class="fc bfc" id="L150" title="All 2 branches covered.">        for ( Plugin plugin : build.getPlugins() )</span>
+        {
+<span class="fc bfc" id="L152" title="All 2 branches covered.">            if ( isSitePlugin( plugin ) )</span>
+            {
+<span class="fc" id="L154">                return plugin;</span>
+            }
+<span class="fc" id="L156">        }</span>
+
+<span class="fc" id="L158">        PluginManagement pluginManagement = build.getPluginManagement();</span>
+<span class="pc bpc" id="L159" title="1 of 2 branches missed.">        if ( pluginManagement != null )</span>
+        {
+<span class="fc bfc" id="L161" title="All 2 branches covered.">            for ( Plugin plugin : pluginManagement.getPlugins() )</span>
+            {
+<span class="pc bpc" id="L163" title="1 of 2 branches missed.">                if ( isSitePlugin( plugin ) )</span>
+                {
+<span class="nc" id="L165">                    return plugin;</span>
+                }
+<span class="fc" id="L167">            }</span>
+        }
+
+<span class="fc" id="L170">        return null;</span>
+    }
+
+    private boolean isSitePlugin( Plugin plugin )
+    {
+<span class="pc bpc" id="L175" title="1 of 4 branches missed.">        return &quot;maven-site-plugin&quot;.equals( plugin.getArtifactId() )</span>
+            &amp;&amp; &quot;org.apache.maven.plugins&quot;.equals( plugin.getGroupId() );
+    }
+
+    private Xpp3Dom convert( ReportPlugin plugin )
+    {
+<span class="fc" id="L181">        Xpp3Dom dom = new Xpp3Dom( &quot;reportPlugin&quot; );</span>
+
+<span class="fc" id="L183">        addDom( dom, &quot;groupId&quot;, plugin.getGroupId() );</span>
+<span class="fc" id="L184">        addDom( dom, &quot;artifactId&quot;, plugin.getArtifactId() );</span>
+<span class="fc" id="L185">        addDom( dom, &quot;version&quot;, plugin.getVersion() );</span>
+
+<span class="fc" id="L187">        Xpp3Dom configuration = (Xpp3Dom) plugin.getConfiguration();</span>
+<span class="fc bfc" id="L188" title="All 2 branches covered.">        if ( configuration != null )</span>
+        {
+<span class="fc" id="L190">            configuration = new Xpp3Dom( configuration );</span>
+<span class="fc" id="L191">            dom.addChild( configuration );</span>
+        }
+
+<span class="pc bpc" id="L194" title="1 of 2 branches missed.">        if ( !plugin.getReportSets().isEmpty() )</span>
+        {
+<span class="nc" id="L196">            Xpp3Dom reportSets = new Xpp3Dom( &quot;reportSets&quot; );</span>
+<span class="nc bnc" id="L197" title="All 2 branches missed.">            for ( ReportSet reportSet : plugin.getReportSets() )</span>
+            {
+<span class="nc" id="L199">                Xpp3Dom rs = convert( reportSet );</span>
+<span class="nc" id="L200">                reportSets.addChild( rs );</span>
+<span class="nc" id="L201">            }</span>
+<span class="nc" id="L202">            dom.addChild( reportSets );</span>
+        }
+
+<span class="fc" id="L205">        return dom;</span>
+    }
+
+    private Xpp3Dom convert( ReportSet reportSet )
+    {
+<span class="nc" id="L210">        Xpp3Dom dom = new Xpp3Dom( &quot;reportSet&quot; );</span>
+
+<span class="nc" id="L212">        addDom( dom, &quot;id&quot;, reportSet.getId() );</span>
+
+<span class="nc" id="L214">        Xpp3Dom configuration = (Xpp3Dom) reportSet.getConfiguration();</span>
+<span class="nc bnc" id="L215" title="All 2 branches missed.">        if ( configuration != null )</span>
+        {
+<span class="nc" id="L217">            configuration = new Xpp3Dom( configuration );</span>
+<span class="nc" id="L218">            dom.addChild( configuration );</span>
+        }
+
+<span class="nc bnc" id="L221" title="All 2 branches missed.">        if ( !reportSet.getReports().isEmpty() )</span>
+        {
+<span class="nc" id="L223">            Xpp3Dom reports = new Xpp3Dom( &quot;reports&quot; );</span>
+<span class="nc bnc" id="L224" title="All 2 branches missed.">            for ( String report : reportSet.getReports() )</span>
+            {
+<span class="nc" id="L226">                addDom( reports, &quot;report&quot;, report );</span>
+<span class="nc" id="L227">            }</span>
+<span class="nc" id="L228">            dom.addChild( reports );</span>
+        }
+
+<span class="nc" id="L231">        return dom;</span>
+    }
+
+    private void addDom( Xpp3Dom parent, String childName, String childValue )
+    {
+<span class="pc bpc" id="L236" title="1 of 2 branches missed.">        if ( StringUtils.isNotEmpty( childValue ) )</span>
+        {
+<span class="fc" id="L238">            parent.addChild( newDom( childName, childValue ) );</span>
+        }
+<span class="fc" id="L240">    }</span>
+
+    private Xpp3Dom newDom( String name, String value )
+    {
+<span class="fc" id="L244">        Xpp3Dom dom = new Xpp3Dom( name );</span>
+<span class="fc" id="L245">        dom.setValue( value );</span>
+<span class="fc" id="L246">        return dom;</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

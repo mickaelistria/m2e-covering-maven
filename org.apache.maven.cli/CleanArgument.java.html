@@ -1,0 +1,126 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CleanArgument.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.cli</a> &gt; <span class="el_source">CleanArgument.java</span></div><h1>CleanArgument.java</h1><pre class="source lang-java linenums">package org.apache.maven.cli;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.ArrayList;
+import java.util.List;
+
+/**
+ * CleanArgument
+ */
+<span class="nc" id="L28">public class CleanArgument</span>
+{
+    public static String[] cleanArgs( String[] args )
+    {
+<span class="nc" id="L32">        List&lt;String&gt; cleaned = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L34">        StringBuilder currentArg = null;</span>
+
+<span class="nc bnc" id="L36" title="All 2 branches missed.">        for ( String arg : args )</span>
+        {
+<span class="nc" id="L38">            boolean addedToBuffer = false;</span>
+
+<span class="nc bnc" id="L40" title="All 2 branches missed.">            if ( arg.startsWith( &quot;\&quot;&quot; ) )</span>
+            {
+                // if we're in the process of building up another arg, push it and start over.
+                // this is for the case: &quot;-Dfoo=bar &quot;-Dfoo2=bar two&quot; (note the first unterminated quote)
+<span class="nc bnc" id="L44" title="All 2 branches missed.">                if ( currentArg != null )</span>
+                {
+<span class="nc" id="L46">                    cleaned.add( currentArg.toString() );</span>
+                }
+
+                // start building an argument here.
+<span class="nc" id="L50">                currentArg = new StringBuilder( arg.substring( 1 ) );</span>
+<span class="nc" id="L51">                addedToBuffer = true;</span>
+            }
+
+            // this has to be a separate &quot;if&quot; statement, to capture the case of: &quot;-Dfoo=bar&quot;
+<span class="nc bnc" id="L55" title="All 4 branches missed.">            if ( addedToBuffer &amp;&amp; arg.endsWith( &quot;\&quot;&quot; ) )</span>
+            {
+<span class="nc" id="L57">                String cleanArgPart = arg.substring( 0, arg.length() - 1 );</span>
+
+                // if we're building an argument, keep doing so.
+<span class="nc bnc" id="L60" title="All 2 branches missed.">                if ( currentArg != null )</span>
+                {
+                    // if this is the case of &quot;-Dfoo=bar&quot;, then we need to adjust the buffer.
+<span class="nc bnc" id="L63" title="All 2 branches missed.">                    if ( addedToBuffer )</span>
+                    {
+<span class="nc" id="L65">                        currentArg.setLength( currentArg.length() - 1 );</span>
+                    }
+                    // otherwise, we trim the trailing &quot; and append to the buffer.
+                    else
+                    {
+                        // TODO introducing a space here...not sure what else to do but collapse whitespace
+<span class="nc" id="L71">                        currentArg.append( ' ' ).append( cleanArgPart );</span>
+                    }
+
+<span class="nc" id="L74">                    cleaned.add( currentArg.toString() );</span>
+                }
+                else
+                {
+<span class="nc" id="L78">                    cleaned.add( cleanArgPart );</span>
+                }
+
+<span class="nc" id="L81">                currentArg = null;</span>
+<span class="nc" id="L82">                addedToBuffer = false;</span>
+<span class="nc" id="L83">                continue;</span>
+            }
+
+            // if we haven't added this arg to the buffer, and we ARE building an argument
+            // buffer, then append it with a preceding space...again, not sure what else to
+            // do other than collapse whitespace.
+            // NOTE: The case of a trailing quote is handled by nullifying the arg buffer.
+<span class="nc bnc" id="L90" title="All 2 branches missed.">            if ( !addedToBuffer )</span>
+            {
+<span class="nc bnc" id="L92" title="All 2 branches missed.">                if ( currentArg != null )</span>
+                {
+<span class="nc" id="L94">                    currentArg.append( ' ' ).append( arg );</span>
+                }
+                else
+                {
+<span class="nc" id="L98">                    cleaned.add( arg );</span>
+                }
+            }
+        }
+
+<span class="nc bnc" id="L103" title="All 2 branches missed.">        if ( currentArg != null )</span>
+        {
+<span class="nc" id="L105">            cleaned.add( currentArg.toString() );</span>
+        }
+
+<span class="nc" id="L108">        int cleanedSz = cleaned.size();</span>
+
+        String[] cleanArgs;
+
+<span class="nc bnc" id="L112" title="All 2 branches missed.">        if ( cleanedSz == 0 )</span>
+        {
+<span class="nc" id="L114">            cleanArgs = args;</span>
+        }
+        else
+        {
+<span class="nc" id="L118">            cleanArgs = cleaned.toArray( new String[cleanedSz] );</span>
+        }
+
+<span class="nc" id="L121">        return cleanArgs;</span>
+    }
+
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

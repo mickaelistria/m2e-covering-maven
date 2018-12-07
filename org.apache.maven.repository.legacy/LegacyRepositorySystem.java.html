@@ -1,0 +1,920 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>LegacyRepositorySystem.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.repository.legacy</a> &gt; <span class="el_source">LegacyRepositorySystem.java</span></div><h1>LegacyRepositorySystem.java</h1><pre class="source lang-java linenums">package org.apache.maven.repository.legacy;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.maven.RepositoryUtils;
+import org.apache.maven.artifact.Artifact;
+import org.apache.maven.artifact.InvalidRepositoryException;
+import org.apache.maven.artifact.factory.ArtifactFactory;
+import org.apache.maven.artifact.metadata.ArtifactMetadata;
+import org.apache.maven.artifact.repository.ArtifactRepository;
+import org.apache.maven.repository.legacy.repository.ArtifactRepositoryFactory;
+import org.apache.maven.artifact.repository.ArtifactRepositoryPolicy;
+import org.apache.maven.artifact.repository.Authentication;
+import org.apache.maven.artifact.repository.layout.ArtifactRepositoryLayout;
+import org.apache.maven.artifact.resolver.ArtifactResolutionRequest;
+import org.apache.maven.artifact.resolver.ArtifactResolutionResult;
+import org.apache.maven.artifact.resolver.ArtifactResolver;
+import org.apache.maven.artifact.resolver.filter.ExcludesArtifactFilter;
+import org.apache.maven.artifact.versioning.InvalidVersionSpecificationException;
+import org.apache.maven.artifact.versioning.VersionRange;
+import org.apache.maven.model.Dependency;
+import org.apache.maven.model.Exclusion;
+import org.apache.maven.model.Plugin;
+import org.apache.maven.model.Repository;
+import org.apache.maven.model.RepositoryPolicy;
+import org.apache.maven.repository.DelegatingLocalArtifactRepository;
+import org.apache.maven.repository.LocalArtifactRepository;
+import org.apache.maven.repository.ArtifactTransferListener;
+import org.apache.maven.repository.MirrorSelector;
+import org.apache.maven.repository.Proxy;
+import org.apache.maven.repository.RepositorySystem;
+import org.apache.maven.repository.ArtifactDoesNotExistException;
+import org.apache.maven.repository.ArtifactTransferFailedException;
+import org.apache.maven.settings.Mirror;
+import org.apache.maven.settings.Server;
+import org.apache.maven.settings.building.SettingsProblem;
+import org.apache.maven.settings.crypto.DefaultSettingsDecryptionRequest;
+import org.apache.maven.settings.crypto.SettingsDecrypter;
+import org.apache.maven.settings.crypto.SettingsDecryptionRequest;
+import org.apache.maven.settings.crypto.SettingsDecryptionResult;
+import org.apache.maven.wagon.proxy.ProxyInfo;
+import org.apache.maven.wagon.proxy.ProxyUtils;
+import org.codehaus.plexus.PlexusContainer;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.component.annotations.Requirement;
+import org.codehaus.plexus.component.repository.exception.ComponentLookupException;
+import org.codehaus.plexus.logging.Logger;
+import org.codehaus.plexus.util.StringUtils;
+import org.eclipse.aether.RepositorySystemSession;
+import org.eclipse.aether.repository.AuthenticationContext;
+import org.eclipse.aether.repository.AuthenticationSelector;
+import org.eclipse.aether.repository.ProxySelector;
+import org.eclipse.aether.repository.RemoteRepository;
+
+/**
+ * @author Jason van Zyl
+ */
+@Component( role = RepositorySystem.class, hint = &quot;default&quot; )
+<span class="fc" id="L86">public class LegacyRepositorySystem</span>
+    implements RepositorySystem
+{
+
+    @Requirement
+    private Logger logger;
+
+    @Requirement
+    private ArtifactFactory artifactFactory;
+
+    @Requirement
+    private ArtifactResolver artifactResolver;
+
+    @Requirement
+    private ArtifactRepositoryFactory artifactRepositoryFactory;
+
+    @Requirement( role = ArtifactRepositoryLayout.class )
+    private Map&lt;String, ArtifactRepositoryLayout&gt; layouts;
+
+    @Requirement
+    private WagonManager wagonManager;
+
+    @Requirement
+    private PlexusContainer plexus;
+
+    @Requirement
+    private MirrorSelector mirrorSelector;
+
+    @Requirement
+    private SettingsDecrypter settingsDecrypter;
+
+    public Artifact createArtifact( String groupId, String artifactId, String version, String scope, String type )
+    {
+<span class="nc" id="L119">        return artifactFactory.createArtifact( groupId, artifactId, version, scope, type );</span>
+    }
+
+    public Artifact createArtifact( String groupId, String artifactId, String version, String packaging )
+    {
+<span class="nc" id="L124">        return artifactFactory.createBuildArtifact( groupId, artifactId, version, packaging );</span>
+    }
+
+    public Artifact createArtifactWithClassifier( String groupId, String artifactId, String version, String type,
+                                                  String classifier )
+    {
+<span class="fc" id="L130">        return artifactFactory.createArtifactWithClassifier( groupId, artifactId, version, type, classifier );</span>
+    }
+
+    public Artifact createProjectArtifact( String groupId, String artifactId, String metaVersionId )
+    {
+<span class="nc" id="L135">        return artifactFactory.createProjectArtifact( groupId, artifactId, metaVersionId );</span>
+    }
+
+    public Artifact createDependencyArtifact( Dependency d )
+    {
+        VersionRange versionRange;
+        try
+        {
+<span class="nc" id="L143">            versionRange = VersionRange.createFromVersionSpec( d.getVersion() );</span>
+        }
+<span class="nc" id="L145">        catch ( InvalidVersionSpecificationException e )</span>
+        {
+            // MNG-5368: Log a message instead of returning 'null' silently.
+<span class="nc" id="L148">            this.logger.error( String.format( &quot;Invalid version specification '%s' creating dependency artifact '%s'.&quot;,</span>
+                                              d.getVersion(), d ), e );
+<span class="nc" id="L150">            return null;</span>
+<span class="nc" id="L151">        }</span>
+
+<span class="nc" id="L153">        Artifact artifact =</span>
+            artifactFactory.createDependencyArtifact( d.getGroupId(), d.getArtifactId(), versionRange, d.getType(),
+                                                      d.getClassifier(), d.getScope(), d.isOptional() );
+
+<span class="nc bnc" id="L157" title="All 4 branches missed.">        if ( Artifact.SCOPE_SYSTEM.equals( d.getScope() ) &amp;&amp; d.getSystemPath() != null )</span>
+        {
+<span class="nc" id="L159">            artifact.setFile( new File( d.getSystemPath() ) );</span>
+        }
+
+<span class="nc bnc" id="L162" title="All 2 branches missed.">        if ( !d.getExclusions().isEmpty() )</span>
+        {
+<span class="nc" id="L164">            List&lt;String&gt; exclusions = new ArrayList&lt;&gt;();</span>
+
+<span class="nc bnc" id="L166" title="All 2 branches missed.">            for ( Exclusion exclusion : d.getExclusions() )</span>
+            {
+<span class="nc" id="L168">                exclusions.add( exclusion.getGroupId() + ':' + exclusion.getArtifactId() );</span>
+<span class="nc" id="L169">            }</span>
+
+<span class="nc" id="L171">            artifact.setDependencyFilter( new ExcludesArtifactFilter( exclusions ) );</span>
+        }
+
+<span class="nc" id="L174">        return artifact;</span>
+    }
+
+    public Artifact createExtensionArtifact( String groupId, String artifactId, String version )
+    {
+        VersionRange versionRange;
+        try
+        {
+<span class="nc" id="L182">            versionRange = VersionRange.createFromVersionSpec( version );</span>
+        }
+<span class="nc" id="L184">        catch ( InvalidVersionSpecificationException e )</span>
+        {
+            // MNG-5368: Log a message instead of returning 'null' silently.
+<span class="nc" id="L187">            this.logger.error( String.format(</span>
+                &quot;Invalid version specification '%s' creating extension artifact '%s:%s:%s'.&quot;,
+                version, groupId, artifactId, version, e ) );
+
+<span class="nc" id="L191">            return null;</span>
+<span class="nc" id="L192">        }</span>
+
+<span class="nc" id="L194">        return artifactFactory.createExtensionArtifact( groupId, artifactId, versionRange );</span>
+    }
+
+    public Artifact createParentArtifact( String groupId, String artifactId, String version )
+    {
+<span class="nc" id="L199">        return artifactFactory.createParentArtifact( groupId, artifactId, version );</span>
+    }
+
+    public Artifact createPluginArtifact( Plugin plugin )
+    {
+<span class="fc" id="L204">        String version = plugin.getVersion();</span>
+<span class="pc bpc" id="L205" title="1 of 2 branches missed.">        if ( StringUtils.isEmpty( version ) )</span>
+        {
+<span class="nc" id="L207">            version = &quot;RELEASE&quot;;</span>
+        }
+
+        VersionRange versionRange;
+        try
+        {
+<span class="fc" id="L213">            versionRange = VersionRange.createFromVersionSpec( version );</span>
+        }
+<span class="nc" id="L215">        catch ( InvalidVersionSpecificationException e )</span>
+        {
+            // MNG-5368: Log a message instead of returning 'null' silently.
+<span class="nc" id="L218">            this.logger.error( String.format(</span>
+                &quot;Invalid version specification '%s' creating plugin artifact '%s'.&quot;,
+                version, plugin, e ) );
+
+<span class="nc" id="L222">            return null;</span>
+<span class="fc" id="L223">        }</span>
+
+<span class="fc" id="L225">        return artifactFactory.createPluginArtifact( plugin.getGroupId(), plugin.getArtifactId(), versionRange );</span>
+    }
+
+    public ArtifactRepositoryPolicy buildArtifactRepositoryPolicy( RepositoryPolicy policy )
+    {
+<span class="fc" id="L230">        boolean enabled = true;</span>
+
+<span class="fc" id="L232">        String updatePolicy = null;</span>
+
+<span class="fc" id="L234">        String checksumPolicy = null;</span>
+
+<span class="fc bfc" id="L236" title="All 2 branches covered.">        if ( policy != null )</span>
+        {
+<span class="fc" id="L238">            enabled = policy.isEnabled();</span>
+
+<span class="fc bfc" id="L240" title="All 2 branches covered.">            if ( policy.getUpdatePolicy() != null )</span>
+            {
+<span class="fc" id="L242">                updatePolicy = policy.getUpdatePolicy();</span>
+            }
+<span class="fc bfc" id="L244" title="All 2 branches covered.">            if ( policy.getChecksumPolicy() != null )</span>
+            {
+<span class="fc" id="L246">                checksumPolicy = policy.getChecksumPolicy();</span>
+            }
+        }
+
+<span class="fc" id="L250">        return new ArtifactRepositoryPolicy( enabled, updatePolicy, checksumPolicy );</span>
+    }
+
+    public ArtifactRepository createDefaultLocalRepository()
+        throws InvalidRepositoryException
+    {
+<span class="nc" id="L256">        return createLocalRepository( RepositorySystem.defaultUserLocalRepository );</span>
+    }
+
+    public ArtifactRepository createLocalRepository( File localRepository )
+        throws InvalidRepositoryException
+    {
+<span class="fc" id="L262">        return createRepository( &quot;file://&quot; + localRepository.toURI().getRawPath(),</span>
+                                 RepositorySystem.DEFAULT_LOCAL_REPO_ID, true,
+                                 ArtifactRepositoryPolicy.UPDATE_POLICY_ALWAYS, true,
+                                 ArtifactRepositoryPolicy.UPDATE_POLICY_ALWAYS,
+                                 ArtifactRepositoryPolicy.CHECKSUM_POLICY_IGNORE );
+    }
+
+    public ArtifactRepository createDefaultRemoteRepository()
+        throws InvalidRepositoryException
+    {
+<span class="fc" id="L272">        return createRepository( RepositorySystem.DEFAULT_REMOTE_REPO_URL, RepositorySystem.DEFAULT_REMOTE_REPO_ID,</span>
+                                 true, ArtifactRepositoryPolicy.UPDATE_POLICY_DAILY, false,
+                                 ArtifactRepositoryPolicy.UPDATE_POLICY_DAILY,
+                                 ArtifactRepositoryPolicy.CHECKSUM_POLICY_WARN );
+    }
+
+    public ArtifactRepository createLocalRepository( String url, String repositoryId )
+        throws IOException
+    {
+<span class="nc" id="L281">        return createRepository( canonicalFileUrl( url ), repositoryId, true,</span>
+                                 ArtifactRepositoryPolicy.UPDATE_POLICY_ALWAYS, true,
+                                 ArtifactRepositoryPolicy.UPDATE_POLICY_ALWAYS,
+                                 ArtifactRepositoryPolicy.CHECKSUM_POLICY_IGNORE );
+    }
+
+    private String canonicalFileUrl( String url )
+        throws IOException
+    {
+<span class="nc bnc" id="L290" title="All 2 branches missed.">        if ( !url.startsWith( &quot;file:&quot; ) )</span>
+        {
+<span class="nc" id="L292">            url = &quot;file://&quot; + url;</span>
+        }
+<span class="nc bnc" id="L294" title="All 4 branches missed.">        else if ( url.startsWith( &quot;file:&quot; ) &amp;&amp; !url.startsWith( &quot;file://&quot; ) )</span>
+        {
+<span class="nc" id="L296">            url = &quot;file://&quot; + url.substring( &quot;file:&quot;.length() );</span>
+        }
+
+        // So now we have an url of the form file://&lt;path&gt;
+
+        // We want to eliminate any relative path nonsense and lock down the path so we
+        // need to fully resolve it before any sub-modules use the path. This can happen
+        // when you are using a custom settings.xml that contains a relative path entry
+        // for the local repository setting.
+
+<span class="nc" id="L306">        File localRepository = new File( url.substring( &quot;file://&quot;.length() ) );</span>
+
+<span class="nc bnc" id="L308" title="All 2 branches missed.">        if ( !localRepository.isAbsolute() )</span>
+        {
+<span class="nc" id="L310">            url = &quot;file://&quot; + localRepository.getCanonicalPath();</span>
+        }
+
+<span class="nc" id="L313">        return url;</span>
+    }
+
+    public ArtifactResolutionResult resolve( ArtifactResolutionRequest request )
+    {
+        /*
+         * Probably is not worth it, but here I make sure I restore request
+         * to its original state.
+         */
+        try
+        {
+<span class="nc" id="L324">            LocalArtifactRepository ideWorkspace =</span>
+                plexus.lookup( LocalArtifactRepository.class, LocalArtifactRepository.IDE_WORKSPACE );
+
+<span class="nc bnc" id="L327" title="All 2 branches missed.">            if ( request.getLocalRepository() instanceof DelegatingLocalArtifactRepository )</span>
+            {
+<span class="nc" id="L329">                DelegatingLocalArtifactRepository delegatingLocalRepository =</span>
+                    (DelegatingLocalArtifactRepository) request.getLocalRepository();
+
+<span class="nc" id="L332">                LocalArtifactRepository orig = delegatingLocalRepository.getIdeWorkspace();</span>
+
+<span class="nc" id="L334">                delegatingLocalRepository.setIdeWorkspace( ideWorkspace );</span>
+
+                try
+                {
+<span class="nc" id="L338">                    return artifactResolver.resolve( request );</span>
+                }
+                finally
+                {
+<span class="nc" id="L342">                    delegatingLocalRepository.setIdeWorkspace( orig );</span>
+                }
+            }
+            else
+            {
+<span class="nc" id="L347">                ArtifactRepository localRepository = request.getLocalRepository();</span>
+<span class="nc" id="L348">                DelegatingLocalArtifactRepository delegatingLocalRepository =</span>
+                    new DelegatingLocalArtifactRepository( localRepository );
+<span class="nc" id="L350">                delegatingLocalRepository.setIdeWorkspace( ideWorkspace );</span>
+<span class="nc" id="L351">                request.setLocalRepository( delegatingLocalRepository );</span>
+                try
+                {
+<span class="nc" id="L354">                    return artifactResolver.resolve( request );</span>
+                }
+                finally
+                {
+<span class="nc" id="L358">                    request.setLocalRepository( localRepository );</span>
+                }
+            }
+        }
+<span class="nc" id="L362">        catch ( ComponentLookupException e )</span>
+        {
+            // no ide workspace artifact resolution
+        }
+
+<span class="nc" id="L367">        return artifactResolver.resolve( request );</span>
+    }
+
+//    public void addProxy( String protocol, String host, int port, String username, String password,
+//                          String nonProxyHosts )
+//    {
+//        ProxyInfo proxyInfo = new ProxyInfo();
+//        proxyInfo.setHost( host );
+//        proxyInfo.setType( protocol );
+//        proxyInfo.setPort( port );
+//        proxyInfo.setNonProxyHosts( nonProxyHosts );
+//        proxyInfo.setUserName( username );
+//        proxyInfo.setPassword( password );
+//
+//        proxies.put( protocol, proxyInfo );
+//
+//        wagonManager.addProxy( protocol, host, port, username, password, nonProxyHosts );
+//    }
+
+    public List&lt;ArtifactRepository&gt; getEffectiveRepositories( List&lt;ArtifactRepository&gt; repositories )
+    {
+<span class="pc bpc" id="L388" title="1 of 2 branches missed.">        if ( repositories == null )</span>
+        {
+<span class="nc" id="L390">            return null;</span>
+        }
+
+<span class="fc" id="L393">        Map&lt;String, List&lt;ArtifactRepository&gt;&gt; reposByKey = new LinkedHashMap&lt;&gt;();</span>
+
+<span class="fc bfc" id="L395" title="All 2 branches covered.">        for ( ArtifactRepository repository : repositories )</span>
+        {
+<span class="fc" id="L397">            String key = repository.getId();</span>
+
+<span class="fc" id="L399">            List&lt;ArtifactRepository&gt; aliasedRepos = reposByKey.get( key );</span>
+
+<span class="fc bfc" id="L401" title="All 2 branches covered.">            if ( aliasedRepos == null )</span>
+            {
+<span class="fc" id="L403">                aliasedRepos = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L404">                reposByKey.put( key, aliasedRepos );</span>
+            }
+
+<span class="fc" id="L407">            aliasedRepos.add( repository );</span>
+<span class="fc" id="L408">        }</span>
+
+<span class="fc" id="L410">        List&lt;ArtifactRepository&gt; effectiveRepositories = new ArrayList&lt;&gt;();</span>
+
+<span class="fc bfc" id="L412" title="All 2 branches covered.">        for ( List&lt;ArtifactRepository&gt; aliasedRepos : reposByKey.values() )</span>
+        {
+<span class="fc" id="L414">            List&lt;ArtifactRepository&gt; mirroredRepos = new ArrayList&lt;&gt;();</span>
+
+<span class="fc" id="L416">            List&lt;ArtifactRepositoryPolicy&gt; releasePolicies =</span>
+                new ArrayList&lt;&gt;( aliasedRepos.size() );
+
+<span class="fc bfc" id="L419" title="All 2 branches covered.">            for ( ArtifactRepository aliasedRepo : aliasedRepos )</span>
+            {
+<span class="fc" id="L421">                releasePolicies.add( aliasedRepo.getReleases() );</span>
+<span class="fc" id="L422">                mirroredRepos.addAll( aliasedRepo.getMirroredRepositories() );</span>
+<span class="fc" id="L423">            }</span>
+
+<span class="fc" id="L425">            ArtifactRepositoryPolicy releasePolicy = getEffectivePolicy( releasePolicies );</span>
+
+<span class="fc" id="L427">            List&lt;ArtifactRepositoryPolicy&gt; snapshotPolicies =</span>
+                new ArrayList&lt;&gt;( aliasedRepos.size() );
+
+<span class="fc bfc" id="L430" title="All 2 branches covered.">            for ( ArtifactRepository aliasedRepo : aliasedRepos )</span>
+            {
+<span class="fc" id="L432">                snapshotPolicies.add( aliasedRepo.getSnapshots() );</span>
+<span class="fc" id="L433">            }</span>
+
+<span class="fc" id="L435">            ArtifactRepositoryPolicy snapshotPolicy = getEffectivePolicy( snapshotPolicies );</span>
+
+<span class="fc" id="L437">            ArtifactRepository aliasedRepo = aliasedRepos.get( 0 );</span>
+
+<span class="fc" id="L439">            ArtifactRepository effectiveRepository =</span>
+                createArtifactRepository( aliasedRepo.getId(), aliasedRepo.getUrl(), aliasedRepo.getLayout(),
+                                          snapshotPolicy, releasePolicy );
+
+<span class="fc" id="L443">            effectiveRepository.setAuthentication( aliasedRepo.getAuthentication() );</span>
+
+<span class="fc" id="L445">            effectiveRepository.setProxy( aliasedRepo.getProxy() );</span>
+
+<span class="fc" id="L447">            effectiveRepository.setMirroredRepositories( mirroredRepos );</span>
+
+<span class="fc" id="L449">            effectiveRepositories.add( effectiveRepository );</span>
+<span class="fc" id="L450">        }</span>
+
+<span class="fc" id="L452">        return effectiveRepositories;</span>
+    }
+
+    private ArtifactRepositoryPolicy getEffectivePolicy( Collection&lt;ArtifactRepositoryPolicy&gt; policies )
+    {
+<span class="fc" id="L457">        ArtifactRepositoryPolicy effectivePolicy = null;</span>
+
+<span class="fc bfc" id="L459" title="All 2 branches covered.">        for ( ArtifactRepositoryPolicy policy : policies )</span>
+        {
+<span class="fc bfc" id="L461" title="All 2 branches covered.">            if ( effectivePolicy == null )</span>
+            {
+<span class="fc" id="L463">                effectivePolicy = new ArtifactRepositoryPolicy( policy );</span>
+            }
+            else
+            {
+<span class="fc" id="L467">                effectivePolicy.merge( policy );</span>
+            }
+<span class="fc" id="L469">        }</span>
+
+<span class="fc" id="L471">        return effectivePolicy;</span>
+    }
+
+    public Mirror getMirror( ArtifactRepository repository, List&lt;Mirror&gt; mirrors )
+    {
+<span class="fc" id="L476">        return mirrorSelector.getMirror( repository, mirrors );</span>
+    }
+
+    public void injectMirror( List&lt;ArtifactRepository&gt; repositories, List&lt;Mirror&gt; mirrors )
+    {
+<span class="pc bpc" id="L481" title="2 of 4 branches missed.">        if ( repositories != null &amp;&amp; mirrors != null )</span>
+        {
+<span class="fc bfc" id="L483" title="All 2 branches covered.">            for ( ArtifactRepository repository : repositories )</span>
+            {
+<span class="fc" id="L485">                Mirror mirror = getMirror( repository, mirrors );</span>
+<span class="fc" id="L486">                injectMirror( repository, mirror );</span>
+<span class="fc" id="L487">            }</span>
+        }
+<span class="fc" id="L489">    }</span>
+
+    private Mirror getMirror( RepositorySystemSession session, ArtifactRepository repository )
+    {
+<span class="pc bpc" id="L493" title="1 of 2 branches missed.">        if ( session != null )</span>
+        {
+<span class="fc" id="L495">            org.eclipse.aether.repository.MirrorSelector selector = session.getMirrorSelector();</span>
+<span class="pc bpc" id="L496" title="1 of 2 branches missed.">            if ( selector != null )</span>
+            {
+<span class="fc" id="L498">                RemoteRepository repo = selector.getMirror( RepositoryUtils.toRepo( repository ) );</span>
+<span class="fc bfc" id="L499" title="All 2 branches covered.">                if ( repo != null )</span>
+                {
+<span class="fc" id="L501">                    Mirror mirror = new Mirror();</span>
+<span class="fc" id="L502">                    mirror.setId( repo.getId() );</span>
+<span class="fc" id="L503">                    mirror.setUrl( repo.getUrl() );</span>
+<span class="fc" id="L504">                    mirror.setLayout( repo.getContentType() );</span>
+<span class="fc" id="L505">                    return mirror;</span>
+                }
+            }
+        }
+<span class="fc" id="L509">        return null;</span>
+    }
+
+    public void injectMirror( RepositorySystemSession session, List&lt;ArtifactRepository&gt; repositories )
+    {
+<span class="pc bpc" id="L514" title="2 of 4 branches missed.">        if ( repositories != null &amp;&amp; session != null )</span>
+        {
+<span class="fc bfc" id="L516" title="All 2 branches covered.">            for ( ArtifactRepository repository : repositories )</span>
+            {
+<span class="fc" id="L518">                Mirror mirror = getMirror( session, repository );</span>
+<span class="fc" id="L519">                injectMirror( repository, mirror );</span>
+<span class="fc" id="L520">            }</span>
+        }
+<span class="fc" id="L522">    }</span>
+
+    private void injectMirror( ArtifactRepository repository, Mirror mirror )
+    {
+<span class="fc bfc" id="L526" title="All 2 branches covered.">        if ( mirror != null )</span>
+        {
+<span class="fc" id="L528">            ArtifactRepository original =</span>
+                createArtifactRepository( repository.getId(), repository.getUrl(), repository.getLayout(),
+                                          repository.getSnapshots(), repository.getReleases() );
+
+<span class="fc" id="L532">            repository.setMirroredRepositories( Collections.singletonList( original ) );</span>
+
+<span class="fc" id="L534">            repository.setId( mirror.getId() );</span>
+<span class="fc" id="L535">            repository.setUrl( mirror.getUrl() );</span>
+
+<span class="pc bpc" id="L537" title="1 of 2 branches missed.">            if ( StringUtils.isNotEmpty( mirror.getLayout() ) )</span>
+            {
+<span class="fc" id="L539">                repository.setLayout( getLayout( mirror.getLayout() ) );</span>
+            }
+        }
+<span class="fc" id="L542">    }</span>
+
+    public void injectAuthentication( List&lt;ArtifactRepository&gt; repositories, List&lt;Server&gt; servers )
+    {
+<span class="pc bpc" id="L546" title="1 of 2 branches missed.">        if ( repositories != null )</span>
+        {
+<span class="fc" id="L548">            Map&lt;String, Server&gt; serversById = new HashMap&lt;&gt;();</span>
+
+<span class="pc bpc" id="L550" title="1 of 2 branches missed.">            if ( servers != null )</span>
+            {
+<span class="fc bfc" id="L552" title="All 2 branches covered.">                for ( Server server : servers )</span>
+                {
+<span class="pc bpc" id="L554" title="1 of 2 branches missed.">                    if ( !serversById.containsKey( server.getId() ) )</span>
+                    {
+<span class="fc" id="L556">                        serversById.put( server.getId(), server );</span>
+                    }
+<span class="fc" id="L558">                }</span>
+            }
+
+<span class="fc bfc" id="L561" title="All 2 branches covered.">            for ( ArtifactRepository repository : repositories )</span>
+            {
+<span class="fc" id="L563">                Server server = serversById.get( repository.getId() );</span>
+
+<span class="fc bfc" id="L565" title="All 2 branches covered.">                if ( server != null )</span>
+                {
+<span class="fc" id="L567">                    SettingsDecryptionRequest request = new DefaultSettingsDecryptionRequest( server );</span>
+<span class="fc" id="L568">                    SettingsDecryptionResult result = settingsDecrypter.decrypt( request );</span>
+<span class="fc" id="L569">                    server = result.getServer();</span>
+
+<span class="pc bpc" id="L571" title="1 of 2 branches missed.">                    if ( logger.isDebugEnabled() )</span>
+                    {
+<span class="nc bnc" id="L573" title="All 2 branches missed.">                        for ( SettingsProblem problem : result.getProblems() )</span>
+                        {
+<span class="nc" id="L575">                            logger.debug( problem.getMessage(), problem.getException() );</span>
+<span class="nc" id="L576">                        }</span>
+                    }
+
+<span class="fc" id="L579">                    Authentication authentication = new Authentication( server.getUsername(), server.getPassword() );</span>
+<span class="fc" id="L580">                    authentication.setPrivateKey( server.getPrivateKey() );</span>
+<span class="fc" id="L581">                    authentication.setPassphrase( server.getPassphrase() );</span>
+
+<span class="fc" id="L583">                    repository.setAuthentication( authentication );</span>
+<span class="fc" id="L584">                }</span>
+                else
+                {
+<span class="fc" id="L587">                    repository.setAuthentication( null );</span>
+                }
+<span class="fc" id="L589">            }</span>
+        }
+<span class="fc" id="L591">    }</span>
+
+    private Authentication getAuthentication( RepositorySystemSession session, ArtifactRepository repository )
+    {
+<span class="pc bpc" id="L595" title="1 of 2 branches missed.">        if ( session != null )</span>
+        {
+<span class="fc" id="L597">            AuthenticationSelector selector = session.getAuthenticationSelector();</span>
+<span class="pc bpc" id="L598" title="1 of 2 branches missed.">            if ( selector != null )</span>
+            {
+<span class="fc" id="L600">                RemoteRepository repo = RepositoryUtils.toRepo( repository );</span>
+<span class="fc" id="L601">                org.eclipse.aether.repository.Authentication auth = selector.getAuthentication( repo );</span>
+<span class="fc bfc" id="L602" title="All 2 branches covered.">                if ( auth != null )</span>
+                {
+<span class="fc" id="L604">                    repo = new RemoteRepository.Builder( repo ).setAuthentication( auth ).build();</span>
+<span class="fc" id="L605">                    AuthenticationContext authCtx = AuthenticationContext.forRepository( session, repo );</span>
+<span class="fc" id="L606">                    Authentication result =</span>
+                        new Authentication( authCtx.get( AuthenticationContext.USERNAME ),
+                                            authCtx.get( AuthenticationContext.PASSWORD ) );
+<span class="fc" id="L609">                    result.setPrivateKey( authCtx.get( AuthenticationContext.PRIVATE_KEY_PATH ) );</span>
+<span class="fc" id="L610">                    result.setPassphrase( authCtx.get( AuthenticationContext.PRIVATE_KEY_PASSPHRASE ) );</span>
+<span class="fc" id="L611">                    authCtx.close();</span>
+<span class="fc" id="L612">                    return result;</span>
+                }
+            }
+        }
+<span class="fc" id="L616">        return null;</span>
+    }
+
+    public void injectAuthentication( RepositorySystemSession session, List&lt;ArtifactRepository&gt; repositories )
+    {
+<span class="pc bpc" id="L621" title="2 of 4 branches missed.">        if ( repositories != null &amp;&amp; session != null )</span>
+        {
+<span class="fc bfc" id="L623" title="All 2 branches covered.">            for ( ArtifactRepository repository : repositories )</span>
+            {
+<span class="fc" id="L625">                repository.setAuthentication( getAuthentication( session, repository ) );</span>
+<span class="fc" id="L626">            }</span>
+        }
+<span class="fc" id="L628">    }</span>
+
+    private org.apache.maven.settings.Proxy getProxy( ArtifactRepository repository,
+                                                      List&lt;org.apache.maven.settings.Proxy&gt; proxies )
+    {
+<span class="pc bpc" id="L633" title="2 of 4 branches missed.">        if ( proxies != null &amp;&amp; repository.getProtocol() != null )</span>
+        {
+<span class="fc bfc" id="L635" title="All 2 branches covered.">            for ( org.apache.maven.settings.Proxy proxy : proxies )</span>
+            {
+<span class="pc bpc" id="L637" title="2 of 4 branches missed.">                if ( proxy.isActive() &amp;&amp; repository.getProtocol().equalsIgnoreCase( proxy.getProtocol() ) )</span>
+                {
+<span class="pc bpc" id="L639" title="1 of 2 branches missed.">                    if ( StringUtils.isNotEmpty( proxy.getNonProxyHosts() ) )</span>
+                    {
+<span class="nc" id="L641">                        ProxyInfo pi = new ProxyInfo();</span>
+<span class="nc" id="L642">                        pi.setNonProxyHosts( proxy.getNonProxyHosts() );</span>
+
+<span class="nc" id="L644">                        org.apache.maven.wagon.repository.Repository repo =</span>
+                            new org.apache.maven.wagon.repository.Repository( repository.getId(), repository.getUrl() );
+
+<span class="nc bnc" id="L647" title="All 2 branches missed.">                        if ( !ProxyUtils.validateNonProxyHosts( pi, repo.getHost() ) )</span>
+                        {
+<span class="nc" id="L649">                            return proxy;</span>
+                        }
+<span class="nc" id="L651">                    }</span>
+                    else
+                    {
+<span class="fc" id="L654">                        return proxy;</span>
+                    }
+                }
+<span class="nc" id="L657">            }</span>
+        }
+
+<span class="fc" id="L660">        return null;</span>
+    }
+
+    public void injectProxy( List&lt;ArtifactRepository&gt; repositories, List&lt;org.apache.maven.settings.Proxy&gt; proxies )
+    {
+<span class="pc bpc" id="L665" title="1 of 2 branches missed.">        if ( repositories != null )</span>
+        {
+<span class="fc bfc" id="L667" title="All 2 branches covered.">            for ( ArtifactRepository repository : repositories )</span>
+            {
+<span class="fc" id="L669">                org.apache.maven.settings.Proxy proxy = getProxy( repository, proxies );</span>
+
+<span class="fc bfc" id="L671" title="All 2 branches covered.">                if ( proxy != null )</span>
+                {
+<span class="fc" id="L673">                    SettingsDecryptionRequest request = new DefaultSettingsDecryptionRequest( proxy );</span>
+<span class="fc" id="L674">                    SettingsDecryptionResult result = settingsDecrypter.decrypt( request );</span>
+<span class="fc" id="L675">                    proxy = result.getProxy();</span>
+
+<span class="pc bpc" id="L677" title="1 of 2 branches missed.">                    if ( logger.isDebugEnabled() )</span>
+                    {
+<span class="nc bnc" id="L679" title="All 2 branches missed.">                        for ( SettingsProblem problem : result.getProblems() )</span>
+                        {
+<span class="nc" id="L681">                            logger.debug( problem.getMessage(), problem.getException() );</span>
+<span class="nc" id="L682">                        }</span>
+                    }
+
+<span class="fc" id="L685">                    Proxy p = new Proxy();</span>
+<span class="fc" id="L686">                    p.setHost( proxy.getHost() );</span>
+<span class="fc" id="L687">                    p.setProtocol( proxy.getProtocol() );</span>
+<span class="fc" id="L688">                    p.setPort( proxy.getPort() );</span>
+<span class="fc" id="L689">                    p.setNonProxyHosts( proxy.getNonProxyHosts() );</span>
+<span class="fc" id="L690">                    p.setUserName( proxy.getUsername() );</span>
+<span class="fc" id="L691">                    p.setPassword( proxy.getPassword() );</span>
+
+<span class="fc" id="L693">                    repository.setProxy( p );</span>
+<span class="fc" id="L694">                }</span>
+                else
+                {
+<span class="fc" id="L697">                    repository.setProxy( null );</span>
+                }
+<span class="fc" id="L699">            }</span>
+        }
+<span class="fc" id="L701">    }</span>
+
+    private Proxy getProxy( RepositorySystemSession session, ArtifactRepository repository )
+    {
+<span class="pc bpc" id="L705" title="1 of 2 branches missed.">        if ( session != null )</span>
+        {
+<span class="fc" id="L707">            ProxySelector selector = session.getProxySelector();</span>
+<span class="pc bpc" id="L708" title="1 of 2 branches missed.">            if ( selector != null )</span>
+            {
+<span class="fc" id="L710">                RemoteRepository repo = RepositoryUtils.toRepo( repository );</span>
+<span class="fc" id="L711">                org.eclipse.aether.repository.Proxy proxy = selector.getProxy( repo );</span>
+<span class="fc bfc" id="L712" title="All 2 branches covered.">                if ( proxy != null )</span>
+                {
+<span class="fc" id="L714">                    Proxy p = new Proxy();</span>
+<span class="fc" id="L715">                    p.setHost( proxy.getHost() );</span>
+<span class="fc" id="L716">                    p.setProtocol( proxy.getType() );</span>
+<span class="fc" id="L717">                    p.setPort( proxy.getPort() );</span>
+<span class="pc bpc" id="L718" title="1 of 2 branches missed.">                    if ( proxy.getAuthentication() != null )</span>
+                    {
+<span class="fc" id="L720">                        repo = new RemoteRepository.Builder( repo ).setProxy( proxy ).build();</span>
+<span class="fc" id="L721">                        AuthenticationContext authCtx = AuthenticationContext.forProxy( session, repo );</span>
+<span class="fc" id="L722">                        p.setUserName( authCtx.get( AuthenticationContext.USERNAME ) );</span>
+<span class="fc" id="L723">                        p.setPassword( authCtx.get( AuthenticationContext.PASSWORD ) );</span>
+<span class="fc" id="L724">                        p.setNtlmDomain( authCtx.get( AuthenticationContext.NTLM_DOMAIN ) );</span>
+<span class="fc" id="L725">                        p.setNtlmHost( authCtx.get( AuthenticationContext.NTLM_WORKSTATION ) );</span>
+<span class="fc" id="L726">                        authCtx.close();</span>
+                    }
+<span class="fc" id="L728">                    return p;</span>
+                }
+            }
+        }
+<span class="fc" id="L732">        return null;</span>
+    }
+
+    public void injectProxy( RepositorySystemSession session, List&lt;ArtifactRepository&gt; repositories )
+    {
+<span class="pc bpc" id="L737" title="2 of 4 branches missed.">        if ( repositories != null &amp;&amp; session != null )</span>
+        {
+<span class="fc bfc" id="L739" title="All 2 branches covered.">            for ( ArtifactRepository repository : repositories )</span>
+            {
+<span class="fc" id="L741">                repository.setProxy( getProxy( session, repository ) );</span>
+<span class="fc" id="L742">            }</span>
+        }
+<span class="fc" id="L744">    }</span>
+
+    public void retrieve( ArtifactRepository repository, File destination, String remotePath,
+                          ArtifactTransferListener transferListener )
+        throws ArtifactTransferFailedException, ArtifactDoesNotExistException
+    {
+        try
+        {
+<span class="nc" id="L752">            wagonManager.getRemoteFile( repository, destination, remotePath,</span>
+                                        TransferListenerAdapter.newAdapter( transferListener ),
+                                        ArtifactRepositoryPolicy.CHECKSUM_POLICY_WARN, true );
+        }
+<span class="nc" id="L756">        catch ( org.apache.maven.wagon.TransferFailedException e )</span>
+        {
+<span class="nc" id="L758">            throw new ArtifactTransferFailedException( getMessage( e, &quot;Error transferring artifact.&quot; ), e );</span>
+        }
+<span class="nc" id="L760">        catch ( org.apache.maven.wagon.ResourceDoesNotExistException e )</span>
+        {
+<span class="nc" id="L762">            throw new ArtifactDoesNotExistException( getMessage( e, &quot;Requested artifact does not exist.&quot; ), e );</span>
+<span class="nc" id="L763">        }</span>
+<span class="nc" id="L764">    }</span>
+
+    public void publish( ArtifactRepository repository, File source, String remotePath,
+                         ArtifactTransferListener transferListener )
+        throws ArtifactTransferFailedException
+    {
+        try
+        {
+<span class="nc" id="L772">            wagonManager.putRemoteFile( repository, source, remotePath,</span>
+                                        TransferListenerAdapter.newAdapter( transferListener ) );
+        }
+<span class="nc" id="L775">        catch ( org.apache.maven.wagon.TransferFailedException e )</span>
+        {
+<span class="nc" id="L777">            throw new ArtifactTransferFailedException( getMessage( e, &quot;Error transferring artifact.&quot; ), e );</span>
+<span class="nc" id="L778">        }</span>
+<span class="nc" id="L779">    }</span>
+
+    //
+    // Artifact Repository Creation
+    //
+    public ArtifactRepository buildArtifactRepository( Repository repo )
+        throws InvalidRepositoryException
+    {
+<span class="pc bpc" id="L787" title="1 of 2 branches missed.">        if ( repo != null )</span>
+        {
+<span class="fc" id="L789">            String id = repo.getId();</span>
+
+<span class="pc bpc" id="L791" title="1 of 2 branches missed.">            if ( StringUtils.isEmpty( id ) )</span>
+            {
+<span class="nc" id="L793">                throw new InvalidRepositoryException( &quot;Repository identifier missing&quot;, &quot;&quot; );</span>
+            }
+
+<span class="fc" id="L796">            String url = repo.getUrl();</span>
+
+<span class="pc bpc" id="L798" title="1 of 2 branches missed.">            if ( StringUtils.isEmpty( url ) )</span>
+            {
+<span class="nc" id="L800">                throw new InvalidRepositoryException( &quot;URL missing for repository &quot; + id, id );</span>
+            }
+
+<span class="fc" id="L803">            ArtifactRepositoryPolicy snapshots = buildArtifactRepositoryPolicy( repo.getSnapshots() );</span>
+
+<span class="fc" id="L805">            ArtifactRepositoryPolicy releases = buildArtifactRepositoryPolicy( repo.getReleases() );</span>
+
+<span class="fc" id="L807">            return createArtifactRepository( id, url, getLayout( repo.getLayout() ), snapshots, releases );</span>
+        }
+        else
+        {
+<span class="nc" id="L811">            return null;</span>
+        }
+    }
+
+    private ArtifactRepository createRepository( String url, String repositoryId, boolean releases,
+                                                 String releaseUpdates, boolean snapshots, String snapshotUpdates,
+                                                 String checksumPolicy )
+    {
+<span class="fc" id="L819">        ArtifactRepositoryPolicy snapshotsPolicy =</span>
+            new ArtifactRepositoryPolicy( snapshots, snapshotUpdates, checksumPolicy );
+
+<span class="fc" id="L822">        ArtifactRepositoryPolicy releasesPolicy =</span>
+            new ArtifactRepositoryPolicy( releases, releaseUpdates, checksumPolicy );
+
+<span class="fc" id="L825">        return createArtifactRepository( repositoryId, url, null, snapshotsPolicy, releasesPolicy );</span>
+    }
+
+    public ArtifactRepository createArtifactRepository( String repositoryId, String url,
+                                                        ArtifactRepositoryLayout repositoryLayout,
+                                                        ArtifactRepositoryPolicy snapshots,
+                                                        ArtifactRepositoryPolicy releases )
+    {
+<span class="fc bfc" id="L833" title="All 2 branches covered.">        if ( repositoryLayout == null )</span>
+        {
+<span class="fc" id="L835">            repositoryLayout = layouts.get( &quot;default&quot; );</span>
+        }
+
+<span class="fc" id="L838">        ArtifactRepository artifactRepository =</span>
+            artifactRepositoryFactory.createArtifactRepository( repositoryId, url, repositoryLayout, snapshots,
+                                                                releases );
+
+<span class="fc" id="L842">        return artifactRepository;</span>
+    }
+
+    private static String getMessage( Throwable error, String def )
+    {
+<span class="nc bnc" id="L847" title="All 2 branches missed.">        if ( error == null )</span>
+        {
+<span class="nc" id="L849">            return def;</span>
+        }
+<span class="nc" id="L851">        String msg = error.getMessage();</span>
+<span class="nc bnc" id="L852" title="All 2 branches missed.">        if ( StringUtils.isNotEmpty( msg ) )</span>
+        {
+<span class="nc" id="L854">            return msg;</span>
+        }
+<span class="nc" id="L856">        return getMessage( error.getCause(), def );</span>
+    }
+
+    private ArtifactRepositoryLayout getLayout( String id )
+    {
+<span class="fc" id="L861">        ArtifactRepositoryLayout layout = layouts.get( id );</span>
+
+<span class="fc bfc" id="L863" title="All 2 branches covered.">        if ( layout == null )</span>
+        {
+<span class="fc" id="L865">            layout = new UnknownRepositoryLayout( id, layouts.get( &quot;default&quot; ) );</span>
+        }
+
+<span class="fc" id="L868">        return layout;</span>
+    }
+
+    /**
+     * In the future, the legacy system might encounter repository types for which no layout components exists because
+     * the actual communication with the repository happens via a repository connector. As a minimum, the legacy system
+     * needs to retain the id of this layout so that the content type of the remote repository can still be accurately
+     * described.
+     */
+<span class="fc" id="L877">    static class UnknownRepositoryLayout</span>
+        implements ArtifactRepositoryLayout
+    {
+
+        private final String id;
+
+        private final ArtifactRepositoryLayout fallback;
+
+        UnknownRepositoryLayout( String id, ArtifactRepositoryLayout fallback )
+<span class="fc" id="L886">        {</span>
+<span class="fc" id="L887">            this.id = id;</span>
+<span class="fc" id="L888">            this.fallback = fallback;</span>
+<span class="fc" id="L889">        }</span>
+
+        public String getId()
+        {
+<span class="fc" id="L893">            return id;</span>
+        }
+
+        public String pathOf( Artifact artifact )
+        {
+<span class="nc" id="L898">            return fallback.pathOf( artifact );</span>
+        }
+
+        public String pathOfLocalRepositoryMetadata( ArtifactMetadata metadata, ArtifactRepository repository )
+        {
+<span class="nc" id="L903">            return fallback.pathOfLocalRepositoryMetadata( metadata, repository );</span>
+        }
+
+        public String pathOfRemoteRepositoryMetadata( ArtifactMetadata metadata )
+        {
+<span class="nc" id="L908">            return fallback.pathOfRemoteRepositoryMetadata( metadata );</span>
+        }
+
+        @Override
+        public String toString()
+        {
+<span class="nc" id="L914">            return getId();</span>
+        }
+
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

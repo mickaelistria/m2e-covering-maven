@@ -1,0 +1,254 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultProfileInjector.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.model.profile</a> &gt; <span class="el_source">DefaultProfileInjector.java</span></div><h1>DefaultProfileInjector.java</h1><pre class="source lang-java linenums">package org.apache.maven.model.profile;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.maven.model.Build;
+import org.apache.maven.model.BuildBase;
+import org.apache.maven.model.Model;
+import org.apache.maven.model.ModelBase;
+import org.apache.maven.model.Plugin;
+import org.apache.maven.model.PluginContainer;
+import org.apache.maven.model.PluginExecution;
+import org.apache.maven.model.Profile;
+import org.apache.maven.model.ReportPlugin;
+import org.apache.maven.model.ReportSet;
+import org.apache.maven.model.Reporting;
+import org.apache.maven.model.building.ModelBuildingRequest;
+import org.apache.maven.model.building.ModelProblemCollector;
+import org.apache.maven.model.merge.MavenModelMerger;
+import org.codehaus.plexus.component.annotations.Component;
+
+/**
+ * Handles profile injection into the model.
+ *
+ * @author Benjamin Bentmann
+ */
+@Component( role = ProfileInjector.class )
+@SuppressWarnings( { &quot;checkstyle:methodname&quot; } )
+<span class="fc" id="L51">public class DefaultProfileInjector</span>
+    implements ProfileInjector
+{
+
+<span class="fc" id="L55">    private ProfileModelMerger merger = new ProfileModelMerger();</span>
+
+    @Override
+    public void injectProfile( Model model, Profile profile, ModelBuildingRequest request,
+                               ModelProblemCollector problems )
+    {
+<span class="pc bpc" id="L61" title="1 of 2 branches missed.">        if ( profile != null )</span>
+        {
+<span class="fc" id="L63">            merger.mergeModelBase( model, profile );</span>
+
+<span class="fc bfc" id="L65" title="All 2 branches covered.">            if ( profile.getBuild() != null )</span>
+            {
+<span class="pc bpc" id="L67" title="1 of 2 branches missed.">                if ( model.getBuild() == null )</span>
+                {
+<span class="nc" id="L69">                    model.setBuild( new Build() );</span>
+                }
+<span class="fc" id="L71">                merger.mergeBuildBase( model.getBuild(), profile.getBuild() );</span>
+            }
+        }
+<span class="fc" id="L74">    }</span>
+
+    /**
+     * ProfileModelMerger
+     */
+<span class="fc" id="L79">    protected static class ProfileModelMerger</span>
+        extends MavenModelMerger
+    {
+
+        public void mergeModelBase( ModelBase target, ModelBase source )
+        {
+<span class="fc" id="L85">            mergeModelBase( target, source, true, Collections.emptyMap() );</span>
+<span class="fc" id="L86">        }</span>
+
+        public void mergeBuildBase( BuildBase target, BuildBase source )
+        {
+<span class="fc" id="L90">            mergeBuildBase( target, source, true, Collections.emptyMap() );</span>
+<span class="fc" id="L91">        }</span>
+
+        @Override
+        protected void mergePluginContainer_Plugins( PluginContainer target, PluginContainer source,
+                                                     boolean sourceDominant, Map&lt;Object, Object&gt; context )
+        {
+<span class="fc" id="L97">            List&lt;Plugin&gt; src = source.getPlugins();</span>
+<span class="fc bfc" id="L98" title="All 2 branches covered.">            if ( !src.isEmpty() )</span>
+            {
+<span class="fc" id="L100">                List&lt;Plugin&gt; tgt = target.getPlugins();</span>
+<span class="fc" id="L101">                Map&lt;Object, Plugin&gt; master = new LinkedHashMap&lt;&gt;( tgt.size() * 2 );</span>
+
+<span class="fc bfc" id="L103" title="All 2 branches covered.">                for ( Plugin element : tgt )</span>
+                {
+<span class="fc" id="L105">                    Object key = getPluginKey( element );</span>
+<span class="fc" id="L106">                    master.put( key, element );</span>
+<span class="fc" id="L107">                }</span>
+
+<span class="fc" id="L109">                Map&lt;Object, List&lt;Plugin&gt;&gt; predecessors = new LinkedHashMap&lt;&gt;();</span>
+<span class="fc" id="L110">                List&lt;Plugin&gt; pending = new ArrayList&lt;&gt;();</span>
+<span class="fc bfc" id="L111" title="All 2 branches covered.">                for ( Plugin element : src )</span>
+                {
+<span class="fc" id="L113">                    Object key = getPluginKey( element );</span>
+<span class="fc" id="L114">                    Plugin existing = master.get( key );</span>
+<span class="fc bfc" id="L115" title="All 2 branches covered.">                    if ( existing != null )</span>
+                    {
+<span class="fc" id="L117">                        mergePlugin( existing, element, sourceDominant, context );</span>
+
+<span class="fc bfc" id="L119" title="All 2 branches covered.">                        if ( !pending.isEmpty() )</span>
+                        {
+<span class="fc" id="L121">                            predecessors.put( key, pending );</span>
+<span class="fc" id="L122">                            pending = new ArrayList&lt;&gt;();</span>
+                        }
+                    }
+                    else
+                    {
+<span class="fc" id="L127">                        pending.add( element );</span>
+                    }
+<span class="fc" id="L129">                }</span>
+
+<span class="fc" id="L131">                List&lt;Plugin&gt; result = new ArrayList&lt;&gt;( src.size() + tgt.size() );</span>
+<span class="fc bfc" id="L132" title="All 2 branches covered.">                for ( Map.Entry&lt;Object, Plugin&gt; entry : master.entrySet() )</span>
+                {
+<span class="fc" id="L134">                    List&lt;Plugin&gt; pre = predecessors.get( entry.getKey() );</span>
+<span class="fc bfc" id="L135" title="All 2 branches covered.">                    if ( pre != null )</span>
+                    {
+<span class="fc" id="L137">                        result.addAll( pre );</span>
+                    }
+<span class="fc" id="L139">                    result.add( entry.getValue() );</span>
+<span class="fc" id="L140">                }</span>
+<span class="fc" id="L141">                result.addAll( pending );</span>
+
+<span class="fc" id="L143">                target.setPlugins( result );</span>
+            }
+<span class="fc" id="L145">        }</span>
+
+        @Override
+        protected void mergePlugin_Executions( Plugin target, Plugin source, boolean sourceDominant,
+                                               Map&lt;Object, Object&gt; context )
+        {
+<span class="fc" id="L151">            List&lt;PluginExecution&gt; src = source.getExecutions();</span>
+<span class="fc bfc" id="L152" title="All 2 branches covered.">            if ( !src.isEmpty() )</span>
+            {
+<span class="fc" id="L154">                List&lt;PluginExecution&gt; tgt = target.getExecutions();</span>
+<span class="fc" id="L155">                Map&lt;Object, PluginExecution&gt; merged =</span>
+                    new LinkedHashMap&lt;&gt;( ( src.size() + tgt.size() ) * 2 );
+
+<span class="fc bfc" id="L158" title="All 2 branches covered.">                for ( PluginExecution element : tgt )</span>
+                {
+<span class="fc" id="L160">                    Object key = getPluginExecutionKey( element );</span>
+<span class="fc" id="L161">                    merged.put( key, element );</span>
+<span class="fc" id="L162">                }</span>
+
+<span class="fc bfc" id="L164" title="All 2 branches covered.">                for ( PluginExecution element : src )</span>
+                {
+<span class="fc" id="L166">                    Object key = getPluginExecutionKey( element );</span>
+<span class="fc" id="L167">                    PluginExecution existing = merged.get( key );</span>
+<span class="pc bpc" id="L168" title="1 of 2 branches missed.">                    if ( existing != null )</span>
+                    {
+<span class="nc" id="L170">                        mergePluginExecution( existing, element, sourceDominant, context );</span>
+                    }
+                    else
+                    {
+<span class="fc" id="L174">                        merged.put( key, element );</span>
+                    }
+<span class="fc" id="L176">                }</span>
+
+<span class="fc" id="L178">                target.setExecutions( new ArrayList&lt;&gt;( merged.values() ) );</span>
+            }
+<span class="fc" id="L180">        }</span>
+
+        @Override
+        protected void mergeReporting_Plugins( Reporting target, Reporting source, boolean sourceDominant,
+                                               Map&lt;Object, Object&gt; context )
+        {
+<span class="nc" id="L186">            List&lt;ReportPlugin&gt; src = source.getPlugins();</span>
+<span class="nc bnc" id="L187" title="All 2 branches missed.">            if ( !src.isEmpty() )</span>
+            {
+<span class="nc" id="L189">                List&lt;ReportPlugin&gt; tgt = target.getPlugins();</span>
+<span class="nc" id="L190">                Map&lt;Object, ReportPlugin&gt; merged =</span>
+                    new LinkedHashMap&lt;&gt;( ( src.size() + tgt.size() ) * 2 );
+
+<span class="nc bnc" id="L193" title="All 2 branches missed.">                for ( ReportPlugin element : tgt )</span>
+                {
+<span class="nc" id="L195">                    Object key = getReportPluginKey( element );</span>
+<span class="nc" id="L196">                    merged.put( key, element );</span>
+<span class="nc" id="L197">                }</span>
+
+<span class="nc bnc" id="L199" title="All 2 branches missed.">                for ( ReportPlugin element : src )</span>
+                {
+<span class="nc" id="L201">                    Object key = getReportPluginKey( element );</span>
+<span class="nc" id="L202">                    ReportPlugin existing = merged.get( key );</span>
+<span class="nc bnc" id="L203" title="All 2 branches missed.">                    if ( existing == null )</span>
+                    {
+<span class="nc" id="L205">                        merged.put( key, element );</span>
+                    }
+                    else
+                    {
+<span class="nc" id="L209">                        mergeReportPlugin( existing, element, sourceDominant, context );</span>
+                    }
+<span class="nc" id="L211">                }</span>
+
+<span class="nc" id="L213">                target.setPlugins( new ArrayList&lt;&gt;( merged.values() ) );</span>
+            }
+<span class="nc" id="L215">        }</span>
+
+        @Override
+        protected void mergeReportPlugin_ReportSets( ReportPlugin target, ReportPlugin source, boolean sourceDominant,
+                                                     Map&lt;Object, Object&gt; context )
+        {
+<span class="nc" id="L221">            List&lt;ReportSet&gt; src = source.getReportSets();</span>
+<span class="nc bnc" id="L222" title="All 2 branches missed.">            if ( !src.isEmpty() )</span>
+            {
+<span class="nc" id="L224">                List&lt;ReportSet&gt; tgt = target.getReportSets();</span>
+<span class="nc" id="L225">                Map&lt;Object, ReportSet&gt; merged = new LinkedHashMap&lt;&gt;( ( src.size() + tgt.size() ) * 2 );</span>
+
+<span class="nc bnc" id="L227" title="All 2 branches missed.">                for ( ReportSet element : tgt )</span>
+                {
+<span class="nc" id="L229">                    Object key = getReportSetKey( element );</span>
+<span class="nc" id="L230">                    merged.put( key, element );</span>
+<span class="nc" id="L231">                }</span>
+
+<span class="nc bnc" id="L233" title="All 2 branches missed.">                for ( ReportSet element : src )</span>
+                {
+<span class="nc" id="L235">                    Object key = getReportSetKey( element );</span>
+<span class="nc" id="L236">                    ReportSet existing = merged.get( key );</span>
+<span class="nc bnc" id="L237" title="All 2 branches missed.">                    if ( existing != null )</span>
+                    {
+<span class="nc" id="L239">                        mergeReportSet( existing, element, sourceDominant, context );</span>
+                    }
+                    else
+                    {
+<span class="nc" id="L243">                        merged.put( key, element );</span>
+                    }
+<span class="nc" id="L245">                }</span>
+
+<span class="nc" id="L247">                target.setReportSets( new ArrayList&lt;&gt;( merged.values() ) );</span>
+            }
+<span class="nc" id="L249">        }</span>
+
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

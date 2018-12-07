@@ -1,0 +1,193 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>AbstractMojo.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.plugin</a> &gt; <span class="el_source">AbstractMojo.java</span></div><h1>AbstractMojo.java</h1><pre class="source lang-java linenums">package org.apache.maven.plugin;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *  http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.Map;
+
+import org.apache.maven.plugin.logging.Log;
+import org.apache.maven.plugin.logging.SystemStreamLog;
+
+/**
+ * Abstract class to provide most of the infrastructure required to implement a &lt;code&gt;Mojo&lt;/code&gt; except for
+ * the execute method.&lt;br&gt;
+ * The implementation should have a &lt;code&gt;Mojo&lt;/code&gt; annotation with the name of the goal:
+ * &lt;pre&gt;
+ *   &amp;#64;Mojo( name = &quot;&amp;lt;goal-name&amp;gt;&quot; )
+ * &lt;/pre&gt;
+ * &lt;p&gt;
+ * There are also a number of attributes which can be used to control how and when the
+ * &lt;code&gt;Mojo&lt;/code&gt; is executed:
+ * &lt;/p&gt;
+ * &lt;table border=&quot;1&quot; summary=&quot;mojo annotation attributes&quot;&gt;
+ *  &lt;tr bgcolor=&quot;#CCCCCC&quot;&gt;
+ *      &lt;th&gt;Descriptor Element&lt;/th&gt;
+ *      &lt;th&gt;Annotation&lt;/th&gt;
+ *      &lt;th&gt;Required?&lt;/th&gt;
+ *      &lt;th&gt;Notes&lt;/th&gt;
+ *  &lt;/tr&gt;
+ *  &lt;tr&gt;
+ *      &lt;td&gt;goal&lt;/td&gt;
+ *      &lt;td&gt;name = &quot;&amp;lt;goal-name&amp;gt;&quot;&lt;/td&gt;
+ *      &lt;td&gt;Yes&lt;/td&gt;
+ *      &lt;td&gt;The name for the Mojo that users will reference from the command line to execute the Mojo directly,
+ *      or inside a POM in order to provide Mojo-specific configuration.&lt;/td&gt;
+ *  &lt;/tr&gt;
+ *  &lt;tr&gt;
+ *      &lt;td&gt;implementation&lt;/td&gt;
+ *      &lt;td&gt;none (detected)&lt;/td&gt;
+ *      &lt;td&gt;Yes&lt;/td&gt;
+ *      &lt;td&gt;The Mojo's fully-qualified class name (or script path in the case of non-Java Mojos).&lt;/td&gt;
+ *  &lt;/tr&gt;
+ *  &lt;tr&gt;
+ *      &lt;td&gt;language&lt;/td&gt;
+ *      &lt;td&gt;none (detected)&lt;/td&gt;
+ *      &lt;td&gt;No. Default: &lt;code&gt;java&lt;/code&gt;&lt;/td&gt;
+ *      &lt;td&gt;The implementation language for this Mojo (Java, beanshell, etc.).&lt;/td&gt;
+ *  &lt;/tr&gt;
+ *  &lt;tr&gt;
+ *      &lt;td&gt;configurator&lt;/td&gt;
+ *      &lt;td&gt;configurator = &quot;&amp;lt;role-hint&amp;gt;&quot;&lt;/td&gt;
+ *      &lt;td&gt;No&lt;/td&gt;
+ *      &lt;td&gt;The configurator type to use when injecting parameter values into this Mojo. The value is normally
+ *          deduced from the Mojo's implementation language, but can be specified to allow a custom
+ *          ComponentConfigurator implementation to be used.
+ *          &lt;br&gt;
+ *          &lt;i&gt;NOTE: This will only be used in very special cases, using a highly controlled vocabulary of possible
+ *          values. (Elements like this are why it's a good idea to use the descriptor tools.)&lt;/i&gt;
+ *      &lt;/td&gt;
+ *   &lt;/tr&gt;
+ *   &lt;tr&gt;
+ *      &lt;td&gt;phase&lt;/td&gt;
+ *      &lt;td&gt;defaultPhase = LifecyclePhase.&amp;lt;phase&amp;gt;&lt;/td&gt;
+ *      &lt;td&gt;No&lt;/td&gt;
+ *      &lt;td&gt;Binds this Mojo to a particular phase of the standard build lifecycle, if specified.
+ *          &lt;br&gt;
+ *          &lt;i&gt;NOTE: This is only required if this Mojo is to participate in the standard build process.&lt;/i&gt;
+ *      &lt;/td&gt;
+ *   &lt;/tr&gt;
+ *   &lt;tr&gt;
+ *      &lt;td&gt;execute&lt;/td&gt;
+ *      &lt;td&gt;@Execute
+ *       ( phase=LifecyclePhase.&amp;lt;phase&amp;gt;, goal= &quot;&amp;lt;goal-name&amp;gt;&quot;, lifecycle=&quot;&amp;lt;lifecycle-id&amp;gt;&quot; )&lt;/td&gt;
+ *      &lt;td&gt;No&lt;/td&gt;
+ *      &lt;td&gt;When this goal is invoked, it will first invoke a parallel lifecycle, ending at the given phase.
+ *          If a goal is provided instead of a phase, that goal will be executed in isolation.
+ *          The execution of either will not affect the current project, but instead make available the
+ *          &lt;code&gt;${executedProject}&lt;/code&gt; expression if required. An alternate lifecycle can also be provided:
+ *          for more information see the documentation on the
+ *          &lt;a href=&quot;https://maven.apache.org/guides/introduction/introduction-to-the-lifecycle.html&quot;
+ *             target=&quot;_blank&quot;&gt;build lifecycle&lt;/a&gt;.
+ *      &lt;/td&gt;
+ *   &lt;/tr&gt;
+ *   &lt;tr&gt;
+ *      &lt;td&gt;requiresDependencyResolution&lt;/td&gt;
+ *      &lt;td&gt;requiresDependencyResolution = ResolutionScope.&amp;lt;scope&amp;gt;&lt;/td&gt;
+ *      &lt;td&gt;No&lt;/td&gt;
+ *      &lt;td&gt;Flags this Mojo as requiring the dependencies in the specified scope (or an implied scope) to be
+ *          resolved before it can execute.
+ *          &lt;br&gt;
+ *          &lt;i&gt;NOTE: Currently supports &lt;b&gt;compile&lt;/b&gt;, &lt;b&gt;runtime&lt;/b&gt;, and &lt;b&gt;test&lt;/b&gt; scopes.&lt;/i&gt;
+ *      &lt;/td&gt;
+ *   &lt;/tr&gt;
+ *   &lt;tr&gt;
+ *      &lt;td&gt;description&lt;/td&gt;
+ *      &lt;td&gt;none (detected)&lt;/td&gt;
+ *      &lt;td&gt;No&lt;/td&gt;
+ *      &lt;td&gt;The description of this Mojo's functionality. Using the toolset, this will be the class-level
+ *          Javadoc description provided.&lt;br&gt;
+ *          &lt;i&gt;NOTE: While this is not a required part of the Mojo specification, it &lt;b&gt;SHOULD&lt;/b&gt; be provided to
+ *          enable future tool support for browsing, etc. and for clarity.&lt;/i&gt;
+ *      &lt;/td&gt;
+ *   &lt;/tr&gt;
+ *   &lt;tr&gt;
+ *      &lt;td&gt;parameters&lt;/td&gt;
+ *      &lt;td&gt;N/A&lt;/td&gt;
+ *      &lt;td&gt;No&lt;/td&gt;
+ *      &lt;td&gt;Specifications for the parameters which this Mojo uses will be provided in &lt;b&gt;parameter&lt;/b&gt; sub-elements
+ *          in this section.
+ *          &lt;br&gt;
+ *          &lt;i&gt;NOTE: Parameters are discussed in more detail below.&lt;/i&gt;
+ *      &lt;/td&gt;
+ *   &lt;/tr&gt;
+ * &lt;/table&gt;
+ * &lt;p&gt;This is only a small set of all the options. A complete list can be found at 
+ * &lt;a href=&quot;https://maven.apache.org/components/plugin-tools/maven-plugin-tools-annotations/index.html&quot; target=&quot;_blank&quot;&gt;
+ * Maven Plugin Tool for Annotations&lt;/a&gt;. 
+ *
+ * @see &lt;a href=&quot;https://maven.apache.org/guides/plugin/guide-java-plugin-development.html&quot; target=&quot;_blank&quot;&gt;Guide to Developing Java Plugins&lt;/a&gt;
+ * @see &lt;a href=&quot;https://maven.apache.org/guides/mini/guide-configuring-plugins.html&quot; target=&quot;_blank&quot;&gt;Guide to Configuring Plug-ins&lt;/a&gt;
+ * @see &lt;a href=&quot;https://maven.apache.org/developers/mojo-api-specification.html&quot; target=&quot;_blank&quot;&gt;Mojo API Specification&lt;/a&gt;
+ *
+ * @author &lt;a href=&quot;mailto:brett@apache.org&quot;&gt;Brett Porter&lt;/a&gt;
+ * @author jdcasey
+ * @author &lt;a href=&quot;mailto:vincent.siveton@gmail.com&quot;&gt;Vincent Siveton&lt;/a&gt;
+ */
+<span class="fc" id="L142">public abstract class AbstractMojo</span>
+    implements Mojo, ContextEnabled
+{
+    /** Instance logger */
+    private Log log;
+
+    /** Plugin container context */
+    private Map pluginContext;
+
+    @Override
+    public void setLog( Log log )
+    {
+<span class="fc" id="L154">        this.log = log;</span>
+<span class="fc" id="L155">    }</span>
+
+    /**
+     * &lt;p&gt;
+     * Returns the logger that has been injected into this mojo. If no logger has been setup yet, a
+     * &lt;code&gt;SystemStreamLog&lt;/code&gt; logger will be created and returned.
+     * &lt;/p&gt;
+     * &lt;strong&gt;Note:&lt;/strong&gt;
+     * The logger returned by this method must not be cached in an instance field during the construction of the mojo.
+     * This would cause the mojo to use a wrongly configured default logger when being run by Maven. The proper logger
+     * gets injected by the Plexus container &lt;em&gt;after&lt;/em&gt; the mojo has been constructed. Therefore, simply call this
+     * method directly whenever you need the logger, it is fast enough and needs no caching.
+     *
+     * @see org.apache.maven.plugin.Mojo#getLog()
+     */
+    @Override
+    public Log getLog()
+    {
+<span class="pc bpc" id="L173" title="1 of 2 branches missed.">        if ( log == null )</span>
+        {
+<span class="nc" id="L175">            log = new SystemStreamLog();</span>
+        }
+
+<span class="fc" id="L178">        return log;</span>
+    }
+
+    @Override
+    public Map getPluginContext()
+    {
+<span class="nc" id="L184">        return pluginContext;</span>
+    }
+
+    @Override
+    public void setPluginContext( Map pluginContext )
+    {
+<span class="fc" id="L190">        this.pluginContext = pluginContext;</span>
+<span class="fc" id="L191">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>

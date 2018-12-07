@@ -1,0 +1,139 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>DefaultModelNormalizer.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">m2e-core-tests coverage of Maven</a> &gt; <a href="index.source.html" class="el_package">org.apache.maven.model.normalization</a> &gt; <span class="el_source">DefaultModelNormalizer.java</span></div><h1>DefaultModelNormalizer.java</h1><pre class="source lang-java linenums">package org.apache.maven.model.normalization;
+
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * &quot;License&quot;); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * &quot;AS IS&quot; BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import org.apache.maven.model.Build;
+import org.apache.maven.model.Dependency;
+import org.apache.maven.model.Model;
+import org.apache.maven.model.Plugin;
+import org.apache.maven.model.building.ModelBuildingRequest;
+import org.apache.maven.model.building.ModelProblemCollector;
+import org.apache.maven.model.merge.MavenModelMerger;
+import org.codehaus.plexus.component.annotations.Component;
+import org.codehaus.plexus.util.StringUtils;
+
+/**
+ * Handles normalization of a model.
+ *
+ * @author Benjamin Bentmann
+ */
+@Component( role = ModelNormalizer.class )
+<span class="fc" id="L44">public class DefaultModelNormalizer</span>
+    implements ModelNormalizer
+{
+
+<span class="fc" id="L48">    private DuplicateMerger merger = new DuplicateMerger();</span>
+
+    @Override
+    public void mergeDuplicates( Model model, ModelBuildingRequest request, ModelProblemCollector problems )
+    {
+<span class="fc" id="L53">        Build build = model.getBuild();</span>
+<span class="fc bfc" id="L54" title="All 2 branches covered.">        if ( build != null )</span>
+        {
+<span class="fc" id="L56">            List&lt;Plugin&gt; plugins = build.getPlugins();</span>
+<span class="fc" id="L57">            Map&lt;Object, Plugin&gt; normalized = new LinkedHashMap&lt;&gt;( plugins.size() * 2 );</span>
+
+<span class="fc bfc" id="L59" title="All 2 branches covered.">            for ( Plugin plugin : plugins )</span>
+            {
+<span class="fc" id="L61">                Object key = plugin.getKey();</span>
+<span class="fc" id="L62">                Plugin first = normalized.get( key );</span>
+<span class="fc bfc" id="L63" title="All 2 branches covered.">                if ( first != null )</span>
+                {
+<span class="fc" id="L65">                    merger.mergePlugin( plugin, first );</span>
+                }
+<span class="fc" id="L67">                normalized.put( key, plugin );</span>
+<span class="fc" id="L68">            }</span>
+
+<span class="fc bfc" id="L70" title="All 2 branches covered.">            if ( plugins.size() != normalized.size() )</span>
+            {
+<span class="fc" id="L72">                build.setPlugins( new ArrayList&lt;&gt;( normalized.values() ) );</span>
+            }
+        }
+
+        /*
+         * NOTE: This is primarily to keep backward-compat with Maven 2.x which did not validate that dependencies are
+         * unique within a single POM. Upon multiple declarations, 2.x just kept the last one but retained the order of
+         * the first occurrence. So when we're in lenient/compat mode, we have to deal with such broken POMs and mimic
+         * the way 2.x works. When we're in strict mode, the removal of duplicates just saves other merging steps from
+         * aftereffects and bogus error messages.
+         */
+<span class="fc" id="L83">        List&lt;Dependency&gt; dependencies = model.getDependencies();</span>
+<span class="fc" id="L84">        Map&lt;String, Dependency&gt; normalized = new LinkedHashMap&lt;&gt;( dependencies.size() * 2 );</span>
+
+<span class="fc bfc" id="L86" title="All 2 branches covered.">        for ( Dependency dependency : dependencies )</span>
+        {
+<span class="fc" id="L88">            normalized.put( dependency.getManagementKey(), dependency );</span>
+<span class="fc" id="L89">        }</span>
+
+<span class="pc bpc" id="L91" title="1 of 2 branches missed.">        if ( dependencies.size() != normalized.size() )</span>
+        {
+<span class="nc" id="L93">            model.setDependencies( new ArrayList&lt;&gt;( normalized.values() ) );</span>
+        }
+<span class="fc" id="L95">    }</span>
+
+    /**
+     * DuplicateMerger
+     */
+<span class="fc" id="L100">    protected static class DuplicateMerger</span>
+        extends MavenModelMerger
+    {
+
+        public void mergePlugin( Plugin target, Plugin source )
+        {
+<span class="fc" id="L106">            super.mergePlugin( target, source, false, Collections.emptyMap() );</span>
+<span class="fc" id="L107">        }</span>
+
+    }
+
+    @Override
+    public void injectDefaultValues( Model model, ModelBuildingRequest request, ModelProblemCollector problems )
+    {
+<span class="fc" id="L114">        injectDependencyDefaults( model.getDependencies() );</span>
+
+<span class="fc" id="L116">        Build build = model.getBuild();</span>
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">        if ( build != null )</span>
+        {
+<span class="fc bfc" id="L119" title="All 2 branches covered.">            for ( Plugin plugin : build.getPlugins() )</span>
+            {
+<span class="fc" id="L121">                injectDependencyDefaults( plugin.getDependencies() );</span>
+<span class="fc" id="L122">            }</span>
+        }
+<span class="fc" id="L124">    }</span>
+
+    private void injectDependencyDefaults( List&lt;Dependency&gt; dependencies )
+    {
+<span class="fc bfc" id="L128" title="All 2 branches covered.">        for ( Dependency dependency : dependencies )</span>
+        {
+<span class="fc bfc" id="L130" title="All 2 branches covered.">            if ( StringUtils.isEmpty( dependency.getScope() ) )</span>
+            {
+                // we cannot set this directly in the MDO due to the interactions with dependency management
+<span class="fc" id="L133">                dependency.setScope( &quot;compile&quot; );</span>
+            }
+<span class="fc" id="L135">        }</span>
+<span class="fc" id="L136">    }</span>
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.2.201808211720</span></div></body></html>
